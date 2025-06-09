@@ -103,11 +103,7 @@ export function determine_action(ns, server) {
 }
 
 function should_home_assist(ns, server, action) {
-	const { moneyRatio, securityDiff, maxMoney } = get_server_metrics(ns, server)
-
-	return (action === "grow" && moneyRatio < ASSIST_MONEY_THRESHOLD) ||
-	(action === "weaken" && securityDiff > ASSIST_SECURITY_THRESHOLD) ||
-	(maxMoney > ASSIST_VALUE_THRESHOLD)
+	return true
 }
 
 function update_servers(ns) {
