@@ -84,8 +84,8 @@ function determine_action(ns, server){
 **/
 export async function main(ns) {
 	disable_logs(ns)
-	update_servers(ns, SERVERS)
 	while (true) {
+		update_servers(ns, SERVERS)
 		for (let server in SERVERS) {
 			if (!ns.hasRootAccess(server)) {
 				continue
