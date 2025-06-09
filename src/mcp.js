@@ -344,7 +344,9 @@ export async function main(ns) {
 
 			// Track home assistance
 			if (needsAssist) {
-				serversNeedingHomeHelp.push({ server, action })
+				// If server needs hack, assist servers should grow instead to avoid depleting money
+				const assistAction = action === "hack" ? "grow" : action
+				serversNeedingHomeHelp.push({ server, action: assistAction })
 			}
 			SERVERS[server]["needsHomeAssist"] = needsAssist
 
