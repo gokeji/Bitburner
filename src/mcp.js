@@ -94,7 +94,7 @@ function get_server_metrics(ns, server) {
 	}
 }
 
-function determine_action(ns, server) {
+export function determine_action(ns, server) {
 	const { moneyRatio, securityDiff, money } = get_server_metrics(ns, server)
 
 	if (securityDiff >= SEC_THRESHOLD) return "weaken"

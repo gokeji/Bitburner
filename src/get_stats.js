@@ -8,6 +8,7 @@ RAM: 2.55GB
 
 // Import shared constants to avoid sync issues
 import { SEC_THRESHOLD, MONEY_PERCENTAGE, MONEY_MINIMUM } from "lib/constants.js"
+import { determine_action } from "mcp.js"
 
 function get_all_servers(ns, all=false) {
 	/*
@@ -61,12 +62,7 @@ function get_home_assistance(ns, server) {
 
 // NEW: Check if server should be hacking based on thresholds from constants
 function should_be_hacking(ns, server) {
-	var money = ns.getServerMoneyAvailable(server)
-	var maxMoney = ns.getServerMaxMoney(server)
-	var moneyRatio = money / maxMoney
-	var secDiff = ns.getServerSecurityLevel(server) - ns.getServerMinSecurityLevel(server)
-
-	return secDiff < SEC_THRESHOLD && (moneyRatio >= MONEY_PERCENTAGE && money >= MONEY_MINIMUM)
+	return determine_action(ns, server) === "hack"
 }
 
 function pad_str(string, len) {
