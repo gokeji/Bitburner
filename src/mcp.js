@@ -3,7 +3,7 @@
  **/
 
 // Import shared constants to avoid sync issues
-import { SEC_THRESHOLD, MONEY_PERCENTAGE, MONEY_MINIMUM } from "lib/constants.js"
+import { SEC_THRESHOLD, MONEY_PERCENTAGE, MONEY_MINIMUM, MONEY_MAX_PERCENTAGE } from "lib/constants.js"
 
 // Local configuration constants
 const SLEEP_TIME = 1          // Minutes between cycles
@@ -98,7 +98,7 @@ function determine_action(ns, server) {
 	const { moneyRatio, securityDiff, money } = get_server_metrics(ns, server)
 
 	if (securityDiff >= SEC_THRESHOLD) return "weaken"
-	if (moneyRatio < MONEY_PERCENTAGE || money < MONEY_MINIMUM) return "grow"
+	if ((moneyRatio < MONEY_PERCENTAGE || money < MONEY_MINIMUM) && moneyRatio < MONEY_MAX_PERCENTAGE) return "grow"
 	return "hack" // Can hack with sufficient money AND percentage
 }
 
