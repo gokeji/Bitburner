@@ -1,6 +1,6 @@
 /** @param {NS} ns */
 export async function main(ns) {
-    const upgradeThreshold = 0.01; // Fraction of your money to use for upgrades
+    const upgradeThreshold = 0.91; // Fraction of your money to use for upgrades
     //Basically means I'll use 99% of my money to upgrade
 
     // Calculate the initial buffer amount
@@ -19,7 +19,7 @@ export async function main(ns) {
         if (numNodes > 0) {
             newNodeIncome = ns.hacknet.getNodeStats(0).production;
         }
-        const newNodeEfficiency = newNodeCost / (newNodeIncome + 1); 
+        const newNodeEfficiency = newNodeCost / (newNodeIncome + 1);
         // Add 1 to avoid division by zero
 
         let bestUpgrade = null;
