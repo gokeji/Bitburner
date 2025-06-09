@@ -344,8 +344,15 @@ export async function main(ns) {
 
 			// Track home assistance
 			if (needsAssist) {
-				// If server needs hack, assist servers should grow instead to avoid depleting money
-				const assistAction = action === "hack" ? "grow" : action
+				// Get server metrics to check money ratio
+				const { moneyRatio } = get_server_metrics(ns, server)
+
+				// If server needs hack but isn't at 90%+ money, assist with grow instead
+				let assistAction = action
+				if (action === "hack" && moneyRatio <= 0.9) {
+					assistAction = "grow"
+				}
+
 				serversNeedingHomeHelp.push({ server, action: assistAction })
 			}
 			SERVERS[server]["needsHomeAssist"] = needsAssist
