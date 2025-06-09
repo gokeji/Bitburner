@@ -36,6 +36,17 @@ function get_all_servers(ns, all=false) {
 	return result
 }
 
+// Get purchased servers (servers with no money but have RAM) - reused from mcp.js
+function get_purchased_servers(ns) {
+	const allServers = get_all_servers(ns, true)
+	return allServers.filter(server =>
+		ns.hasRootAccess(server) &&
+		ns.getServerMaxMoney(server) === 0 &&
+		ns.getServerMaxRam(server) > 0 &&
+		server !== "home"
+	)
+}
+
 function get_action(ns, host) {
 	/*
 	Gets the first action in the list and returns it with thread count.
@@ -47,17 +58,35 @@ function get_action(ns, host) {
 	} : { action: null, threads: 0 }
 }
 
-// NEW: Check if home server is assisting this server
+// Enhanced: Check assistance from all available servers (home + purchased servers)
 function get_home_assistance(ns, server) {
-	var homeProcesses = ns.ps("home")
-	for (var process of homeProcesses) {
-		if (process.filename === "scripts/home_assist.js" &&
-			process.args.length >= 2 &&
-			process.args[1] === server) {
-			return `${process.args[0]}(${process.threads}t)`
+	const purchasedServers = get_purchased_servers(ns)
+	const assistanceServers = ["home", ...purchasedServers]
+	const assistanceInfo = []
+
+	for (const assistServer of assistanceServers) {
+		const processes = ns.ps(assistServer)
+		for (const process of processes) {
+			if (process.filename === "scripts/home_assist.js" &&
+				process.args.length >= 2 &&
+				process.args[1] === server) {
+				assistanceInfo.push({
+					server: assistServer,
+					action: process.args[0],
+					threads: process.threads
+				})
+			}
 		}
 	}
-	return null
+
+	if (assistanceInfo.length === 0) return null
+
+	// Format assistance info: action(totalThreads) from X servers
+	const totalThreads = assistanceInfo.reduce((sum, info) => sum + info.threads, 0)
+	const action = assistanceInfo[0].action // All should be the same action
+	const serverCount = assistanceInfo.length
+
+	return `${action}(${totalThreads}t:${serverCount})`
 }
 
 // NEW: Check if server should be hacking based on thresholds from constants
@@ -105,12 +134,12 @@ function get_server_data(ns, server) {
 			` RAM:${pad_str(parseInt(ram), 4)}` +
 			` Action:${pad_str(actionDisplay, 12)}`
 
-	// NEW: Add home assistance status in brackets
+	// Enhanced: Add assistance status from all servers
 	if (homeAssist) {
-		result += ` [Home: ${homeAssist}]`
+		result += ` [Assist: ${homeAssist}]`
 	}
 
-	// NEW: Add status indicator for servers ready to hack
+	// Add status indicator for servers ready to hack
 	if (shouldHack && actionInfo.action !== "hack") {
 		result += " [READY TO HACK]"
 	} else if (actionInfo.action === "hack") {
