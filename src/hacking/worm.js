@@ -42,8 +42,9 @@ export async function main(ns) {
 	// Running assumption that hacking level is high enough. This is checked in crawler.js
 	ns.tprint(server, " hacking level:", ns.getServerRequiredHackingLevel(server))
 	let req_ports = ns.getServerNumPortsRequired(server)
-	if (req_ports > 0 && run_hacks(ns, server, hacks_dict) < req_ports) {
-			ns.tprint("not enough ports open")
+	let open_ports = run_hacks(ns, server, hacks_dict)
+	if (req_ports > 0 && open_ports < req_ports) {
+			ns.tprint("not enough ports open. Need", req_ports, "ports. Only", open_ports, "ports open.")
 			ns.exit()
 	}
 	ns.nuke(server)
