@@ -1,10 +1,14 @@
-/** 
- * @param {NS} ns 
+/**
+ * @param {NS} ns
  **/
  /*
 Gets stats of each hacked server.
 RAM: 2.55GB
  */
+
+// Import shared constants to avoid sync issues
+import { SEC_THRESHOLD, MONEY_PERCENTAGE, MONEY_MINIMUM } from "lib/constants.js"
+
 function get_all_servers(ns, all=false) {
 	/*
 	Scans and iterates through all servers.
@@ -42,17 +46,40 @@ function get_action(ns, host) {
 	return actions[0].filename.replace("scripts/", "").replace(".js", "")
 }
 
+// NEW: Check if home server is assisting this server
+function get_home_assistance(ns, server) {
+	var homeProcesses = ns.ps("home")
+	for (var process of homeProcesses) {
+		if (process.filename === "scripts/home_assist.js" &&
+			process.args.length >= 2 &&
+			process.args[1] === server) {
+			return `${process.args[0]}(${process.threads}t)`
+		}
+	}
+	return null
+}
+
+// NEW: Check if server should be hacking based on thresholds from constants
+function should_be_hacking(ns, server) {
+	var money = ns.getServerMoneyAvailable(server)
+	var maxMoney = ns.getServerMaxMoney(server)
+	var moneyRatio = money / maxMoney
+	var secDiff = ns.getServerSecurityLevel(server) - ns.getServerMinSecurityLevel(server)
+
+	return secDiff < SEC_THRESHOLD && (moneyRatio >= MONEY_PERCENTAGE && money >= MONEY_MINIMUM)
+}
+
 function pad_str(string, len) {
 	/*
 	Prepends the requested padding to the string.
 	*/
-	var pad = "                      "
+	var pad = "                          "  // Extended for home assistance column
 	return String(pad + string).slice(-len)
 }
 
 function get_server_data(ns, server) {
 	/*
-	Creates the info text for each server. Currently gets money, security, and ram.
+	Creates the info text for each server. Currently gets money, security, RAM, and home assistance.
 	NOTE: ns.getServer() can return a server object and obtain all of the necessary properties.
 	However, ns.getServer() costs 2GB, which doubles the RAM requirement for this script.
 	*/
@@ -61,11 +88,37 @@ function get_server_data(ns, server) {
 	var securityLvl = ns.getServerSecurityLevel(server)
 	var securityMin = ns.getServerMinSecurityLevel(server)
 	var ram = ns.getServerMaxRam(server)
-	return `${pad_str(server, 17)}`+
-			` money:${pad_str(parseInt(moneyAvailable), 12)}/${pad_str(parseInt(moneyMax), 12)}(${pad_str((moneyAvailable / moneyMax).toFixed(2), 4)})` +
-			` security:${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(securityMin, 2)})` +
+	var action = get_action(ns, server)
+	var homeAssist = get_home_assistance(ns, server)  // NEW: Check home assistance
+	var shouldHack = should_be_hacking(ns, server)    // NEW: Check if should be hacking
+
+	// Format money with M suffix for millions
+	var formatMoney = (amount) => {
+		if (amount >= 1000000) {
+			return (amount / 1000000).toFixed(0) + "M"
+		}
+		return parseInt(amount).toString()
+	}
+
+	var result = `${pad_str(server, 15)}`+
+			` money:${pad_str(parseInt(moneyAvailable), 10)}/${pad_str(formatMoney(moneyMax), 5)}(${pad_str((moneyAvailable / moneyMax).toFixed(2), 4)})` +
+			` sec:${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(securityMin, 2)})` +
 			` RAM:${pad_str(parseInt(ram), 4)}` +
-			` Action:${pad_str(get_action(ns, server),7)}`
+			` Action:${pad_str(action || "none", 7)}`
+
+	// NEW: Add home assistance status in brackets
+	if (homeAssist) {
+		result += ` [Home: ${homeAssist}]`
+	}
+
+	// NEW: Add status indicator for servers ready to hack
+	if (shouldHack && action !== "hack") {
+		result += " [READY TO HACK]"
+	} else if (action === "hack") {
+		result += " [HACKING $$]"
+	}
+
+	return result
 }
 
 function get_servers(ns) {
