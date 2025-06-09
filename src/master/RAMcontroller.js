@@ -22,18 +22,18 @@ ns.exec('master/ipvgo.js', "home");
         const maxRam = ns.getServerMaxRam('home');
         const usedRam = ns.getServerUsedRam('home');
         const availableRam = maxRam - usedRam;
-        const totalRAM = availableRam - maxRam * 0.01;
+        const totalRAM = availableRam - maxRam * 0.02;
         */
-        
+
         const maxRam = ns.getServerMaxRam('home');
         const usedRam = ns.getServerUsedRam('home');
-        const initialRam = maxRam - maxRam * 0.01 - 20;
+        const initialRam = maxRam - maxRam * 0.02 - 20;
         const totalRAM = initialRam - usedRam;
 
         const sleepTime = 1;
 
         if (totalRAM <= 0) {
-            ns.print("No RAM available after reserving 1% of maximum RAM.");
+            ns.print("No RAM available after reserving 2% of maximum RAM.");
             await ns.sleep(sleepTime);
             continue;
         }

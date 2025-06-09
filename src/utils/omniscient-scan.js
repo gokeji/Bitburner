@@ -1,8 +1,28 @@
 /** @param {NS} ns */
 export async function main(ns) {
-    const allListFile = "all-list.txt";      // The file with initial list of servers
-    const detectedListFile = "detected-list.txt";  // The file to store newly detected servers
-    const scanRange = 5;  // Max range for scan-analyze
+    const allListFile = "all-list.txt";        // The master list of all servers
+    const detectedListFile = "detected-list.txt";  // The file to store detailed server info
+
+    // Simple function to get all reachable servers (from mcp.js approach)
+    function get_all_servers(ns) {
+        const servers = ["home"]
+        const result = []
+        let i = 0
+
+        while (i < servers.length) {
+            const server = servers[i]
+            const connections = ns.scan(server)
+
+            for (const connection of connections) {
+                if (!servers.includes(connection)) {
+                    servers.push(connection)
+                    result.push(connection)
+                }
+            }
+            i++
+        }
+        return result
+    }
 
     // Utility to read file and return an array of lines, properly trimmed of whitespace
     async function readList(fileName) {
@@ -15,87 +35,62 @@ export async function main(ns) {
         }
     }
 
-    // Utility to write new entries to detected-list.txt
-    async function appendToDetectedList(content) {
-        await ns.write(detectedListFile, content + "\n", "a");
-    }
-
     // Utility to extract the server name from detected-list.txt lines
     function extractServerNameFromDetected(line) {
         const match = line.match(/SW Name:\s*([^,]*)/);
         return match ? match[1].trim() : null;
     }
 
-    // Recursive function to scan server neighbors up to a specific depth
-    async function deepScan(server, depth) {
-        if (depth === 0) return [];
-
-        const neighbors = ns.scan(server);
-        let allServers = [...neighbors]; // Collect all neighbors at this level
-
-        // Recurse into each neighbor to scan its neighbors, reducing depth
-        for (const neighbor of neighbors) {
-            if (neighbor !== 'home') { // Skip 'home'
-                allServers = allServers.concat(await deepScan(neighbor, depth - 1));
-            }
-            await ns.sleep(1);
-        }
-        return allServers;
-    }
-
-    // Fetch list of all currently known servers from both all-list and detected-list
-    let allList = await readList(allListFile);
-    let detectedList = await readList(detectedListFile).then(lines => lines.map(extractServerNameFromDetected).filter(Boolean));
-
-    // Set to keep track of already scanned servers, excluding "home"
-    let scannedServers = new Set([...allList, ...detectedList, 'home']); // Add 'home' to the excluded set
+    // Clear both files to start fresh
+    await ns.write(allListFile, "", "w");
+    await ns.write(detectedListFile, "", "w");
 
     ns.tprint("Starting the omniscient scan...");
 
-    // Function to scan a server and look for new ones
-    async function scanServer(server) {
-        if (server === 'home') return; // Skip 'home' server
-        ns.print(`Analyzing server: ${server}`);
-        // Get deeper scan results using scanRange
-        const scanResults = await deepScan(server, scanRange);
+    // Get all reachable servers
+    const allServers = get_all_servers(ns);
 
-        // Analyze each detected server
-        for (const detectedServer of scanResults) {
-            // Skip if the server has already been scanned or is 'home'
-            if (scannedServers.has(detectedServer) || detectedServer === 'home') continue;
+    let newServersFound = 0;
 
-            // Record server details
-            const reqHack = ns.getServerRequiredHackingLevel(detectedServer);
-            const openPorts = ns.getServerNumPortsRequired(detectedServer);
-            const serverInfo = `SW Name: ${detectedServer} , Req. Hack: ${reqHack} , Ports: ${openPorts} , Adjacent: ${server}`;
+    // Write all servers to all-list.txt (one per line)
+    for (const server of allServers) {
+        if (server === 'home') continue; // Skip home server
 
-            // Add detected server to detected list and scannedServers
-            await appendToDetectedList(serverInfo);
-            scannedServers.add(detectedServer);
-
-            ns.print(`New server detected: ${serverInfo}`);
-            await ns.sleep(1);
-        }
+        await ns.write(allListFile, server + "\n", "a");
+        newServersFound++;
     }
 
-    // Main scanning process loop
-    let serversToScan = [...allList]; // Start with the all-list servers
+    // Also create detailed info in detected-list.txt
+    for (const server of allServers) {
+        if (server === 'home') continue;
 
-    while (serversToScan.length > 0) {
-        const currentServer = serversToScan.shift();
-        await scanServer(currentServer);  // Scan current server
+        try {
+            // Get server information
+            const reqHack = ns.getServerRequiredHackingLevel(server);
+            const openPorts = ns.getServerNumPortsRequired(server);
+            const maxMoney = ns.getServerMaxMoney(server);
 
-        // Refresh the detected list and add newly detected servers to the queue
-        const newDetectedList = await readList(detectedListFile).then(lines => lines.map(extractServerNameFromDetected).filter(Boolean));
-        for (const serverName of newDetectedList) {
-            if (!scannedServers.has(serverName)) {
-                serversToScan.push(serverName);
-                scannedServers.add(serverName);
+            // Find what server this one is connected to (for "Adjacent" field)
+            let adjacentServer = "unknown";
+            const connections = ns.scan(server);
+            if (connections.length > 0) {
+                // Try to find a meaningful adjacent server (not just "home")
+                adjacentServer = connections.find(s => s !== "home") || connections[0];
             }
+
+            const serverInfo = `SW Name: ${server} , Req. Hack: ${reqHack} , Ports: ${openPorts} , Max Money: ${maxMoney} , Adjacent: ${adjacentServer}`;
+
+            // Write to detected list
+            await ns.write(detectedListFile, serverInfo + "\n", "a");
+
+            ns.print(`Found server: ${server} (Hack: ${reqHack}, Ports: ${openPorts}, Money: $${maxMoney})`);
             await ns.sleep(1);
+        } catch (error) {
+            ns.print(`Error scanning server ${server}: ${error}`);
         }
-        await ns.sleep(1);
     }
 
-    ns.tprint("The omniscient scan is complete. Check the 'detected-list.txt' file.");
+    ns.tprint(`Omniscient scan complete! Found ${newServersFound} servers total.`);
+    ns.tprint(`Server list saved to '${allListFile}' and detailed info saved to '${detectedListFile}'.`);
+    ns.tprint(`Total reachable servers: ${allServers.length} (including home)`);
 }
