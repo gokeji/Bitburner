@@ -101,7 +101,7 @@ function get_server_data(ns, server) {
 	}
 
 	var result = `${pad_str(server, 15)}`+
-			` money:${pad_str(parseInt(moneyAvailable), 10)}/${pad_str(formatMoney(moneyMax), 5)}(${pad_str((moneyAvailable / moneyMax).toFixed(2), 4)})` +
+			` money:${pad_str(parseInt(moneyAvailable), 10)}/${pad_str(formatMoney(moneyMax), 5)}(${pad_str((moneyAvailable / moneyMax).toFixed(3), 4)})` +
 			` sec:${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(securityMin, 2)})` +
 			` RAM:${pad_str(parseInt(ram), 4)}` +
 			` Action:${pad_str(action || "none", 7)}`
