@@ -38,13 +38,13 @@ function get_all_servers(ns, all=false) {
 
 function get_action(ns, host) {
 	/*
-	Gets the first action in the list and returns it.
+	Gets the first action in the list and returns it with thread count.
 	*/
 	var actions = ns.ps(host)
-	if (actions.length == 0) {
-		return null
-	}
-	return actions[0].filename.replace("scripts/", "").replace(".js", "")
+	return actions.length > 0 ? {
+		action: actions[0].filename.replace("scripts/", "").replace(".js", ""),
+		threads: actions[0].threads
+	} : { action: null, threads: 0 }
 }
 
 // NEW: Check if home server is assisting this server
@@ -84,7 +84,7 @@ function get_server_data(ns, server) {
 	var securityLvl = ns.getServerSecurityLevel(server)
 	var securityMin = ns.getServerMinSecurityLevel(server)
 	var ram = ns.getServerMaxRam(server)
-	var action = get_action(ns, server)
+	var actionInfo = get_action(ns, server)
 	var homeAssist = get_home_assistance(ns, server)  // NEW: Check home assistance
 	var shouldHack = should_be_hacking(ns, server)    // NEW: Check if should be hacking
 
@@ -96,11 +96,14 @@ function get_server_data(ns, server) {
 		return parseInt(amount).toString()
 	}
 
+	// Format action with thread count for remote servers
+	var actionDisplay = actionInfo.action ? (server !== "home" && actionInfo.threads > 0 ? `${actionInfo.action}(${actionInfo.threads}t)` : actionInfo.action) : "none"
+
 	var result = `${pad_str(server, 15)}`+
 			` money:${pad_str(parseInt(moneyAvailable), 10)}/${pad_str(formatMoney(moneyMax), 5)}(${pad_str((moneyAvailable / moneyMax).toFixed(3), 4)})` +
 			` sec:${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(securityMin, 2)})` +
 			` RAM:${pad_str(parseInt(ram), 4)}` +
-			` Action:${pad_str(action || "none", 7)}`
+			` Action:${pad_str(actionDisplay, 12)}`
 
 	// NEW: Add home assistance status in brackets
 	if (homeAssist) {
@@ -108,9 +111,9 @@ function get_server_data(ns, server) {
 	}
 
 	// NEW: Add status indicator for servers ready to hack
-	if (shouldHack && action !== "hack") {
+	if (shouldHack && actionInfo.action !== "hack") {
 		result += " [READY TO HACK]"
-	} else if (action === "hack") {
+	} else if (actionInfo.action === "hack") {
 		result += " [HACKING $$]"
 	}
 
