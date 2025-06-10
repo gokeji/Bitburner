@@ -5,6 +5,6 @@
 
 // Hacking thresholds
 export const SEC_THRESHOLD = 10      // Security difference threshold
-export const MONEY_PERCENTAGE = 0.1 // Start hacking at 10% money
+export const MONEY_PERCENTAGE = 0.5 // Start hacking at 50% money
 export const MONEY_MAX_PERCENTAGE = 0.9 // Stop growing at 50% money
 export const MONEY_MINIMUM = 2000000 // Minimum absolute money threshold
