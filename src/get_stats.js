@@ -126,7 +126,7 @@ function get_server_data(ns, server) {
 	}
 
 	// Format action with thread count for remote servers
-	var actionDisplay = actionInfo.action ? (server !== "home" && actionInfo.threads > 0 ? `${actionInfo.action}(${actionInfo.threads}t)` : actionInfo.action) : "none"
+	var actionDisplay = actionInfo.action ? `${actionInfo.action}(${actionInfo.threads}t)` : "none"
 
 	var result = `${pad_str(server, 15)}`+
 			` money:${pad_str(parseInt(moneyAvailable), 10)}/${pad_str(formatMoney(moneyMax), 5)}(${pad_str((moneyAvailable / moneyMax).toFixed(3), 4)})` +
@@ -135,9 +135,7 @@ function get_server_data(ns, server) {
 			` Action:${pad_str(actionDisplay, 12)}`
 
 	// Enhanced: Add assistance status from all servers
-	if (homeAssist) {
-		result += ` [Assist: ${homeAssist}]`
-	}
+		result += homeAssist ? pad_str(` [+${homeAssist}]`, 18) : pad_str("", 18)
 
 	// Add status indicator for servers ready to hack
 	if (shouldHack && actionInfo.action !== "hack") {
@@ -194,6 +192,16 @@ export async function main(ns) {
 		// Chart mode: dynamic updating terminal display
 		ns.ui.openTail()
 		ns.disableLog('ALL')
+
+		// Calculate window size in pixels
+		// Approximate: 8px per character width, 16px per line height
+		// Table width is ~120 characters, so width = 120 * 8 = 960px
+		// Height: headers(3) + servers + footers(3) + buffer(5) = (servers.length + 11) * 16
+		const windowWidth = 120 * 10  // 120 characters * 8px per char
+		const windowHeight = (servers.length + 11) * 22  // lines * 16px per line
+
+		ns.ui.resizeTail(windowWidth, windowHeight)
+		ns.ui.moveTail(120, 20)
 
 		while (true) {
 			ns.clearLog()
