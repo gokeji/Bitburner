@@ -118,18 +118,26 @@ function get_server_data(ns, server) {
 	var shouldHack = should_be_hacking(ns, server)    // NEW: Check if should be hacking
 
 	// Format money with M suffix for millions
-	var formatMoney = (amount) => {
+	var formatMoney = (amount, digits = 0) => {
 		if (amount >= 1000000) {
-			return (amount / 1000000).toFixed(0) + "M"
+			return (amount / 1000000).toFixed(digits) + "M"
 		}
 		return parseInt(amount).toString()
+	}
+
+	// Format percentage with % suffix
+	var formatPercentage = (amount, digits = 0) => {
+		if (amount == 1) {
+			return "100%"
+		}
+		return (amount * 100).toFixed(digits) + "%"
 	}
 
 	// Format action with thread count for remote servers
 	var actionDisplay = actionInfo.action ? `${actionInfo.action}(${actionInfo.threads}t)` : "none"
 
 	var result = `${pad_str(server, 15)}`+
-			` money:${pad_str(parseInt(moneyAvailable), 10)}/${pad_str(formatMoney(moneyMax), 5)}(${pad_str((moneyAvailable / moneyMax).toFixed(3), 4)})` +
+			` money:${pad_str(formatMoney(moneyAvailable, 3), 10)}/${pad_str(formatMoney(moneyMax), 6)}${pad_str(`(${formatPercentage((moneyAvailable / moneyMax), 1)})`, 8)}` +
 			` sec:${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(securityMin, 2)})` +
 			` RAM:${pad_str(parseInt(ram), 4)}` +
 			` Action:${pad_str(actionDisplay, 12)}`
@@ -197,8 +205,8 @@ export async function main(ns) {
 		// Approximate: 8px per character width, 16px per line height
 		// Table width is ~120 characters, so width = 120 * 8 = 960px
 		// Height: headers(3) + servers + footers(3) + buffer(5) = (servers.length + 11) * 16
-		const windowWidth = 120 * 10  // 120 characters * 8px per char
-		const windowHeight = (servers.length + 11) * 22  // lines * 16px per line
+		const windowWidth = 120 * 10.5  // 120 characters * 8px per char
+		const windowHeight = (servers.length + 11) * 22.2  // lines * 16px per line
 
 		ns.ui.resizeTail(windowWidth, windowHeight)
 		ns.ui.moveTail(120, 20)
