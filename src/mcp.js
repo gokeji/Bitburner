@@ -102,6 +102,7 @@ export function determine_action(ns, server) {
 }
 
 function should_home_assist(ns, server, action) {
+	if (server === "n00dles") return false
 	return true
 }
 
@@ -129,13 +130,10 @@ async function update_servers(ns) {
 }
 
 // Get purchased servers (servers with no money but have RAM)
-function get_purchased_servers(ns) {
+export function get_purchased_servers(ns) {
 	const allServers = get_all_servers(ns)
 	return allServers.filter(server =>
-		ns.hasRootAccess(server) &&
-		ns.getServerMaxMoney(server) === 0 &&
-		ns.getServerMaxRam(server) > 0 &&
-		server !== "home"
+		ns.getServer(server).purchasedByPlayer
 	)
 }
 
@@ -245,7 +243,7 @@ async function execute_home_assistance(ns, serversNeedingHelp) {
 		const serverThreadLimits = {}
 		serversNeedingNewAssistance.forEach(({ server, action }) => {
 			if (action === "hack") {
-				serverThreadLimits[server] = 50  // Hard cap for hack
+				serverThreadLimits[server] = 100  // Hard cap for hack
 			} else {
 				serverThreadLimits[server] = fairSharePerServer  // Fair share for grow/weaken
 			}

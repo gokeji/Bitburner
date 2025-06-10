@@ -3,6 +3,8 @@
  * @param {NS} ns
  */
 
+import { get_purchased_servers } from "../mcp.js"
+
 const HOME_ASSIST_SCRIPT = "scripts/home_assist.js"
 
 function disable_logs(ns) {
@@ -28,17 +30,6 @@ function get_all_servers(ns) {
 		i++
 	}
 	return result
-}
-
-// Get purchased servers (servers with no money but have RAM)
-function get_purchased_servers(ns) {
-	const allServers = get_all_servers(ns)
-	return allServers.filter(server =>
-		ns.hasRootAccess(server) &&
-		ns.getServerMaxMoney(server) === 0 &&
-		ns.getServerMaxRam(server) > 0 &&
-		server !== "home"
-	)
 }
 
 function cleanup_home_assist_processes(ns) {
