@@ -16,6 +16,7 @@ const ASSIST_VALUE_THRESHOLD = 20000000 // Assist high-value servers
 
 // Track current home assistance state
 let HOME_ASSISTANCE_STATE = {}
+let LAST_SERVER_COUNT = 0  // Track server count changes
 
 let SERVERS = {
 	"crush-fitness": { "action": null, "servers": ["CSEC"], "needsHomeAssist": false },
@@ -109,8 +110,18 @@ function should_home_assist(ns, server, action) {
 	return true
 }
 
-function update_servers(ns) {
+async function update_servers(ns) {
 	const allServers = get_all_servers(ns)
+	const purchasedServers = get_purchased_servers(ns)
+	const currentServerCount = allServers.length + purchasedServers.length
+
+	// Detect if new servers were added
+	const serversChanged = currentServerCount !== LAST_SERVER_COUNT
+	if (serversChanged && LAST_SERVER_COUNT > 0) {
+		ns.print(`Server count changed from ${LAST_SERVER_COUNT} to ${currentServerCount} - cleaning up processes`)
+		await cleanup_all_processes(ns)
+	}
+	LAST_SERVER_COUNT = currentServerCount
 
 	for (const server of allServers) {
 		if (parseInt(ns.getServerMaxMoney(server)) === 0) continue
@@ -158,7 +169,7 @@ function kill_home_assist_for_target(ns, targetServer) {
 	}
 }
 
-function execute_home_assistance(ns, serversNeedingHelp) {
+async function execute_home_assistance(ns, serversNeedingHelp) {
 	// Handle servers that no longer need assistance or have changed actions
 	for (const targetServer of Object.keys(HOME_ASSISTANCE_STATE)) {
 		const currentAssistance = HOME_ASSISTANCE_STATE[targetServer]
@@ -179,7 +190,7 @@ function execute_home_assistance(ns, serversNeedingHelp) {
 
 	if (serversNeedingNewAssistance.length === 0) return
 
-	// Get all available servers for assistance (home + purchased servers)
+		// Get all available servers for assistance (home + purchased servers)
 	const purchasedServers = get_purchased_servers(ns)
 	const assistanceServers = ["home", ...purchasedServers]
 
@@ -187,6 +198,8 @@ function execute_home_assistance(ns, serversNeedingHelp) {
 	if (purchasedServers.length > 0) {
 		ns.print(`Using ${purchasedServers.length} purchased servers for assistance: ${purchasedServers.join(", ")}`)
 	}
+
+	const scriptRam = ns.getScriptRam(HOME_ASSIST_SCRIPT)
 
 	// Calculate available RAM for each assistance server
 	const serverRamInfo = []
@@ -196,12 +209,13 @@ function execute_home_assistance(ns, serversNeedingHelp) {
 		const reservedRam = assistServer === "home" ? HOME_RESERVED_RAM : 0
 		const availableRam = Math.max(0, maxRam - usedRam - reservedRam)
 
-		if (availableRam > 0) {
+		if (availableRam >= scriptRam) { // Only include if we can run at least one thread
 			serverRamInfo.push({ server: assistServer, availableRam })
 		}
 	}
 
-	const scriptRam = ns.getScriptRam(HOME_ASSIST_SCRIPT)
+	// Sort by available RAM (largest first) for better distribution
+	serverRamInfo.sort((a, b) => b.availableRam - a.availableRam)
 
 	// Calculate total threads available across all servers
 	const totalAvailableThreads = serverRamInfo.reduce((sum, info) =>
@@ -245,7 +259,16 @@ function execute_home_assistance(ns, serversNeedingHelp) {
 					)
 
 					if (threadsToAssign > 0) {
-						ns.exec(HOME_ASSIST_SCRIPT, assistServer, threadsToAssign, action, targetServer)
+						const pid = ns.exec(HOME_ASSIST_SCRIPT, assistServer, threadsToAssign, action, targetServer)
+
+						// Check if execution failed (returns 0 on failure)
+						if (pid === 0) {
+							ns.print(`WARNING: Failed to execute ${HOME_ASSIST_SCRIPT} on ${assistServer} - possible RAM conflict`)
+							// Force cleanup and retry in next cycle
+							await force_ram_reallocation(ns)
+							return
+						}
+
 						threadsUsed += threadsToAssign
 
 						// Update state tracking - accumulate total threads
@@ -259,7 +282,8 @@ function execute_home_assistance(ns, serversNeedingHelp) {
 						HOME_ASSISTANCE_STATE[targetServer].totalThreads += threadsToAssign
 						HOME_ASSISTANCE_STATE[targetServer].assignments.push({
 							server: assistServer,
-							threads: threadsToAssign
+							threads: threadsToAssign,
+							pid: pid
 						})
 					}
 
@@ -314,6 +338,54 @@ function start_ipvgo_if_not_running(ns) {
 	}
 }
 
+// Add comprehensive cleanup function
+async function cleanup_all_processes(ns) {
+	const purchasedServers = get_purchased_servers(ns)
+	const assistanceServers = ["home", ...purchasedServers]
+
+	let totalKilled = 0
+
+	// Kill all home assistance processes
+	for (const assistServer of assistanceServers) {
+		const processes = ns.ps(assistServer).filter(p => p.filename === HOME_ASSIST_SCRIPT)
+		processes.forEach(p => {
+			ns.kill(p.pid)
+			totalKilled++
+		})
+	}
+
+	// Kill all execute processes on purchased servers
+	for (const server of purchasedServers) {
+		const processes = ns.ps(server).filter(p => p.filename === EXECUTE_SCRIPT)
+		processes.forEach(p => {
+			ns.kill(p.pid)
+			totalKilled++
+		})
+	}
+
+	// Clear assistance state
+	HOME_ASSISTANCE_STATE = {}
+
+	if (totalKilled > 0) {
+		ns.print(`Cleaned up ${totalKilled} old processes`)
+	}
+
+	// Wait for cleanup to complete
+	await ns.sleep(1000)
+}
+
+// Force cleanup and reallocation when RAM issues are detected
+async function force_ram_reallocation(ns) {
+	ns.print("Forcing RAM reallocation due to allocation conflicts")
+	await cleanup_all_processes(ns)
+
+	// Wait longer for all processes to fully terminate
+	await ns.sleep(2000)
+
+	// Clear any lingering state
+	HOME_ASSISTANCE_STATE = {}
+}
+
 /**
  * @param {NS} ns
  */
@@ -321,9 +393,15 @@ export async function main(ns) {
 	disable_logs(ns)
 	ns.tprint("Enhanced MCP started - leveraging home and purchased servers for assistance")
 
+	// Initialize server count
+	const allServers = get_all_servers(ns)
+	const purchasedServers = get_purchased_servers(ns)
+	LAST_SERVER_COUNT = allServers.length + purchasedServers.length
+	ns.print(`Initial server count: ${LAST_SERVER_COUNT}`)
+
 	while (true) {
 		ensure_scripts_on_servers(ns)
-		update_servers(ns)
+		await update_servers(ns)
 		start_ipvgo_if_not_running(ns)
 
 		const serversNeedingHomeHelp = []
@@ -368,7 +446,7 @@ export async function main(ns) {
 			}
 		}
 
-		execute_home_assistance(ns, serversNeedingHomeHelp)
+		await execute_home_assistance(ns, serversNeedingHomeHelp)
 
 		// Status summary
 		const purchasedServers = get_purchased_servers(ns)
