@@ -7,7 +7,6 @@ RAM: 2.55GB
  */
 
 // Import shared constants to avoid sync issues
-import { SEC_THRESHOLD, MONEY_PERCENTAGE, MONEY_MINIMUM } from "lib/constants.js"
 import { determine_action } from "mcp.js"
 
 function get_all_servers(ns, all=false) {
@@ -205,8 +204,8 @@ export async function main(ns) {
 		// Approximate: 8px per character width, 16px per line height
 		// Table width is ~120 characters, so width = 120 * 8 = 960px
 		// Height: headers(3) + servers + footers(3) + buffer(5) = (servers.length + 11) * 16
-		const windowWidth = 120 * 10.5  // 120 characters * 8px per char
-		const windowHeight = (servers.length + 11) * 22.2  // lines * 16px per line
+		const windowWidth = 123 * 10  // 120 characters * 8px per char
+		const windowHeight = (servers.length + 4) * 26  // lines * 16px per line
 
 		ns.ui.resizeTail(windowWidth, windowHeight)
 		ns.ui.moveTail(120, 20)
@@ -218,7 +217,6 @@ export async function main(ns) {
 			const chartData = generate_chart_data(ns, servers)
 
 			// Add header
-			ns.print(`Server Stats Chart - Refreshing every ${refreshRate}ms`)
 			ns.print(`Time: ${new Date().toLocaleTimeString()}`)
 			ns.print('='.repeat(120))
 
@@ -230,7 +228,6 @@ export async function main(ns) {
 			// Add footer with summary
 			ns.print('='.repeat(120))
 			ns.print(`Total servers: ${servers.length}`)
-			ns.print(`Press Ctrl+C to stop chart mode`)
 
 			await ns.sleep(refreshRate)
 		}
