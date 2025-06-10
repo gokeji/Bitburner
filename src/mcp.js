@@ -7,7 +7,7 @@ import { SEC_THRESHOLD, MONEY_PERCENTAGE, MONEY_MINIMUM, MONEY_MAX_PERCENTAGE } 
 
 // Local configuration constants
 const SLEEP_TIME = 0.2          // Minutes between cycles
-const HOME_RESERVED_RAM = 8   // Reserve RAM on home for other scripts
+const HOME_RESERVED_RAM = 16   // Reserve RAM on home for other scripts
 
 // Track current home assistance state
 let HOME_ASSISTANCE_STATE = {}
@@ -196,43 +196,66 @@ async function execute_home_assistance(ns, serversNeedingHelp) {
 
 	const scriptRam = ns.getScriptRam(HOME_ASSIST_SCRIPT)
 
-	// Calculate available RAM for each assistance server
+	// Calculate max theoretical capacity for each assistance server
 	const serverRamInfo = []
+	let totalMaxThreads = 0
+
 	for (const assistServer of assistanceServers) {
 		const maxRam = ns.getServerMaxRam(assistServer)
 		const usedRam = ns.getServerUsedRam(assistServer)
 		const reservedRam = assistServer === "home" ? HOME_RESERVED_RAM : 0
-		const availableRam = Math.max(0, maxRam - usedRam - reservedRam)
+		const maxAvailableRam = Math.max(0, maxRam - reservedRam)
+		const currentAvailableRam = Math.max(0, maxRam - usedRam - reservedRam)
 
-		if (availableRam >= scriptRam) { // Only include if we can run at least one thread
-			serverRamInfo.push({ server: assistServer, availableRam })
+		if (maxAvailableRam >= scriptRam) { // Only include if we can theoretically run at least one thread
+			const maxThreadsOnServer = Math.floor(maxAvailableRam / scriptRam)
+			const currentAvailableThreads = Math.floor(currentAvailableRam / scriptRam)
+
+			serverRamInfo.push({
+				server: assistServer,
+				maxAvailableRam,
+				availableRam: currentAvailableRam,
+				maxThreads: maxThreadsOnServer,
+				availableThreads: currentAvailableThreads
+			})
+			totalMaxThreads += maxThreadsOnServer
 		}
 	}
 
 	// Sort by available RAM (largest first) for better distribution
 	serverRamInfo.sort((a, b) => b.availableRam - a.availableRam)
 
-	// Calculate total threads available across all servers
-	const totalAvailableThreads = serverRamInfo.reduce((sum, info) =>
-		sum + Math.floor(info.availableRam / scriptRam), 0
-	)
+	// Calculate total currently available threads (not theoretical max)
+	const totalCurrentlyAvailableThreads = serverRamInfo.reduce((sum, info) => sum + info.availableThreads, 0)
 
-		if (totalAvailableThreads > 0) {
-		// Simple round-robin distribution - give each target a fair share
-		const baseThreadsPerTarget = Math.floor(totalAvailableThreads / serversNeedingNewAssistance.length)
-		const minThreadsPerTarget = Math.max(1, baseThreadsPerTarget)
+		if (totalMaxThreads > 0 && totalCurrentlyAvailableThreads > 0) {
+		// Calculate fair share based on theoretical maximum capacity (for consistent allocation)
+		const fairSharePerServer = Math.floor(totalMaxThreads / serversNeedingHelp.length)
 
-		// Track threads assigned to each target
+		ns.print(`Thread allocation: ${totalCurrentlyAvailableThreads} available, ${totalMaxThreads} max capacity`)
+		ns.print(`Fair share calculation: ${totalMaxThreads} ÷ ${serversNeedingHelp.length} = ${fairSharePerServer} per server`)
+
+		// Track threads already assigned to each target
 		const targetThreadCounts = {}
 		serversNeedingNewAssistance.forEach(({ server }) => {
 			targetThreadCounts[server] = HOME_ASSISTANCE_STATE[server] ? HOME_ASSISTANCE_STATE[server].totalThreads : 0
 		})
 
+		// Calculate expected thread limits for each server that needs new assistance
+		const serverThreadLimits = {}
+		serversNeedingNewAssistance.forEach(({ server, action }) => {
+			if (action === "hack") {
+				serverThreadLimits[server] = 50  // Hard cap for hack
+			} else {
+				serverThreadLimits[server] = fairSharePerServer  // Fair share for grow/weaken
+			}
+		})
+
 		let totalDistributedThreads = 0
 		let currentTargetIndex = 0
 
-		for (const { server: assistServer, availableRam } of serverRamInfo) {
-			const maxThreadsOnServer = Math.floor(availableRam / scriptRam)
+		for (const { server: assistServer, availableRam, availableThreads } of serverRamInfo) {
+			const maxThreadsOnServer = availableThreads
 			let threadsUsed = 0
 
 			ns.print(`Distributing ${maxThreadsOnServer} threads from ${assistServer}`)
@@ -269,20 +292,15 @@ async function execute_home_assistance(ns, serversNeedingHelp) {
 				// If we still can't find a target, we're done
 				if (targetServer === null) break
 
-				// Calculate how many threads to assign based on fair share
+								// Calculate how many threads to assign based on fair share and limits
 				const currentThreads = targetThreadCounts[targetServer] || 0
-				let maxAllowedThreads = Math.min(
+				const serverLimit = serverThreadLimits[targetServer] || fairSharePerServer
+				const remainingAllowedThreads = Math.max(0, serverLimit - currentThreads)
+
+				const threadsToAssign = Math.min(
 					maxThreadsOnServer - threadsUsed,
-					Math.max(1, minThreadsPerTarget - currentThreads + 1)
+					remainingAllowedThreads
 				)
-
-				// Limit hack actions to maximum 50 threads to prevent server depletion
-				if (targetAction === "hack") {
-					const remainingHackThreads = Math.max(0, 50 - currentThreads)
-					maxAllowedThreads = Math.min(maxAllowedThreads, remainingHackThreads)
-				}
-
-				const threadsToAssign = maxAllowedThreads
 
 				if (threadsToAssign > 0) {
 					const pid = ns.exec(HOME_ASSIST_SCRIPT, assistServer, threadsToAssign, targetAction, targetServer)
