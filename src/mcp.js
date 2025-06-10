@@ -271,10 +271,18 @@ async function execute_home_assistance(ns, serversNeedingHelp) {
 
 				// Calculate how many threads to assign based on fair share
 				const currentThreads = targetThreadCounts[targetServer] || 0
-				const threadsToAssign = Math.min(
+				let maxAllowedThreads = Math.min(
 					maxThreadsOnServer - threadsUsed,
 					Math.max(1, minThreadsPerTarget - currentThreads + 1)
 				)
+
+				// Limit hack actions to maximum 50 threads to prevent server depletion
+				if (targetAction === "hack") {
+					const remainingHackThreads = Math.max(0, 50 - currentThreads)
+					maxAllowedThreads = Math.min(maxAllowedThreads, remainingHackThreads)
+				}
+
+				const threadsToAssign = maxAllowedThreads
 
 				if (threadsToAssign > 0) {
 					const pid = ns.exec(HOME_ASSIST_SCRIPT, assistServer, threadsToAssign, targetAction, targetServer)
