@@ -6,11 +6,6 @@ Lists the RAM and cores for all servers you own (home + purchased servers).
 RAM: 1.75GB
  */
 
-// Cost calculation functions (same as in money.purchasedservers.js)
-const powerToRam = (power) => {
-	return Math.pow(2, power);
-}
-
 const calculateServerCost = (ram) => {
 	const cost_per_ram = 55000;
 	return cost_per_ram * ram;

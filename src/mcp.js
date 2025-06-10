@@ -8,6 +8,7 @@ import { SEC_THRESHOLD, MONEY_PERCENTAGE, MONEY_MINIMUM, MONEY_MAX_PERCENTAGE } 
 // Local configuration constants
 const SLEEP_TIME = 0.2          // Minutes between cycles
 const HOME_RESERVED_RAM = 16   // Reserve RAM on home for other scripts
+const MAX_HACK_THREADS = 130
 
 // Track current home assistance state
 let HOME_ASSISTANCE_STATE = {}
@@ -243,7 +244,7 @@ async function execute_home_assistance(ns, serversNeedingHelp) {
 		const serverThreadLimits = {}
 		serversNeedingNewAssistance.forEach(({ server, action }) => {
 			if (action === "hack") {
-				serverThreadLimits[server] = 100  // Hard cap for hack
+				serverThreadLimits[server] = MAX_HACK_THREADS  // Hard cap for hack
 			} else {
 				serverThreadLimits[server] = fairSharePerServer  // Fair share for grow/weaken
 			}
@@ -465,7 +466,7 @@ export async function main(ns) {
 
 				// If server needs hack but isn't at 90%+ money, assist with grow instead
 				let assistAction = action
-				if (action === "hack" && moneyRatio <= 0.9) {
+				if (action === "hack" && moneyRatio <= MONEY_MAX_PERCENTAGE) {
 					assistAction = "grow"
 				}
 
