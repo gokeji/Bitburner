@@ -222,83 +222,109 @@ async function execute_home_assistance(ns, serversNeedingHelp) {
 		sum + Math.floor(info.availableRam / scriptRam), 0
 	)
 
-	if (totalAvailableThreads > 0) {
-		const threadsPerTarget = Math.floor(totalAvailableThreads / serversNeedingNewAssistance.length)
+		if (totalAvailableThreads > 0) {
+		// Simple round-robin distribution - give each target a fair share
+		const baseThreadsPerTarget = Math.floor(totalAvailableThreads / serversNeedingNewAssistance.length)
+		const minThreadsPerTarget = Math.max(1, baseThreadsPerTarget)
 
-		if (threadsPerTarget > 0) {
-			// Distribute threads more evenly by cycling through targets
-			const targetQueue = [...serversNeedingNewAssistance]
-			let currentTargetIndex = 0
+		// Track threads assigned to each target
+		const targetThreadCounts = {}
+		serversNeedingNewAssistance.forEach(({ server }) => {
+			targetThreadCounts[server] = HOME_ASSISTANCE_STATE[server] ? HOME_ASSISTANCE_STATE[server].totalThreads : 0
+		})
 
-			for (const { server: assistServer, availableRam } of serverRamInfo) {
-				const maxThreadsOnServer = Math.floor(availableRam / scriptRam)
-				let threadsUsed = 0
+		let totalDistributedThreads = 0
+		let currentTargetIndex = 0
 
-				// Distribute threads for this assistance server
-				while (threadsUsed < maxThreadsOnServer && targetQueue.length > 0) {
-					const { server: targetServer, action } = targetQueue[currentTargetIndex]
+		for (const { server: assistServer, availableRam } of serverRamInfo) {
+			const maxThreadsOnServer = Math.floor(availableRam / scriptRam)
+			let threadsUsed = 0
 
-					// Calculate how many threads this target still needs
-					const currentState = HOME_ASSISTANCE_STATE[targetServer]
-					const threadsAlreadyAssigned = currentState ? currentState.totalThreads : 0
-					const threadsStillNeeded = threadsPerTarget - threadsAlreadyAssigned
+			ns.print(`Distributing ${maxThreadsOnServer} threads from ${assistServer}`)
 
-					if (threadsStillNeeded <= 0) {
-						// This target is fully assigned, remove from queue
-						targetQueue.splice(currentTargetIndex, 1)
-						if (currentTargetIndex >= targetQueue.length) {
-							currentTargetIndex = 0
+			// Keep assigning threads until this server is full
+			while (threadsUsed < maxThreadsOnServer && serversNeedingNewAssistance.length > 0) {
+				// Find target with fewest threads assigned (round-robin with preference for underutilized)
+				let targetServer = null
+				let targetAction = null
+				let minThreads = Infinity
+
+				// Look for targets that still need threads
+				for (const { server, action } of serversNeedingNewAssistance) {
+					const currentThreads = targetThreadCounts[server] || 0
+					if (currentThreads < minThreads) {
+						minThreads = currentThreads
+						targetServer = server
+						targetAction = action
+					}
+				}
+
+				// If all targets have at least the minimum, pick the one with the least
+				if (targetServer === null) {
+					for (const { server, action } of serversNeedingNewAssistance) {
+						const currentThreads = targetThreadCounts[server] || 0
+						if (currentThreads < minThreads) {
+							minThreads = currentThreads
+							targetServer = server
+							targetAction = action
 						}
-						continue
+					}
+				}
+
+				// If we still can't find a target, we're done
+				if (targetServer === null) break
+
+				// Calculate how many threads to assign based on fair share
+				const currentThreads = targetThreadCounts[targetServer] || 0
+				const threadsToAssign = Math.min(
+					maxThreadsOnServer - threadsUsed,
+					Math.max(1, minThreadsPerTarget - currentThreads + 1)
+				)
+
+				if (threadsToAssign > 0) {
+					const pid = ns.exec(HOME_ASSIST_SCRIPT, assistServer, threadsToAssign, targetAction, targetServer)
+
+					// Check if execution failed (returns 0 on failure)
+					if (pid === 0) {
+						ns.print(`WARNING: Failed to execute ${HOME_ASSIST_SCRIPT} on ${assistServer} - possible RAM conflict`)
+						// Force cleanup and retry in next cycle
+						await force_ram_reallocation(ns)
+						return
 					}
 
-					// Assign threads to this target
-					const threadsToAssign = Math.min(
-						threadsStillNeeded,
-						maxThreadsOnServer - threadsUsed
-					)
+					threadsUsed += threadsToAssign
+					totalDistributedThreads += threadsToAssign
+					targetThreadCounts[targetServer] += threadsToAssign
 
-					if (threadsToAssign > 0) {
-						const pid = ns.exec(HOME_ASSIST_SCRIPT, assistServer, threadsToAssign, action, targetServer)
-
-						// Check if execution failed (returns 0 on failure)
-						if (pid === 0) {
-							ns.print(`WARNING: Failed to execute ${HOME_ASSIST_SCRIPT} on ${assistServer} - possible RAM conflict`)
-							// Force cleanup and retry in next cycle
-							await force_ram_reallocation(ns)
-							return
+					// Update state tracking
+					if (!HOME_ASSISTANCE_STATE[targetServer]) {
+						HOME_ASSISTANCE_STATE[targetServer] = {
+							action: targetAction,
+							totalThreads: 0,
+							assignments: []
 						}
-
-						threadsUsed += threadsToAssign
-
-						// Update state tracking - accumulate total threads
-						if (!HOME_ASSISTANCE_STATE[targetServer]) {
-							HOME_ASSISTANCE_STATE[targetServer] = {
-								action,
-								totalThreads: 0,
-								assignments: []
-							}
-						}
-						HOME_ASSISTANCE_STATE[targetServer].totalThreads += threadsToAssign
-						HOME_ASSISTANCE_STATE[targetServer].assignments.push({
-							server: assistServer,
-							threads: threadsToAssign,
-							pid: pid
-						})
 					}
+					HOME_ASSISTANCE_STATE[targetServer].totalThreads += threadsToAssign
+					HOME_ASSISTANCE_STATE[targetServer].assignments.push({
+						server: assistServer,
+						threads: threadsToAssign,
+						pid: pid
+					})
 
-					// Move to next target
-					currentTargetIndex = (currentTargetIndex + 1) % targetQueue.length
+					ns.print(`  Assigned ${threadsToAssign} threads to ${targetServer} (${targetAction}) - total: ${targetThreadCounts[targetServer]}`)
+				} else {
+					// Can't assign any more threads, break out
+					break
 				}
 			}
+		}
 
-			// Log the distribution
-			ns.print(`Distributed ${totalAvailableThreads} threads across ${serversNeedingNewAssistance.length} targets (${threadsPerTarget} threads per target)`)
-			for (const { server, action } of serversNeedingNewAssistance) {
-				const state = HOME_ASSISTANCE_STATE[server]
-				if (state) {
-					ns.print(`  ${server} (${action}): ${state.totalThreads} threads from ${state.assignments.length} assistance servers`)
-				}
+		// Log final distribution
+		ns.print(`Total distributed: ${totalDistributedThreads} threads across ${serversNeedingNewAssistance.length} targets`)
+		for (const { server, action } of serversNeedingNewAssistance) {
+			const state = HOME_ASSISTANCE_STATE[server]
+			if (state) {
+				ns.print(`  ${server} (${action}): ${state.totalThreads} threads from ${state.assignments.length} assistance servers`)
 			}
 		}
 	}
