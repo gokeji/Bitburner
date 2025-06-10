@@ -63,15 +63,23 @@ function get_home_assistance(ns, server) {
 	const assistanceServers = ["home", ...purchasedServers]
 	const assistanceInfo = []
 
+	// Direct action scripts to look for
+	const actionScripts = {
+		"scripts/grow.js": "grow",
+		"scripts/hack.js": "hack",
+		"scripts/weaken.js": "weaken"
+	}
+
 	for (const assistServer of assistanceServers) {
 		const processes = ns.ps(assistServer)
 		for (const process of processes) {
-			if (process.filename === "scripts/home_assist.js" &&
-				process.args.length >= 2 &&
-				process.args[1] === server) {
+			// Check if it's one of our direct action scripts targeting this server
+			if (actionScripts[process.filename] &&
+				process.args.length >= 1 &&
+				process.args[0] === server) {
 				assistanceInfo.push({
 					server: assistServer,
-					action: process.args[0],
+					action: actionScripts[process.filename],
 					threads: process.threads
 				})
 			}
@@ -80,7 +88,7 @@ function get_home_assistance(ns, server) {
 
 	if (assistanceInfo.length === 0) return null
 
-	// Format assistance info: action(totalThreads) from X servers
+	// Calculate total threads and server count for all assistance
 	const totalThreads = assistanceInfo.reduce((sum, info) => sum + info.threads, 0)
 	const action = assistanceInfo[0].action // All should be the same action
 	const serverCount = assistanceInfo.length

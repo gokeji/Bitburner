@@ -1,35 +1,20 @@
 /**
- * Cleanup script to kill all home_assist processes across all servers
+ * Cleanup script to kill all direct action assistance processes across all servers
  * @param {NS} ns
  */
 
 import { get_purchased_servers } from "../mcp.js"
 
-const HOME_ASSIST_SCRIPT = "scripts/home_assist.js"
+// Direct action scripts used for assistance
+const ACTION_SCRIPTS = {
+	"scripts/grow.js": "grow",
+	"scripts/hack.js": "hack",
+	"scripts/weaken.js": "weaken"
+}
 
 function disable_logs(ns) {
 	const logs = ["scan", "getServerMaxMoney", "getServerMaxRam", "hasRootAccess", "kill"]
 	logs.forEach(log => ns.disableLog(log))
-}
-
-function get_all_servers(ns) {
-	const servers = ["home"]
-	const result = []
-	let i = 0
-
-	while (i < servers.length) {
-		const server = servers[i]
-		const connections = ns.scan(server)
-
-		for (const connection of connections) {
-			if (!servers.includes(connection)) {
-				servers.push(connection)
-				result.push(connection)
-			}
-		}
-		i++
-	}
-	return result
 }
 
 function cleanup_home_assist_processes(ns) {
@@ -39,9 +24,9 @@ function cleanup_home_assist_processes(ns) {
 	let totalKilled = 0
 	const killReport = []
 
-	// Kill all home assistance processes across all servers
+	// Kill all direct action assistance processes across all servers
 	for (const assistServer of assistanceServers) {
-		const processes = ns.ps(assistServer).filter(p => p.filename === HOME_ASSIST_SCRIPT)
+		const processes = ns.ps(assistServer).filter(p => Object.keys(ACTION_SCRIPTS).includes(p.filename))
 		let killedOnServer = 0
 
 		processes.forEach(p => {
@@ -64,8 +49,9 @@ function cleanup_home_assist_processes(ns) {
 export async function main(ns) {
 	disable_logs(ns)
 
-	ns.tprint("=== Home Assist Cleanup Script ===")
-	ns.tprint("Scanning all servers for home_assist processes...")
+	ns.tprint("=== Direct Action Assistance Cleanup Script ===")
+	ns.tprint("Scanning all servers for direct action assistance processes...")
+	ns.tprint(`Looking for: ${Object.keys(ACTION_SCRIPTS).join(", ")}`)
 
 	const purchasedServers = get_purchased_servers(ns)
 	ns.tprint(`Found ${purchasedServers.length} purchased servers`)
@@ -73,10 +59,10 @@ export async function main(ns) {
 	const { totalKilled, killReport } = cleanup_home_assist_processes(ns)
 
 	if (totalKilled > 0) {
-		ns.tprint(`Successfully killed ${totalKilled} home_assist processes:`)
+		ns.tprint(`Successfully killed ${totalKilled} direct action assistance processes:`)
 		killReport.forEach(report => ns.tprint(`  ${report}`))
 	} else {
-		ns.tprint("No home_assist processes found running")
+		ns.tprint("No direct action assistance processes found running")
 	}
 
 	ns.tprint("=== Cleanup Complete ===")

@@ -10,6 +10,13 @@ const SLEEP_TIME = 0.2          // Minutes between cycles
 const HOME_RESERVED_RAM = 16   // Reserve RAM on home for other scripts
 const MAX_HACK_THREADS = 130
 
+// Script mappings for direct action execution
+const ACTION_SCRIPTS = {
+	"grow": "scripts/grow.js",
+	"hack": "scripts/hack.js",
+	"weaken": "scripts/weaken.js"
+}
+
 // Track current home assistance state
 let HOME_ASSISTANCE_STATE = {}
 let LAST_SERVER_COUNT = 0  // Track server count changes
@@ -27,7 +34,6 @@ let SERVERS = {
 }
 
 const EXECUTE_SCRIPT = "scripts/execute.js"
-const HOME_ASSIST_SCRIPT = "scripts/home_assist.js"
 const FILES_TO_COPY = [
 	"scripts/hack.js", "scripts/grow.js", "scripts/weaken.js",
 	"scripts/copy_scripts.js", "scripts/execute.js", "scripts/home_assist.js"
@@ -146,7 +152,7 @@ function find_home_assist_processes_for_target(ns, targetServer) {
 
 	for (const assistServer of assistanceServers) {
 		const serverProcesses = ns.ps(assistServer)
-			.filter(p => p.filename === HOME_ASSIST_SCRIPT && p.args.length >= 2 && p.args[1] === targetServer)
+			.filter(p => Object.values(ACTION_SCRIPTS).includes(p.filename) && p.args.length >= 1 && p.args[0] === targetServer)
 
 		processes.push(...serverProcesses.map(p => ({ ...p, assistServer })))
 	}
@@ -182,6 +188,11 @@ async function execute_home_assistance(ns, serversNeedingHelp) {
 		return !currentAssistance || currentAssistance.action !== action
 	})
 
+	ns.print(`Servers needing help: ${serversNeedingHelp.length}, needing new assistance: ${serversNeedingNewAssistance.length}`)
+	if (serversNeedingNewAssistance.length > 0) {
+		ns.print(`New assistance needed for: ${serversNeedingNewAssistance.map(s => `${s.server}(${s.action})`).join(", ")}`)
+	}
+
 	if (serversNeedingNewAssistance.length === 0) return
 
 		// Get all available servers for assistance (home + purchased servers)
@@ -193,7 +204,8 @@ async function execute_home_assistance(ns, serversNeedingHelp) {
 		ns.print(`Using ${purchasedServers.length} purchased servers for assistance: ${purchasedServers.join(", ")}`)
 	}
 
-	const scriptRam = ns.getScriptRam(HOME_ASSIST_SCRIPT)
+	// Use grow.js as baseline since all action scripts have similar RAM usage
+	const scriptRam = ns.getScriptRam(ACTION_SCRIPTS["grow"])
 
 	// Calculate max theoretical capacity for each assistance server
 	const serverRamInfo = []
@@ -265,6 +277,7 @@ async function execute_home_assistance(ns, serversNeedingHelp) {
 				let targetServer = null
 				let targetAction = null
 				let minThreads = Infinity
+				let hasAvailableTargets = false
 
 				// Look for targets that still need threads
 				for (const { server, action } of serversNeedingNewAssistance) {
@@ -273,15 +286,26 @@ async function execute_home_assistance(ns, serversNeedingHelp) {
 					const remainingAllowedThreads = Math.max(0, serverLimit - currentThreads)
 
 					// Only consider servers that can still accept threads
-					if (remainingAllowedThreads > 0 && currentThreads < minThreads) {
-						minThreads = currentThreads
-						targetServer = server
-						targetAction = action
+					if (remainingAllowedThreads > 0) {
+						hasAvailableTargets = true
+						if (currentThreads < minThreads) {
+							minThreads = currentThreads
+							targetServer = server
+							targetAction = action
+						}
 					}
 				}
 
-				// If we can't find a target that can accept more threads, we're done
-				if (targetServer === null) break
+				// Debug logging for thread assignment
+				if (targetServer) {
+					const currentThreads = targetThreadCounts[targetServer] || 0
+					const serverLimit = serverThreadLimits[targetServer] || fairSharePerServer
+					const remainingAllowedThreads = Math.max(0, serverLimit - currentThreads)
+					ns.print(`    Selected ${targetServer} (${targetAction}): current=${currentThreads}, limit=${serverLimit}, remaining=${remainingAllowedThreads}`)
+				}
+
+				// If we can't find a target that can accept more threads, we're done with this assist server
+				if (targetServer === null || !hasAvailableTargets) break
 
 				// Calculate how many threads to assign based on fair share and limits
 				const currentThreads = targetThreadCounts[targetServer] || 0
@@ -294,11 +318,12 @@ async function execute_home_assistance(ns, serversNeedingHelp) {
 				)
 
 				if (threadsToAssign > 0) {
-					const pid = ns.exec(HOME_ASSIST_SCRIPT, assistServer, threadsToAssign, targetAction, targetServer)
+					const script = ACTION_SCRIPTS[targetAction]
+					const pid = ns.exec(script, assistServer, threadsToAssign, targetServer)
 
 					// Check if execution failed (returns 0 on failure)
 					if (pid === 0) {
-						ns.print(`WARNING: Failed to execute ${HOME_ASSIST_SCRIPT} on ${assistServer} - possible RAM conflict`)
+						ns.print(`WARNING: Failed to execute ${script} on ${assistServer} - possible RAM conflict`)
 						// Force cleanup and retry in next cycle
 						await force_ram_reallocation(ns)
 						return
@@ -384,9 +409,9 @@ async function cleanup_all_processes(ns) {
 
 	let totalKilled = 0
 
-	// Kill all home assistance processes
+	// Kill all home assistance processes (direct action scripts)
 	for (const assistServer of assistanceServers) {
-		const processes = ns.ps(assistServer).filter(p => p.filename === HOME_ASSIST_SCRIPT)
+		const processes = ns.ps(assistServer).filter(p => Object.values(ACTION_SCRIPTS).includes(p.filename))
 		processes.forEach(p => {
 			ns.kill(p.pid)
 			totalKilled++
@@ -430,7 +455,7 @@ async function force_ram_reallocation(ns) {
  */
 export async function main(ns) {
 	disable_logs(ns)
-	ns.tprint("Enhanced MCP started - leveraging home and purchased servers for assistance")
+	ns.tprint("Enhanced MCP started - leveraging home and purchased servers with direct action scripts for optimal RAM usage")
 
 	// Initialize server count
 	const allServers = get_all_servers(ns)
