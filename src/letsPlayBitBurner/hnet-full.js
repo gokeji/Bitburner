@@ -16,8 +16,7 @@ export async function main(ns) {
 	let start_time = new Date().valueOf(); // 16347472346
 
 	let time = new Date().valueOf();
-	ns.tprint(`Starting hacknet manager. Max payback time: ${maxPaybackHours} hours`)
-	ns.tprint(time)
+	ns.tprint(`Starting hacknet manager. Max payback time: ${maxPaybackHours} hours. Runtime: ${runtime}ms`)
 	while (time < start_time + runtime) {
 		time = new Date().valueOf();
 
@@ -98,28 +97,25 @@ export async function main(ns) {
 		let bestUpgrade = currentNodeStats[0];
 
 		// Log the best upgrade with payback time info
-		if (bestUpgrade.type !== "node") {
-			ns.print(`Best upgrade: ${bestUpgrade.type} on node ${bestUpgrade.index}, ` +
-				`Cost: $${ns.formatNumber(bestUpgrade.cost, 2)}, ` +
-				`Additional $/sec: ${ns.formatNumber(bestUpgrade.value, 2)}, ` +
-				`Payback time: ${ns.tFormat(bestUpgrade.paybackTime * 1000)}`);
+		let nodeInfo = bestUpgrade.type === "node" ? "" : ` on node ${bestUpgrade.index}`;
+		let productionInfo = bestUpgrade.type === "node" ?
+			`Production: $${ns.formatNumber(bestUpgrade.value, 2)}/sec` :
+			`Additional $/sec: ${ns.formatNumber(bestUpgrade.value, 2)}`;
 
-			// Check if payback time is too long
-			if (bestUpgrade.paybackHours > maxPaybackHours) {
-				ns.print(`Payback time (${bestUpgrade.paybackHours.toFixed(1)} hours) exceeds maximum (${maxPaybackHours} hours). Stopping upgrades.`);
-				break;
-			}
-		} else {
-			ns.print(`Best upgrade: NEW NODE, ` +
-				`Cost: $${ns.formatNumber(bestUpgrade.cost, 2)}, ` +
-				`Production: $${ns.formatNumber(bestUpgrade.value, 2)}/sec, ` +
-				`Payback time: ${ns.tFormat(bestUpgrade.paybackTime * 1000)}`);
+		ns.print(`Best upgrade: ${bestUpgrade.type.toUpperCase()}${nodeInfo}, ` +
+			`Cost: $${ns.formatNumber(bestUpgrade.cost, 2)}, ` +
+			`${productionInfo}, ` +
+			`Payback time: ${ns.tFormat(bestUpgrade.paybackTime * 1000)}`);
 
-			// Check if payback time is too long for new nodes too
-			if (bestUpgrade.paybackHours > maxPaybackHours) {
-				ns.print(`New node payback time (${bestUpgrade.paybackHours.toFixed(1)} hours) exceeds maximum (${maxPaybackHours} hours). Stopping upgrades.`);
-				break;
-			}
+		// Check if payback time is too long
+		if (bestUpgrade.paybackHours > maxPaybackHours) {
+			let upgradeType = bestUpgrade.type === "node" ? "New hacknet node" : `Hacknet ${bestUpgrade.type} upgrade`;
+
+			let printMessage = `${upgradeType} payback time (${bestUpgrade.paybackHours} hours) exceeds maximum (${maxPaybackHours} hours). Stopping upgrades.`
+
+			ns.print(printMessage);
+			ns.tprint(printMessage)
+			break;
 		}
 
 		while (player.money < bestUpgrade.cost) {
@@ -146,6 +142,7 @@ export async function main(ns) {
 
 
 		await ns.sleep(1000)
+		ns.print('--------------------------------')
 	}
 
 }
