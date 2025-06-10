@@ -6,13 +6,8 @@
 import { SEC_THRESHOLD, MONEY_PERCENTAGE, MONEY_MINIMUM, MONEY_MAX_PERCENTAGE } from "lib/constants.js"
 
 // Local configuration constants
-const SLEEP_TIME = 0.5          // Minutes between cycles
+const SLEEP_TIME = 0.2          // Minutes between cycles
 const HOME_RESERVED_RAM = 8   // Reserve RAM on home for other scripts
-
-// Home assistance thresholds
-const ASSIST_MONEY_THRESHOLD = 0.1    // Assist servers with < 10% money
-const ASSIST_SECURITY_THRESHOLD = 10   // Assist servers with security > 5 above min
-const ASSIST_VALUE_THRESHOLD = 20000000 // Assist high-value servers
 
 // Track current home assistance state
 let HOME_ASSISTANCE_STATE = {}

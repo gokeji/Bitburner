@@ -58,5 +58,5 @@ export async function main(ns) {
 		ns.exit()
 	}
 	ns.exec(script, host, threads, server)
-	ns.tprint(action, " executed on ", host, " for ", server, " with ", threads, " threads")
+	// ns.tprint(action, " executed on ", host, " for ", server, " with ", threads, " threads")
 }
