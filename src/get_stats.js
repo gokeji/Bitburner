@@ -112,6 +112,7 @@ function get_server_data(ns, server) {
 	var securityLvl = ns.getServerSecurityLevel(server)
 	var securityMin = ns.getServerMinSecurityLevel(server)
 	var ram = ns.getServerMaxRam(server)
+	var requiredHackingSkill = ns.getServerRequiredHackingLevel(server)
 	var actionInfo = get_action(ns, server)
 	var homeAssist = get_home_assistance(ns, server)  // NEW: Check home assistance
 	var shouldHack = should_be_hacking(ns, server)    // NEW: Check if should be hacking
@@ -140,6 +141,7 @@ function get_server_data(ns, server) {
 			`${pad_str(formatMoney(moneyAvailable, 3), 10)}/${pad_str(formatMoney(moneyMax), 6)}${pad_str(`(${formatPercentage((moneyAvailable / moneyMax), 1)})`, 8)}|` +
 			`${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(securityMin, 2)})|` +
 			`${pad_str(parseInt(ram), 4)}|` +
+			`${pad_str(requiredHackingSkill, 5)}|` +
 			`${pad_str(actionDisplay, 12)}|`
 
 	// Enhanced: Add assistance status from all servers
@@ -201,7 +203,7 @@ function get_table_header() {
 	// Assistance: 18 chars
 	// Status: variable
 
-	return `${pad_str("Server", 15)}|${pad_str("Money Available/Max (%)", 25)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 4)}|${pad_str("Action", 12)}|${pad_str("Assistance", 18)}|${pad_str("Status", 15)}`
+	return `${pad_str("Server", 15)}|${pad_str("Money Available/Max (%)", 25)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 4)}|${pad_str("Skill", 5)}|${pad_str("Action", 12)}|${pad_str("Assistance", 18)}|${pad_str("Status", 15)}`
 }
 
 export async function main(ns) {
@@ -224,7 +226,7 @@ export async function main(ns) {
 
 	var servers = get_servers(ns, serverArgs)
 
-	const charsWidth = 106
+	const charsWidth = 111
 
 	if (isChartMode) {
 
