@@ -186,6 +186,15 @@ function generate_chart_data(ns, servers) {
 }
 
 export async function main(ns) {
+	ns.disableLog('ALL')
+
+	// Kill all other scripts called get_stats.js
+	ns.ps(ns.getHostname()).filter(p => p.filename === "get_stats.js").forEach(p => {
+		if (p.pid !== ns.pid) {
+			ns.kill(p.pid)
+		}
+	})
+
 	// Check for chart mode argument
 	const isChartMode = ns.args.includes('--chart') || ns.args.includes('-c')
 	const refreshRate = ns.args.includes('--refresh') ? parseInt(ns.args[ns.args.indexOf('--refresh') + 1]) || 1000 : 1000
@@ -196,9 +205,9 @@ export async function main(ns) {
 	var servers = get_servers(ns, serverArgs)
 
 	if (isChartMode) {
+
 		// Chart mode: dynamic updating terminal display
 		ns.ui.openTail()
-		ns.disableLog('ALL')
 
 		// Calculate window size in pixels
 		// Approximate: 8px per character width, 16px per line height
