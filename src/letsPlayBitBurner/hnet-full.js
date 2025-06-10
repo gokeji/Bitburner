@@ -119,7 +119,7 @@ export async function main(ns) {
 		}
 
 		while (player.money < bestUpgrade.cost) {
-			await ns.sleep(1000)
+			await ns.sleep(10000)
 		}
 		switch(bestUpgrade.type) {
 			case "level":
