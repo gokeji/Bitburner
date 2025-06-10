@@ -149,21 +149,24 @@ function get_server_data(ns, server) {
 	return result
 }
 
-function get_servers(ns) {
+function get_servers(ns, serverArgs = null) {
 	/*
 	Gets servers. If specific servers requested, then returns those only.
 	Otherwise, scans and returns all servers.
 	return: list of servers
 	*/
-	if (ns.args.length >= 1) {
-		return ns.args
+	// Use provided serverArgs if available, otherwise use ns.args
+	const args = serverArgs || ns.args
+
+	if (args.length >= 1) {
+		return args
 	} else {
 		return get_all_servers(ns, false)
 	}
 }
 
-export async function main(ns) {
-	var servers = get_servers(ns)
+// NEW: Function to generate chart data for dynamic updates
+function generate_chart_data(ns, servers) {
 	var stats = {}
 	// For each server in servers, get the server data and add to our Hash Table.
 	for (var server of servers) {
@@ -172,9 +175,64 @@ export async function main(ns) {
 	// Sort each server based on how much money it holds.
 	var keys = Object.keys(stats)
 	keys.sort((a, b) => a - b)
-	// Print the results
-	for (var i in keys){
-		var key = keys[i]
-		ns.tprint(stats[key])
+
+	// Return sorted data for chart display
+	return keys.map(key => stats[key])
+}
+
+export async function main(ns) {
+	// Check for chart mode argument
+	const isChartMode = ns.args.includes('--chart') || ns.args.includes('-c')
+	const refreshRate = ns.args.includes('--refresh') ? parseInt(ns.args[ns.args.indexOf('--refresh') + 1]) || 1000 : 1000
+
+	// Filter out chart-related arguments for server list
+	const serverArgs = ns.args.filter(arg => !['--chart', '-c', '--refresh'].includes(arg))
+
+	var servers = get_servers(ns, serverArgs)
+
+	if (isChartMode) {
+		// Chart mode: dynamic updating terminal display
+		ns.ui.openTail()
+		ns.disableLog('ALL')
+
+		while (true) {
+			ns.clearLog()
+
+			// Generate and display chart data
+			const chartData = generate_chart_data(ns, servers)
+
+			// Add header
+			ns.print(`Server Stats Chart - Refreshing every ${refreshRate}ms`)
+			ns.print(`Time: ${new Date().toLocaleTimeString()}`)
+			ns.print('='.repeat(120))
+
+			// Display server data
+			for (const serverLine of chartData) {
+				ns.print(serverLine)
+			}
+
+			// Add footer with summary
+			ns.print('='.repeat(120))
+			ns.print(`Total servers: ${servers.length}`)
+			ns.print(`Press Ctrl+C to stop chart mode`)
+
+			await ns.sleep(refreshRate)
+		}
+	} else {
+		// Normal mode: single output with formatted table
+		const chartData = generate_chart_data(ns, servers)
+
+		// Add header
+		ns.tprint(`Server Stats - ${new Date().toLocaleTimeString()}`)
+		ns.tprint('='.repeat(120))
+
+		// Display server data
+		for (const serverLine of chartData) {
+			ns.tprint(serverLine)
+		}
+
+		// Add footer with summary
+		ns.tprint('='.repeat(120))
+		ns.tprint(`Total servers: ${servers.length}`)
 	}
 }
