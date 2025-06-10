@@ -33,7 +33,7 @@ const FILES_TO_COPY = [
 ]
 
 function disable_logs(ns) {
-	const logs = ["scan", "run", "getServerSecurityLevel", "getServerMoneyAvailable", "getServerMaxMoney", "getServerMinSecurityLevel", "exec", "killall", "scp"]
+	const logs = ["scan", "run", "getServerSecurityLevel", "getServerMoneyAvailable", "getServerMaxMoney", "getServerMinSecurityLevel", "exec", "killall", "scp", "sleep"]
 	logs.forEach(log => ns.disableLog(log))
 }
 
@@ -260,7 +260,7 @@ async function execute_home_assistance(ns, serversNeedingHelp) {
 
 			// Keep assigning threads until this server is full
 			while (threadsUsed < maxThreadsOnServer && serversNeedingNewAssistance.length > 0) {
-				// Find target with fewest threads assigned (round-robin with preference for underutilized)
+				// Find target with fewest threads assigned that can still accept more threads
 				let targetServer = null
 				let targetAction = null
 				let minThreads = Infinity
@@ -268,29 +268,21 @@ async function execute_home_assistance(ns, serversNeedingHelp) {
 				// Look for targets that still need threads
 				for (const { server, action } of serversNeedingNewAssistance) {
 					const currentThreads = targetThreadCounts[server] || 0
-					if (currentThreads < minThreads) {
+					const serverLimit = serverThreadLimits[server] || fairSharePerServer
+					const remainingAllowedThreads = Math.max(0, serverLimit - currentThreads)
+
+					// Only consider servers that can still accept threads
+					if (remainingAllowedThreads > 0 && currentThreads < minThreads) {
 						minThreads = currentThreads
 						targetServer = server
 						targetAction = action
 					}
 				}
 
-				// If all targets have at least the minimum, pick the one with the least
-				if (targetServer === null) {
-					for (const { server, action } of serversNeedingNewAssistance) {
-						const currentThreads = targetThreadCounts[server] || 0
-						if (currentThreads < minThreads) {
-							minThreads = currentThreads
-							targetServer = server
-							targetAction = action
-						}
-					}
-				}
-
-				// If we still can't find a target, we're done
+				// If we can't find a target that can accept more threads, we're done
 				if (targetServer === null) break
 
-								// Calculate how many threads to assign based on fair share and limits
+				// Calculate how many threads to assign based on fair share and limits
 				const currentThreads = targetThreadCounts[targetServer] || 0
 				const serverLimit = serverThreadLimits[targetServer] || fairSharePerServer
 				const remainingAllowedThreads = Math.max(0, serverLimit - currentThreads)
@@ -332,7 +324,8 @@ async function execute_home_assistance(ns, serversNeedingHelp) {
 
 					ns.print(`  Assigned ${threadsToAssign} threads to ${targetServer} (${targetAction}) - total: ${targetThreadCounts[targetServer]}`)
 				} else {
-					// Can't assign any more threads, break out
+					// This shouldn't happen anymore since we pre-check remainingAllowedThreads
+					ns.print(`WARNING: Unexpected zero thread assignment to ${targetServer}`)
 					break
 				}
 			}
