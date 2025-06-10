@@ -135,23 +135,28 @@ function get_server_data(ns, server) {
 	// Format action with thread count for remote servers
 	var actionDisplay = actionInfo.action ? `${actionInfo.action}(${actionInfo.threads}t)` : "none"
 
-	var result = `${pad_str(server, 15)}`+
-			` money:${pad_str(formatMoney(moneyAvailable, 3), 10)}/${pad_str(formatMoney(moneyMax), 6)}${pad_str(`(${formatPercentage((moneyAvailable / moneyMax), 1)})`, 8)}` +
-			` sec:${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(securityMin, 2)})` +
-			` RAM:${pad_str(parseInt(ram), 4)}` +
-			` Action:${pad_str(actionDisplay, 12)}`
+	// Build row with separators and no column labels
+	var result = `${pad_str(server, 15)}|`+
+			`${pad_str(formatMoney(moneyAvailable, 3), 10)}/${pad_str(formatMoney(moneyMax), 6)}${pad_str(`(${formatPercentage((moneyAvailable / moneyMax), 1)})`, 8)}|` +
+			`${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(securityMin, 2)})|` +
+			`${pad_str(parseInt(ram), 4)}|` +
+			`${pad_str(actionDisplay, 12)}|`
 
 	// Enhanced: Add assistance status from all servers
-		result += homeAssist ? pad_str(` [+${homeAssist}]`, 18) : pad_str("", 18)
+		result += homeAssist ? pad_str(`[+${homeAssist}]`, 18) : pad_str("", 18)
+
+	let status = ""
 
 	// Add status indicator for servers ready to hack
 	if (shouldHack && actionInfo.action !== "hack") {
-		result += " [READY TO HACK]"
+		status = "[READY TO HACK]"
 	} else if (actionInfo.action === "hack") {
-		result += " [HACKING $$]"
+		status = "[HACKING $$]"
+	} else {
+		status = ""
 	}
 
-	return result
+	return result + "|" + pad_str(status, 15)
 }
 
 function get_servers(ns, serverArgs = null) {
@@ -185,12 +190,27 @@ function generate_chart_data(ns, servers) {
 	return keys.map(key => stats[key])
 }
 
+// Add table header function that matches exact column spacing
+function get_table_header() {
+	// Column layout with separators (exact character counts):
+	// Server: 15 chars
+	// Money: 25 chars (10 + "/" + 6 + 8 for percentage)
+	// Security: 9 chars (6 + "(" + 2 + ")")
+	// RAM: 4 chars
+	// Action: 12 chars
+	// Assistance: 18 chars
+	// Status: variable
+
+	return `${pad_str("Server", 15)}|${pad_str("Money Available/Max (%)", 25)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 4)}|${pad_str("Action", 12)}|${pad_str("Assistance", 18)}|${pad_str("Status", 15)}`
+}
+
 export async function main(ns) {
 	ns.disableLog('ALL')
 
 	// Kill all other scripts called get_stats.js
 	ns.ps(ns.getHostname()).filter(p => p.filename === "get_stats.js").forEach(p => {
 		if (p.pid !== ns.pid) {
+			ns.ui.closeTail(p.pid)
 			ns.kill(p.pid)
 		}
 	})
@@ -204,6 +224,8 @@ export async function main(ns) {
 
 	var servers = get_servers(ns, serverArgs)
 
+	const charsWidth = 106
+
 	if (isChartMode) {
 
 		// Chart mode: dynamic updating terminal display
@@ -213,8 +235,8 @@ export async function main(ns) {
 		// Approximate: 8px per character width, 16px per line height
 		// Table width is ~120 characters, so width = 120 * 8 = 960px
 		// Height: headers(3) + servers + footers(3) + buffer(5) = (servers.length + 11) * 16
-		const windowWidth = 123 * 10  // 120 characters * 8px per char
-		const windowHeight = (servers.length + 4) * 26  // lines * 16px per line
+		const windowWidth = charsWidth * 10  // 120 characters * 8px per char
+		const windowHeight = (servers.length + 6) * 26  // lines * 16px per line
 
 		ns.ui.resizeTail(windowWidth, windowHeight)
 		ns.ui.moveTail(120, 20)
@@ -227,7 +249,9 @@ export async function main(ns) {
 
 			// Add header
 			ns.print(`Time: ${new Date().toLocaleTimeString()}`)
-			ns.print('='.repeat(120))
+			ns.print('='.repeat(charsWidth))
+			ns.print(get_table_header())
+			ns.print('-'.repeat(charsWidth))
 
 			// Display server data
 			for (const serverLine of chartData) {
@@ -235,7 +259,7 @@ export async function main(ns) {
 			}
 
 			// Add footer with summary
-			ns.print('='.repeat(120))
+			ns.print('='.repeat(charsWidth))
 			ns.print(`Total servers: ${servers.length}`)
 
 			await ns.sleep(refreshRate)
@@ -246,7 +270,9 @@ export async function main(ns) {
 
 		// Add header
 		ns.tprint(`Server Stats - ${new Date().toLocaleTimeString()}`)
-		ns.tprint('='.repeat(120))
+		ns.tprint('='.repeat(charsWidth))
+		ns.tprint(get_table_header())
+		ns.tprint('-'.repeat(charsWidth))
 
 		// Display server data
 		for (const serverLine of chartData) {
@@ -254,7 +280,7 @@ export async function main(ns) {
 		}
 
 		// Add footer with summary
-		ns.tprint('='.repeat(120))
+		ns.tprint('='.repeat(charsWidth))
 		ns.tprint(`Total servers: ${servers.length}`)
 	}
 }
