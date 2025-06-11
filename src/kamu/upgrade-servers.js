@@ -26,7 +26,7 @@ export async function main(ns) {
 		// see if we can afford a higher RAM tier than we already have
 		while (maxPurchaseableRam < ramLimit) {
 			// check for quadruple RAM for not too big jumps and buffer for another potential double RAM afterwards below
-			var nextRamTier = maxPurchaseableRam * 4;  
+			var nextRamTier = maxPurchaseableRam * 4;
 			var nextRamTierCost = ns.getPurchasedServerCost(nextRamTier);
 			if (homeMoney > nextRamTierCost) {
 				// double RAM
@@ -43,17 +43,19 @@ export async function main(ns) {
 				// - make a substantial impact (the increase would be < 10%)
 				// - reduce the money lost by deleting servers often
 				// - reduce the impact of killing running threads by having the last 5 servers with 1/4 RAM
-				// 		and "baiting" threads to the high RAM servers so that the last small ones have low utilization. 
+				// 		and "baiting" threads to the high RAM servers so that the last small ones have low utilization.
 				maxPurchaseableRam *= 2
 				ramUpgradeCost = ns.getPurchasedServerCost(maxPurchaseableRam);
 			}
 
 			// ns.print("money: " + Math.round(homeMoney / 1000000) + "m cost: " + Math.round(ramUpgradeCost / 1000000) + " m")
 			if (homeMoney > ramUpgradeCost) {
-				const newServer = ns.purchaseServer("pserv-" + ownedServers.length, maxPurchaseableRam);
+				const newServer = ns.purchaseServer("b-" + ownedServers.length, maxPurchaseableRam);
 				ownedServers.push(newServer);
 				homeMoney = ns.getServerMoneyAvailable("home");
-				ns.print("Purchased Server " + newServer + " with " + maxPurchaseableRam + " RAM for " + Math.round(ramUpgradeCost / 1000000) + " m");
+				const printMessage = "Purchased Server " + newServer + " with " + maxPurchaseableRam + " RAM for " + Math.round(ramUpgradeCost / 1000000) + " m";
+				ns.print(printMessage);
+				ns.toast(printMessage, "success");
 			}
 
 		}
@@ -72,18 +74,18 @@ export async function main(ns) {
 				return;
 			}
 			else if (upgradeServerRAM >= maxPurchaseableRam) {
-				// we would not actually upgrade the ram of the server. 
+				// we would not actually upgrade the ram of the server.
 				// Since sorted, all remaining serers would not have less, so we an stop.
 				break;
 			}
 			else {
 				if (maxPurchaseableRam * 2 <= ramLimit && ownedServers.length > 6) {
 					if (upgradeServerRAM <= ns.getServerMaxRam(ownedServers[6]) * 2) {
-						// switch to double RAM after x servers, so we got the second / third set of servers sizes 
+						// switch to double RAM after x servers, so we got the second / third set of servers sizes
 						// this looks typically like: servers 0-6: 64 GB; servers 7-13: 32 GB; servers 14-20: 16 GB; servers 21-24: 8 GB
 						// - reduce the money lost by deleting servers often
 						// - reduce the impact of killing running threads by having the last servers with lower RAM
-						// 		and "baiting" threads to the high RAM servers so that the last small ones have low utilization. 
+						// 		and "baiting" threads to the high RAM servers so that the last small ones have low utilization.
 						maxPurchaseableRam *= 2;
 						ramUpgradeCost = ns.getPurchasedServerCost(maxPurchaseableRam);
 						ns.print("Double RAM tier: " + maxPurchaseableRam + " GB");
