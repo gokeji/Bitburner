@@ -120,6 +120,46 @@ function get_distributed_attack_info(ns, targetServer) {
 	return `${threadParts.join(":")} ${paddedTotal}`
 }
 
+// NEW: Calculate hacking priority (profit per minute) similar to distributed-hack.js
+function calculate_hacking_priority(ns, server) {
+	const money = Math.max(ns.getServerMoneyAvailable(server), 1) // Avoid division by zero
+	const maxMoney = ns.getServerMaxMoney(server)
+	const minSec = ns.getServerMinSecurityLevel(server)
+	const sec = ns.getServerSecurityLevel(server)
+	const weakTime = ns.getWeakenTime(server)
+
+	// Skip servers that can't be hacked or have no money
+	if (maxMoney === 0 || ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) {
+		return 0
+	}
+
+	// Basic calculation similar to distributed-hack.js
+	const hackMoneyRatio = 0.1 // Default ratio from distributed-hack.js
+	const hackThreadSecurityIncrease = 0.002
+	const growThreadSecurityIncrease = 0.004
+
+	// Calculate required threads (simplified version)
+	const hackThreads = Math.max(1, Math.floor(ns.hackAnalyzeThreads(server, hackMoneyRatio * money)))
+	const initialGrowRatio = maxMoney / money
+	const hackReGrowRatio = 1 / (1 - hackMoneyRatio)
+	const overallGrowRatio = initialGrowRatio * hackReGrowRatio
+	const growThreads = Math.ceil(ns.growthAnalyze(server, overallGrowRatio, 1))
+
+	const addedHackSecurity = hackThreads * hackThreadSecurityIncrease
+	const addedGrowSecurity = growThreads * growThreadSecurityIncrease
+	const secDiff = sec - minSec
+	const weakThreads = Math.ceil((secDiff + addedGrowSecurity + addedHackSecurity) * 20)
+
+	// Calculate profit per minute
+	const totalThreads = hackThreads + growThreads + weakThreads
+	if (totalThreads === 0) return 0
+
+	const profit = money * hackMoneyRatio / totalThreads
+	const profitPerMinute = profit * 60 / weakTime
+
+	return profitPerMinute
+}
+
 function pad_str(string, len) {
 	/*
 	Prepends the requested padding to the string.
@@ -130,7 +170,7 @@ function pad_str(string, len) {
 
 function get_server_data(ns, server) {
 	/*
-	Creates the info text for each server. Currently gets money, security, RAM, and distributed attack info.
+	Creates the info text for each server. Currently gets money, security, RAM, distributed attack info, and priority.
 	*/
 	var moneyAvailable = ns.getServerMoneyAvailable(server)
 	var moneyMax =  ns.getServerMaxMoney(server)
@@ -139,6 +179,7 @@ function get_server_data(ns, server) {
 	var ram = ns.getServerMaxRam(server)
 	var requiredHackingSkill = ns.getServerRequiredHackingLevel(server)
 	var attackInfo = get_distributed_attack_info(ns, server)  // Get distributed attack info
+	var priority = calculate_hacking_priority(ns, server)  // Get hacking priority
 
 	// Format money with M suffix for millions
 	var formatMoney = (amount, digits = 0) => {
@@ -188,7 +229,8 @@ function get_server_data(ns, server) {
 			`${progressBar}|` +
 			`${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(securityMin, 2)})|` +
 			`${pad_str(parseInt(ram), 4)}|` +
-			`${pad_str(requiredHackingSkill, 5)}|`
+			`${pad_str(requiredHackingSkill, 5)}|` +
+			`${pad_str(formatMoney(priority, 2), 8)}|`
 
 	// Add distributed attack info
 	result += attackInfo ? pad_str(`${attackInfo}`, 24) : pad_str("", 20)
@@ -236,9 +278,10 @@ function get_table_header() {
 	// Security: 9 chars (6 + "(" + 2 + ")")
 	// RAM: 4 chars
 	// Skill: 5 chars
+	// Priority: 8 chars
 	// Attack Info: 20 chars
 
-	return `${pad_str("Server", 15)}|${pad_str("Money Available/Max (%)", 25)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 4)}|${pad_str("Skill", 5)}|${pad_str("Attack Threads", 24)}`
+	return `${pad_str("Server", 15)}|${pad_str("Money Available/Max (%)", 25)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 4)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Attack Threads", 24)}`
 }
 
 export async function main(ns) {
@@ -259,7 +302,7 @@ export async function main(ns) {
 	// Filter out chart-related arguments for server list
 	const serverArgs = ns.args.filter(arg => !['--chart', '-c', '--refresh'].includes(arg))
 
-	const charsWidth = 109  // Updated to include 20-char progress bar + separator
+	const charsWidth = 117  // Updated to include 8-char priority column + separator
 
 	if (isChartMode) {
 
