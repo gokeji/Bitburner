@@ -434,6 +434,13 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
 
         // re-calculate overall RAM need after scaling full attacs down or up
         overallRamNeed = ((weakThreads + growThreads + hackThreads) * slaveScriptRam) * parallelAttacks;
+        // Debug all of the variables
+        ns.print(`DEBUG: overallRamNeed: ${overallRamNeed}`);
+        ns.print(`DEBUG: freeRams.overallFreeRam: ${freeRams.overallFreeRam}`);
+        ns.print(`DEBUG: weakThreads: ${weakThreads}`);
+        ns.print(`DEBUG: growThreads: ${growThreads}`);
+        ns.print(`DEBUG: hackThreads: ${hackThreads}`);
+        ns.print(`DEBUG: parallelAttacks: ${parallelAttacks}`);
         if (overallRamNeed > freeRams.overallFreeRam) {
             // Typically, there should be enough RAM for the planned attack. Warn if not.
             ns.print("WARN RAM calculation issue for target: " + target + " need / free: " + overallRamNeed + " / " + freeRams.overallFreeRam);
@@ -563,6 +570,13 @@ function weakenXPgainCompare(ns, playerHackingLevel, target) {
 // find some place to run the script with given amount of threads
 // returns true means script was executed, false means it didnt
 function findPlaceToRun(ns, script, threads, freeRams, target, sleepTime, manipulateStock = false) {
+    const freeRamsString = freeRams.map(ram => `${ram.host}:${ram.freeRam}`).join(', ');
+    ns.print(`DEBUG: findPlaceToRun script: ${script}`);
+    ns.print(`DEBUG: findPlaceToRun threads: ${threads}`);
+    // ns.print(`DEBUG: findPlaceToRun freeRamsString: ${freeRamsString}`);
+    ns.print(`DEBUG: findPlaceToRun target: ${target}`);
+    // ns.print(`DEBUG: findPlaceToRun sleepTime: ${sleepTime}`);
+    // ns.print(`DEBUG: findPlaceToRun manipulateStock: ${manipulateStock}`);
     while (freeRams.length > 0) {
         // try with first availiable host
         var host = freeRams[0].host;
@@ -593,11 +607,13 @@ function findPlaceToRun(ns, script, threads, freeRams, target, sleepTime, manipu
                 ns.exec(script, host, threads, target, sleepTime);
             }
             freeRams[0].freeRam -= slaveScriptRam * threads;
+            ns.print(`DEBUG: findPlaceToRun TRUE`);
             return true;
         }
     }
 
     // we did not find enough RAM to run all remaining threads. Something went from in the RAM calculation
+    ns.print(`DEBUG: findPlaceToRun FALSE`);
     ns.print("WARN missing " + slaveScriptRam * threads + " for " + script + " RAM for target " + target);
     return false;
 }
