@@ -36,7 +36,7 @@ let SERVERS = {
 const EXECUTE_SCRIPT = "scripts/execute.js"
 const FILES_TO_COPY = [
 	"scripts/hack.js", "scripts/grow.js", "scripts/weaken.js",
-	"scripts/copy_scripts.js", "scripts/execute.js", "scripts/home_assist.js"
+	"scripts/copy_scripts.js", "scripts/execute.js"
 ]
 
 function disable_logs(ns) {
