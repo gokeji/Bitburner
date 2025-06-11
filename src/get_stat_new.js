@@ -53,7 +53,11 @@ function get_distributed_attack_info(ns, targetServer) {
 	}
 
 	let totalThreads = 0
-	let attackTypes = new Set()
+	let threadCounts = {
+		grow: 0,
+		weaken: 0,
+		hack: 0
+	}
 
 	// Check all servers for kamu scripts targeting this server
 	for (const server of allServers) {
@@ -65,33 +69,55 @@ function get_distributed_attack_info(ns, targetServer) {
 			if (kamuScripts[process.filename] &&
 				process.args.length >= 1 &&
 				process.args[0] === targetServer) {
+				const actionType = kamuScripts[process.filename]
+				threadCounts[actionType] += process.threads
 				totalThreads += process.threads
-				attackTypes.add(kamuScripts[process.filename])
 			}
 		}
 	}
 
 	if (totalThreads === 0) return null
 
-	// Create a summary of attack types
-	const attackTypesList = Array.from(attackTypes).sort()
-	return `${attackTypesList.join("+")}(${totalThreads}t)`
-}
+	// Build the display string based on which actions are present
+	let displayParts = []
+	let threadParts = []
+	let activeThreadCounts = []
 
-// Simple action determination for status display
-function determine_simple_action(ns, server) {
-	const money = ns.getServerMoneyAvailable(server)
-	const maxMoney = ns.getServerMaxMoney(server)
-	const security = ns.getServerSecurityLevel(server)
-	const minSecurity = ns.getServerMinSecurityLevel(server)
+	// Collect active thread counts in G:W:H order
+	if (threadCounts.grow > 0) {
+		displayParts.push("G")
+		activeThreadCounts.push(threadCounts.grow)
+	}
+	if (threadCounts.weaken > 0) {
+		displayParts.push("W")
+		activeThreadCounts.push(threadCounts.weaken)
+	}
+	if (threadCounts.hack > 0) {
+		displayParts.push("H")
+		activeThreadCounts.push(threadCounts.hack)
+	}
 
-	const moneyRatio = money / maxMoney
-	const securityDiff = security - minSecurity
+	// Find the maximum value to determine scaling factor
+	const maxThreads = Math.max(...activeThreadCounts)
 
-	// Simple thresholds - adjust as needed
-	if (securityDiff >= 5) return "weaken"
-	if (moneyRatio < 0.75) return "grow"
-	return "hack"
+	// Count number of digits in maxThreads
+	const numDigits = maxThreads.toString().length
+
+	// Calculate scaling factor
+	const scaleFactor = 10 ** (numDigits - 2)
+
+	// Scale and format the thread counts
+	for (let i = 0; i < activeThreadCounts.length; i++) {
+		const scaledValue = activeThreadCounts[i] / scaleFactor
+		const formattedValue = Math.round(scaledValue).toString()
+		threadParts.push(`${displayParts[i]}${formattedValue}`)
+	}
+
+	// Format total threads with padding
+	const totalThreadsStr = `[${totalThreads}t]`
+	const paddedTotal = totalThreadsStr.padStart(10)
+
+	return `${threadParts.join(":")} ${paddedTotal}`
 }
 
 function pad_str(string, len) {
@@ -112,8 +138,7 @@ function get_server_data(ns, server) {
 	var securityMin = ns.getServerMinSecurityLevel(server)
 	var ram = ns.getServerMaxRam(server)
 	var requiredHackingSkill = ns.getServerRequiredHackingLevel(server)
-	var attackInfo = get_distributed_attack_info(ns, server)  // NEW: Get distributed attack info
-	var shouldHack = determine_simple_action(ns, server) === "hack"    // Simple action determination
+	var attackInfo = get_distributed_attack_info(ns, server)  // Get distributed attack info
 
 	// Format money with M suffix for millions
 	var formatMoney = (amount, digits = 0) => {
@@ -139,22 +164,9 @@ function get_server_data(ns, server) {
 			`${pad_str(requiredHackingSkill, 5)}|`
 
 	// Add distributed attack info
-	result += attackInfo ? pad_str(`[${attackInfo}]`, 20) : pad_str("", 20)
+	result += attackInfo ? pad_str(`${attackInfo}`, 24) : pad_str("", 20)
 
-	let status = ""
-
-	// Add status indicator for servers ready to hack
-	if (shouldHack && (!attackInfo || !attackInfo.includes("hack"))) {
-		status = "[READY TO HACK]"
-	} else if (attackInfo && attackInfo.includes("hack")) {
-		status = "[HACKING $$]"
-	} else if (attackInfo) {
-		status = "[PREPARING]"
-	} else {
-		status = ""
-	}
-
-	return result + "|" + pad_str(status, 15)
+	return result
 }
 
 function get_servers(ns, serverArgs = null) {
@@ -197,9 +209,8 @@ function get_table_header() {
 	// RAM: 4 chars
 	// Skill: 5 chars
 	// Attack Info: 20 chars
-	// Status: variable
 
-	return `${pad_str("Server", 15)}|${pad_str("Money Available/Max (%)", 25)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 4)}|${pad_str("Skill", 5)}|${pad_str("Attack Threads", 20)}|${pad_str("Status", 15)}`
+	return `${pad_str("Server", 15)}|${pad_str("Money Available/Max (%)", 25)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 4)}|${pad_str("Skill", 5)}|${pad_str("Attack Threads", 30)}`
 }
 
 export async function main(ns) {
