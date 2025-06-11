@@ -19,7 +19,7 @@ const ACTION_SCRIPTS = {
 
 // Track current home assistance state
 let HOME_ASSISTANCE_STATE = {}
-let LAST_SERVER_COUNT = 0  // Track server count changes
+let LAST_ELIGIBLE_SERVER_COUNT = 0  // Track eligible server count changes (renamed for clarity)
 
 let SERVERS = {
 	"crush-fitness": { "action": null, "servers": ["CSEC"], "needsHomeAssist": false },
@@ -40,7 +40,7 @@ const FILES_TO_COPY = [
 ]
 
 function disable_logs(ns) {
-	const logs = ["scan", "run", "getServerSecurityLevel", "getServerMoneyAvailable", "getServerMaxMoney", "getServerMinSecurityLevel", "exec", "killall", "scp", "sleep"]
+	const logs = ["scan", "run", "getServerSecurityLevel", "getServerMoneyAvailable", "getServerMaxMoney", "getServerMinSecurityLevel", "exec", "killall", "scp", "sleep", "getServerRequiredHackingLevel", "getHackingLevel"]
 	logs.forEach(log => ns.disableLog(log))
 }
 
@@ -115,19 +115,29 @@ function should_home_assist(ns, server, action) {
 
 async function update_servers(ns) {
 	const allServers = get_all_servers(ns)
-	const purchasedServers = get_purchased_servers(ns)
-	const currentServerCount = allServers.length + purchasedServers.length
 
-	// Detect if new servers were added
-	const serversChanged = currentServerCount !== LAST_SERVER_COUNT
-	if (serversChanged && LAST_SERVER_COUNT > 0) {
-		ns.print(`Server count changed from ${LAST_SERVER_COUNT} to ${currentServerCount} - cleaning up processes`)
+	// Count only eligible servers (those we can actually hack)
+	let eligibleServerCount = 0
+
+	for (const server of allServers) {
+		if (!ns.hasRootAccess(server)) continue
+		if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) continue
+		eligibleServerCount++
+	}
+
+	// Detect if eligible servers changed
+	const eligibleServersChanged = eligibleServerCount !== LAST_ELIGIBLE_SERVER_COUNT
+	if (eligibleServersChanged && LAST_ELIGIBLE_SERVER_COUNT > 0) {
+		ns.print(`Eligible server count changed from ${LAST_ELIGIBLE_SERVER_COUNT} to ${eligibleServerCount} - cleaning up processes`)
 		await cleanup_all_processes(ns)
 	}
-	LAST_SERVER_COUNT = currentServerCount
+	LAST_ELIGIBLE_SERVER_COUNT = eligibleServerCount
 
 	for (const server of allServers) {
 		if (parseInt(ns.getServerMaxMoney(server)) === 0) continue
+
+		// Skip servers that are beyond our hacking level
+		if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) continue
 
 		if (!SERVERS[server]) {
 			SERVERS[server] = { "action": null, "servers": [], "needsHomeAssist": false }
@@ -457,11 +467,18 @@ export async function main(ns) {
 	disable_logs(ns)
 	ns.tprint("Enhanced MCP started - leveraging home and purchased servers with direct action scripts for optimal RAM usage")
 
-	// Initialize server count
+	// Initialize eligible server count
 	const allServers = get_all_servers(ns)
-	const purchasedServers = get_purchased_servers(ns)
-	LAST_SERVER_COUNT = allServers.length + purchasedServers.length
-	ns.print(`Initial server count: ${LAST_SERVER_COUNT}`)
+
+	let eligibleServerCount = 0;
+	for (const server of allServers) {
+		if (!ns.hasRootAccess(server)) continue
+		if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) continue
+		eligibleServerCount++
+	}
+
+	LAST_ELIGIBLE_SERVER_COUNT = eligibleServerCount
+	ns.print(`Initial eligible server count: ${LAST_ELIGIBLE_SERVER_COUNT}`)
 
 	while (true) {
 		ensure_scripts_on_servers(ns)
@@ -479,7 +496,11 @@ export async function main(ns) {
 		})
 
 		for (const server of serverList) {
-			if (!ns.hasRootAccess(server)) continue
+			// Skip servers that are beyond our hacking level
+			if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) {
+				ns.print(`Skipping ${server} - requires hacking level ${ns.getServerRequiredHackingLevel(server)}, current level: ${ns.getHackingLevel()}`)
+				continue
+			}
 
 			const action = determine_action(ns, server)
 			const needsAssist = should_home_assist(ns, server, action)

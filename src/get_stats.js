@@ -25,7 +25,7 @@ function get_all_servers(ns, all=false) {
 			var con = s[j]
 			if (servers.indexOf(con) < 0) {
 				servers.push(con)
-				if (all || (ns.hasRootAccess(con) && parseInt(ns.getServerMaxMoney(con)) > 0)) {
+				if (all || (ns.hasRootAccess(con) && (ns.getServerRequiredHackingLevel(con) <= ns.getHackingLevel()))) {
 					result.push(con)
 				}
 			}
@@ -249,7 +249,8 @@ export async function main(ns) {
 
 			// Dynamically adjust window size based on current server count
 			const windowWidth = charsWidth * 10  // 120 characters * 8px per char
-			const windowHeight = (servers.length + 6) * 26  // lines * 16px per line
+			const windowHeight = Math.min((servers.length + 6) * 26, 800)  // lines * 16px per line
+
 			ns.ui.resizeTail(windowWidth, windowHeight)
 
 			// Generate all content first to minimize flashing
