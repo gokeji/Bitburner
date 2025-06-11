@@ -19,6 +19,9 @@ const timeDiff = 200;
 // time between burst attacks. Needs to be bigger than 2 * time diff (in ms)
 const timeBetweenAttacks = 500;
 
+// Ignore servers
+const ignoreServers = ["b-24"];
+
 // Potential issue with burst attack timing:
 // Hacking skill might increase after launching them while hack / grow wait before they start.
 // Execution time is calculated when launching the attack but can decrease with higher hacking skill.
@@ -699,6 +702,8 @@ async function scanAndNuke(ns) {
     var accessibleServers = new Set();
     for (let server of servers) {
         if (server.startsWith("hacknet-node")) { continue; } // for BitNode 9 to permit hacking on the Hacknet Servers
+        if (ignoreServers.includes(server)) continue; // Custom ignore servers
+
         if (await ns.hasRootAccess(server)) {
             accessibleServers.add(server)
         } else {
