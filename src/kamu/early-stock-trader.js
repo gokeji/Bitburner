@@ -3,7 +3,7 @@
 // does not require 4s Market Data TIX API Access
 
 // defines if stocks can be shorted (see BitNode 8)
-const shortAvailable = true;
+const shortAvailable = false;
 
 const commission = 100000;
 const samplingLength = 30;
@@ -81,6 +81,12 @@ export async function main(ns) {
       }
     }
 
+    // Print in log when waiting for sampling to complete
+    if (symChanges['FSIG'].length < samplingLength) {
+      ns.print(`Sampling ${symChanges['FSIG'].length} of ${samplingLength}`);
+      continue;
+    }
+
     const prioritizedSymbols = [...ns.stock.getSymbols()];
     prioritizedSymbols.sort((a, b) => posNegDiff(symChanges[b]) - posNegDiff(symChanges[a]));
 
@@ -110,7 +116,7 @@ export async function main(ns) {
         const cost = longShares * longPrice;
         const profit = longShares * (bidPrice - longPrice) - 2 * commission;
         if (state < 0) {
-          const sellPrice = ns.stock.sell(sym, longShares);
+          const sellPrice = ns.stock.sellStock(sym, longShares);
           if (sellPrice > 0) {
             sold = true;
             ns.print(`INFO SOLD (long) ${sym}. Profit: ${format(profit)}`);
@@ -140,17 +146,17 @@ export async function main(ns) {
       else if (state < 0) {
         shortStocks.add(sym);
       }
-      const money = ns.getServerMoneyAvailable("home");
-      if (money > commission * 1000) {
+      const money = 100000000 //ns.getServerMoneyAvailable("home");
+      if (money >= commission * 1000) {
         if (state > 0 && !sold) {
           const sharesToBuy = Math.min(ns.stock.getMaxShares(sym), Math.floor((money - commission) / askPrice));
-          if (ns.stock.buy(sym, sharesToBuy) > 0) {
+          if (ns.stock.buyStock(sym, sharesToBuy) > 0) {
             longStocks.add(sym);
             ns.print(`INFO BOUGHT (long) ${sym}.`);
           }
         } else if (state < 0 && !sold && shortAvailable) {
           const sharesToBuy = Math.min(ns.stock.getMaxShares(sym), Math.floor((money - commission) / bidPrice));
-          if (ns.stock.short(sym, sharesToBuy) > 0) {
+          if (ns.stock.buyShort(sym, sharesToBuy) > 0) {
             shortStocks.add(sym);
             ns.print(`INFO BOUGHT (short) ${sym}.`);
           }
