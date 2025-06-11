@@ -10,7 +10,7 @@ var hackMoneyRatio = 0.1;
 // the value of this variable should not make a big difference however
 var maxParallelAttacks = 50;
 
-// time to wait between checking and calculating new attacks (in ms) 
+// time to wait between checking and calculating new attacks (in ms)
 const waitTimeBetweenManagementCycles = 1000;
 
 // time difference between finishing [ hack - grow - weaken ] in burst attacks (in ms)
@@ -19,8 +19,8 @@ const timeDiff = 200;
 // time between burst attacks. Needs to be bigger than 2 * time diff (in ms)
 const timeBetweenAttacks = 500;
 
-// Potential issue with burst attack timing: 
-// Hacking skill might increase after launching them while hack / grow wait before they start. 
+// Potential issue with burst attack timing:
+// Hacking skill might increase after launching them while hack / grow wait before they start.
 // Execution time is calculated when launching the attack but can decrease with higher hacking skill.
 // Thus fast growing hacking skill can get burst attacks out of sync. In such situations it's steamrolling mode anyways, so who cares...
 // Higher time diff / between attacks reduce this issue plus reduce the load on the real CPU running the game
@@ -45,7 +45,7 @@ const singularityFunctionsAvailable = true;
 const backdoorScript = "backdoor.js"
 const backdoorScriptRam = 5.8;
 
-// Solve Contract Script hooked in 
+// Solve Contract Script hooked in
 const solveContractsScript = "solve-contracts.js";
 const solveContractsScriptRam = 22;
 
@@ -220,7 +220,7 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
     for (let target of targets) {
         // check if there is already an attack against this target ongoing
         if (attackOngoing(ns, servers, target) == true) {
-            // skip the target if there is already an attack ongoing because 
+            // skip the target if there is already an attack ongoing because
             // we cannot determine a perfect attack strategy without interfering with the ongoing attack
             continue;
         }
@@ -249,7 +249,7 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
             var hackReGrowRatio = 1;
             var overallGrowRatio = 1;
 
-            // hack if near max money (no substantial growth needed) 
+            // hack if near max money (no substantial growth needed)
             if (initialGrowRatio < 1.1) {
 
                 hackThreads = Math.floor(ns.hackAnalyzeThreads(target, hackMoneyRatio * money));
@@ -275,10 +275,10 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
             // compensate reduced grow effect in WGH after H due to security increase
             overallGrowRatio *= (sec + addedHackSecurity) / sec;
 
-            // Considering 0 cores on all serers. 
+            // Considering 0 cores on all serers.
             // The last parameter 0 can be removed if optimizing for running slave threads on home server with > 0 cores only
             // else, grow threads onother servers than home will not grow sufficiently and break perfect attack chains
-            growThreads = Math.ceil((ns.growthAnalyze(target, overallGrowRatio, 0)));
+            growThreads = Math.ceil((ns.growthAnalyze(target, overallGrowRatio, 1)));
 
             addedGrowSecurity = growThreads * growThreadSecurityIncrease;
         }
@@ -299,8 +299,8 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
         if (overallRamNeed > freeRams.overallFreeRam) {
             // only attack if there is no other partial attack ongoing or if we want to hack.
             // this is to spend RAM on hacking, while not initially weakening and growing servers we would not hack yet anyways
-            // early money is useful for server purchases to speed up RAM gain 
-            // prevent partially weakening / growing multiple servers in parallel. Focus on few servers initially. 
+            // early money is useful for server purchases to speed up RAM gain
+            // prevent partially weakening / growing multiple servers in parallel. Focus on few servers initially.
 
             if (partialAttacks < 9) {
                 //ns.print("incerase partial attacks " + partialAttacks)
@@ -316,7 +316,7 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
                         //ns.print("INFO skip because low RAM for attack on " + target);
                         continue;
                     }
-                    // we only have enough RAM for maxPercentage of our hack Threads. 
+                    // we only have enough RAM for maxPercentage of our hack Threads.
                     var reducedHackMoneyRatio = hackMoneyRatio * maxPercentage;
 
                     // in case we were not at max servermoney, also consider RAM neeed for initial growth on the target
@@ -326,10 +326,10 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
                     // TODO: Let's ignore initial security weaken RAM need for the calculation for now.
                     // If RAM calculation throws warnings, wecould check for that or live with it.
 
-                    // TODO: This calculation is not optimal since growth is not linear. 
-                    // Example: With 50% of the hack threads, we need less than 50% of the grow threads, 
-                    //      so we could hack for more than * maxPercentage 
-                    // => we leave a negligible small percentage of the RAM unused. 
+                    // TODO: This calculation is not optimal since growth is not linear.
+                    // Example: With 50% of the hack threads, we need less than 50% of the grow threads,
+                    //      so we could hack for more than * maxPercentage
+                    // => we leave a negligible small percentage of the RAM unused.
 
                     hackThreads = Math.floor(ns.hackAnalyzeThreads(target, reducedHackMoneyRatio * money));
                     if (hackThreads < 1) {
@@ -340,12 +340,12 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
                     addedHackSecurity = hackThreads * hackThreadSecurityIncrease;
                     hackReGrowRatio = 1 / (1 - reducedHackMoneyRatio);
                     overallGrowRatio = initialGrowRatio * hackReGrowRatio;
-                    growThreads = Math.floor((ns.growthAnalyze(target, overallGrowRatio, 0)));
+                    growThreads = Math.floor((ns.growthAnalyze(target, overallGrowRatio, 1)));
                     addedGrowSecurity = growThreads * growThreadSecurityIncrease;
 
                     weakThreads = Math.floor((secDiff + addedGrowSecurity + addedHackSecurity) * 20);
                     //if (hackThreads < 1 || weakThreads < 1) {
-                    // we planned to hack but we have so small free RAM that it got divided and rounded down to zero 
+                    // we planned to hack but we have so small free RAM that it got divided and rounded down to zero
                     // abort to not waste resources
                     //return;
                     //}
@@ -420,7 +420,7 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
                     break;
                 }
                 else if (parallelAttacks >= maxAttacksDuringHack) {
-                    // check if max parallel attacks have been limited 
+                    // check if max parallel attacks have been limited
                     break;
                 }
                 else if ((freeRams.overallFreeRam / freeRams.overallMaxRam < 0.1 || partialAttacks > 2) && (partialWeakGrow != null || freeRams.overallMaxRam < 512)) {
@@ -476,7 +476,7 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
 
         // var profit = money * maxPercentage * ns.hackAnalyzeChance(target) / (hackThreads + growThreads + weakThreads);
         // Could use hackAnalyzeChance for better value rating - costs ram however
-        
+
         var profit = money * maxPercentage / (hackThreads + growThreads + weakThreads);
         var profitM = profit * 60 / weakTime;
         profitsm.set(target, profitM);
@@ -520,7 +520,7 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
             hackSleep += timeBetweenAttacks;
             attacksLaunched++;
         }
-        
+
     }
     return attacksLaunched;
 }
@@ -663,7 +663,7 @@ function getHackable(ns, servers) {
     // the sort here ranks the hackable servers by "best server to hack"
     // Up to now this is just an educated guess and this can be optimized
     // minSec determines the execution times and growth the needed grow threads.
-    // not sure how to value these in comparison plus whether and how to consider max available money on a hackable server 
+    // not sure how to value these in comparison plus whether and how to consider max available money on a hackable server
 }
 
 // filter the list for servers where we can run script on
@@ -729,6 +729,7 @@ async function scanAndNuke(ns) {
             }
         }
     }
+    ns.print(`DEBUG: Found ${accessibleServers.size} accessible servers: ${[...accessibleServers.values()].join(', ')}`)
     return accessibleServers;
 }
 
