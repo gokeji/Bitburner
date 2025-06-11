@@ -142,10 +142,24 @@ function get_server_data(ns, server) {
 
 	// Format money with M suffix for millions
 	var formatMoney = (amount, digits = 0) => {
-		if (amount >= 1000000) {
-			return (amount / 1000000).toFixed(digits) + "M"
+		if (amount === 0) return "0"
+
+		const units = ["", "k", "m", "b", "t", "q"]
+		let unitIndex = 0
+		let value = amount
+
+		while (value >= 1000 && unitIndex < units.length - 1) {
+			value /= 1000
+			unitIndex++
 		}
-		return parseInt(amount).toString()
+
+		// If it's a whole number, don't show decimals
+		if (value === Math.floor(value)) {
+			return value + units[unitIndex]
+		}
+
+		// Otherwise, show up to `digits` decimal places
+		return value.toFixed(digits) + units[unitIndex]
 	}
 
 	// Format percentage with % suffix
@@ -158,7 +172,7 @@ function get_server_data(ns, server) {
 
 	// Build row with separators and no column labels
 	var result = `${pad_str(server, 15)}|`+
-			`${pad_str(formatMoney(moneyAvailable, 3), 10)}/${pad_str(formatMoney(moneyMax), 6)}${pad_str(`(${formatPercentage((moneyAvailable / moneyMax), 1)})`, 8)}|` +
+			`${pad_str(formatMoney(moneyAvailable, 2), 10)}/${pad_str(formatMoney(moneyMax, 2), 6)}${pad_str(`(${formatPercentage((moneyAvailable / moneyMax), 1)})`, 8)}|` +
 			`${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(securityMin, 2)})|` +
 			`${pad_str(parseInt(ram), 4)}|` +
 			`${pad_str(requiredHackingSkill, 5)}|`
