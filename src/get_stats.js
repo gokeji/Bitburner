@@ -232,8 +232,6 @@ export async function main(ns) {
 	// Filter out chart-related arguments for server list
 	const serverArgs = ns.args.filter(arg => !['--chart', '-c', '--refresh'].includes(arg))
 
-	var servers = get_servers(ns, serverArgs)
-
 	const charsWidth = 111
 
 	if (isChartMode) {
@@ -241,27 +239,33 @@ export async function main(ns) {
 		// Chart mode: dynamic updating terminal display
 		ns.ui.openTail()
 
-		// Calculate window size in pixels
-		// Approximate: 8px per character width, 16px per line height
-		// Table width is ~120 characters, so width = 120 * 8 = 960px
-		// Height: headers(3) + servers + footers(3) + buffer(5) = (servers.length + 11) * 16
-		const windowWidth = charsWidth * 10  // 120 characters * 8px per char
-		const windowHeight = (servers.length + 6) * 26  // lines * 16px per line
-
-		ns.ui.resizeTail(windowWidth, windowHeight)
-		ns.ui.moveTail(120, 20)
+		// Initial window setup (will be adjusted dynamically)
+		ns.ui.resizeTail(charsWidth * 10, 400)
+		ns.ui.moveTail(120, 0)
 
 		while (true) {
-			ns.clearLog()
+			// Rescan for servers on each iteration to detect new servers
+			var servers = get_servers(ns, serverArgs)
 
-			// Generate and display chart data
+			// Dynamically adjust window size based on current server count
+			const windowWidth = charsWidth * 10  // 120 characters * 8px per char
+			const windowHeight = (servers.length + 6) * 26  // lines * 16px per line
+			ns.ui.resizeTail(windowWidth, windowHeight)
+
+			// Generate all content first to minimize flashing
 			const chartData = generate_chart_data(ns, servers)
+			const timeHeader = `Time: ${new Date().toLocaleTimeString()}`
+			const separator = '='.repeat(charsWidth)
+			const dashSeparator = '-'.repeat(charsWidth)
+			const tableHeader = get_table_header()
+			const footer = `Total servers: ${servers.length}`
 
-			// Add header
-			ns.print(`Time: ${new Date().toLocaleTimeString()}`)
-			ns.print('='.repeat(charsWidth))
-			ns.print(get_table_header())
-			ns.print('-'.repeat(charsWidth))
+			// Clear and display all content at once to reduce flashing
+			ns.clearLog()
+			ns.print(timeHeader)
+			ns.print(separator)
+			ns.print(tableHeader)
+			ns.print(dashSeparator)
 
 			// Display server data
 			for (const serverLine of chartData) {
@@ -269,13 +273,14 @@ export async function main(ns) {
 			}
 
 			// Add footer with summary
-			ns.print('='.repeat(charsWidth))
-			ns.print(`Total servers: ${servers.length}`)
+			ns.print(separator)
+			ns.print(footer)
 
 			await ns.sleep(refreshRate)
 		}
 	} else {
 		// Normal mode: single output with formatted table
+		const servers = get_servers(ns, serverArgs)
 		const chartData = generate_chart_data(ns, servers)
 
 		// Add header
