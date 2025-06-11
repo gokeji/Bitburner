@@ -22,7 +22,7 @@ function get_all_servers(ns, all=false) {
 			var con = s[j]
 			if (servers.indexOf(con) < 0) {
 				servers.push(con)
-				if (all || (ns.hasRootAccess(con) && (ns.getServerRequiredHackingLevel(con) <= ns.getHackingLevel()))) {
+				if (all || (ns.hasRootAccess(con) && (ns.getServerRequiredHackingLevel(con) <= ns.getHackingLevel()) && (ns.getServerMaxMoney(con) > 0))) {
 					result.push(con)
 				}
 			}
@@ -170,9 +170,22 @@ function get_server_data(ns, server) {
 		return (amount * 100).toFixed(digits) + "%"
 	}
 
+	// Create progress bar (20 chars, each char = 5%)
+	var createProgressBar = (percentage) => {
+		const totalChars = 20
+		const filledChars = Math.floor(percentage * totalChars)
+		const emptyChars = totalChars - filledChars
+		return '█'.repeat(filledChars) + '░'.repeat(emptyChars)
+	}
+
+	// Calculate money percentage for progress bar
+	var moneyPercentage = moneyMax > 0 ? (moneyAvailable / moneyMax) : 0
+	var progressBar = createProgressBar(moneyPercentage)
+
 	// Build row with separators and no column labels
 	var result = `${pad_str(server, 15)}|`+
-			`${pad_str(formatMoney(moneyAvailable, 2), 10)}/${pad_str(formatMoney(moneyMax, 2), 6)}${pad_str(`(${formatPercentage((moneyAvailable / moneyMax), 1)})`, 8)}|` +
+			`${pad_str(formatMoney(moneyAvailable, 2), 10)}/${pad_str(formatMoney(moneyMax, 2), 6)}${pad_str(`(${formatPercentage(moneyPercentage, 1)})`, 8)}|` +
+			`${progressBar}|` +
 			`${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(securityMin, 2)})|` +
 			`${pad_str(parseInt(ram), 4)}|` +
 			`${pad_str(requiredHackingSkill, 5)}|`
@@ -219,12 +232,13 @@ function get_table_header() {
 	// Column layout with separators (exact character counts):
 	// Server: 15 chars
 	// Money: 25 chars (10 + "/" + 6 + 8 for percentage)
+	// Progress Bar: 20 chars
 	// Security: 9 chars (6 + "(" + 2 + ")")
 	// RAM: 4 chars
 	// Skill: 5 chars
 	// Attack Info: 20 chars
 
-	return `${pad_str("Server", 15)}|${pad_str("Money Available/Max (%)", 25)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 4)}|${pad_str("Skill", 5)}|${pad_str("Attack Threads", 30)}`
+	return `${pad_str("Server", 15)}|${pad_str("Money Available/Max (%)", 25)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 4)}|${pad_str("Skill", 5)}|${pad_str("Attack Threads", 24)}`
 }
 
 export async function main(ns) {
@@ -245,7 +259,7 @@ export async function main(ns) {
 	// Filter out chart-related arguments for server list
 	const serverArgs = ns.args.filter(arg => !['--chart', '-c', '--refresh'].includes(arg))
 
-	const charsWidth = 111
+	const charsWidth = 109  // Updated to include 20-char progress bar + separator
 
 	if (isChartMode) {
 
