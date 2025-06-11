@@ -31,10 +31,10 @@ const timeBetweenAttacks = 500;
 const slaveScriptRam = 1.75;
 
 // names of the slave scripts
-const weakenScriptName = "weaken.js";
-const growScriptName = "grow.js";
-const hackScriptName = "hack.js";
-const shareScriptName = "share.js";
+const weakenScriptName = "/kamu/weaken.js";
+const growScriptName = "/kamu/grow.js";
+const hackScriptName = "/kamu/hack.js";
+const shareScriptName = "/kamu/share.js";
 const shareScriptRam = 4;
 
 // list of slave script files
@@ -107,7 +107,7 @@ export async function main(ns) {
 
         for (var server of servers) {
             // transfer files to the servers
-            await ns.scp(files, "home", server);
+            ns.scp(files, server, "home");
             // ToDo: Not efficient to loop through all servers always. Could be optimized to track which server was optimized and scp only once.
 
             // backdoor faction servers automatically requires singularity module
