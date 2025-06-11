@@ -1,13 +1,14 @@
-import { getAllServers } from "getServers.js";
+import { getAllServers } from "/kamu/getServers.js";
 
 export async function main(ns) {
     ns.disableLog("ALL");
     // This script could run separately in a loop, howeverit is more RAM-efficient to call the script from a management script
-    //while (true) {    
+    //while (true) {
         // get all available servers
         const servers = getAllServers(ns)
         const contracts = servers.flatMap((server) => {
             const onServer = ns.ls(server, ".cct").map((contract) => {
+                ns.tprint(`${server} - Found contract: ${contract}`);
                 const type = ns.codingcontract.getContractType(contract, server);
                 const data = ns.codingcontract.getData(contract, server);
                 const didSolve = solve(type, data, server, contract, ns);
@@ -15,8 +16,7 @@ export async function main(ns) {
             });
             return onServer;
         });
-        //ns.tprint("Found " + contracts.length + " contracts");
-        contracts.forEach((contract) => void ns.print(contract));
+        contracts.forEach((contract) => void ns.tprint(contract));
         // sleep in case this script is run manually
         //await ns.sleep(60000)
     //}
@@ -89,7 +89,7 @@ function isParenthesis(c)
 {
     return ((c == '(') || (c == ')'));
 }
- 
+
 // method returns true if string contains valid parenthesis
 function isValidString(str)
 {
@@ -111,16 +111,16 @@ function removeInvalidParenthesis(str)
 {
     if (str.length==0)
         return [];
-   
+
     // visit set to ignore already visited string
     let visit = new Set();
-   
+
     // queue to maintain BFS
     let q = [];
     let temp;
     let level = false;
     let solutions = []
-   
+
     // pushing given string as starting node into queue
     q.push(str);
     visit.add(str);
@@ -130,7 +130,7 @@ function removeInvalidParenthesis(str)
         if (isValidString(str))
         {
             solutions.push(str);
-   
+
             // If answer is found, make level true
             // so that valid string of only that level
             // are processed.
@@ -142,7 +142,7 @@ function removeInvalidParenthesis(str)
         {
             if (!isParenthesis(str[i]))
                 continue;
-   
+
             // Removing parenthesis from str and
             // pushing into queue,if not visited already
             temp = str.substring(0, i) + str.substring(i + 1);
@@ -164,17 +164,17 @@ function removeInvalidParenthesis(str)
 function solverWaysToSum(arrayData){
     var ways = [];
     ways[0] = 1;
- 
+
     for (var a = 1; a <= arrayData; a++) {
         ways[a] = 0;
     }
- 
+
     for (var i = 1; i <= arrayData - 1; i++) {
         for (var j = i; j <= arrayData; j++) {
             ways[j] += ways[j - i];
         }
     }
- 
+
     return ways[arrayData];
 }
 
@@ -326,7 +326,7 @@ function solveTriangleSum(arrayData, ns) {
     let triangle = arrayData;
     let nextArray;
     let previousArray = triangle[0];
-   
+
     for (let i = 1; i < triangle.length; i++) {
         nextArray = [];
         for (let j = 0; j < triangle[i].length; j++) {

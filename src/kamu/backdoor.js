@@ -3,16 +3,16 @@ export async function main(ns) {
         if (ns.args.length == 1) {
             const target = ns.args[0];
             ns.print("Searching network path to " + target);
-    
-            var networkPath = ["home"];
-            var networkPath = scanAll(ns, "home", target, networkPath);
-    
-            for (var server of networkPath) {
-                ns.connect(server)
+
+            let networkPath = ["home"];
+            networkPath = scanAll(ns, "home", target, networkPath);
+
+            for (let server of networkPath) {
+                ns.singularity.connect(server)
                 if (server == target) {
-                    var backdoorSuccess = await ns.installBackdoor();
+                    let backdoorSuccess = await ns.installBackdoor();
                     ns.tprint("Installed backdoor on " + server + " - " + backdoorSuccess);
-                    ns.connect("home");
+                    ns.singularity.connect("home");
                     return backdoorSuccess;
                 }
             }
@@ -22,11 +22,11 @@ export async function main(ns) {
         }
         return false;
     }
-    
+
     function scanAll(ns, start, target, path) {
-        var connectedHosts = ns.scan(start);
-        var finalPath = null;
-        for (var host of connectedHosts) {
+        let connectedHosts = ns.scan(start);
+        let finalPath = null;
+        for (let host of connectedHosts) {
             if (!path.includes(host)) {
                 path.push(host);
                 if (host == target) {
@@ -44,4 +44,3 @@ export async function main(ns) {
             }
         }
     }
-    

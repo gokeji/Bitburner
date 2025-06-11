@@ -41,12 +41,12 @@ const shareScriptRam = 4;
 const files = [weakenScriptName, growScriptName, hackScriptName];
 
 // Backdoor script hooked in (requires singluarity functions SF4.1)
-const singularityFunctionsAvailable = true;
-const backdoorScript = "backdoor.js"
+const singularityFunctionsAvailable = false;
+const backdoorScript = "/kamu/backdoor.js"
 const backdoorScriptRam = 5.8;
 
 // Solve Contract Script hooked in
-const solveContractsScript = "solve-contracts.js";
+const solveContractsScript = "/kamu/solve-contracts.js";
 const solveContractsScriptRam = 22;
 
 // global variable to track ongoing partial weak or grow attacks
