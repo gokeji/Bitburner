@@ -201,9 +201,10 @@ export async function main(ns) {
             const maxRam = ns.getServerMaxRam("home");
             const usedRam = ns.getServerUsedRam("home")
             var freeRam = maxRam - usedRam;
-            var shareThreads = Math.floor(freeRam / shareScriptRam);
+            // Only use 10% of home server RAM for share scripts, leave 90% for hacking
+            var shareThreads = Math.floor((freeRam * 0.1) / shareScriptRam);
             if (shareThreads > 0) {
-                ns.print("INFO share threads " + shareThreads);
+                ns.print("INFO share threads " + shareThreads + " (using 10% of home RAM)");
                 ns.exec(shareScriptName, "home", shareThreads, shareThreadIndex);
                 if (shareThreadIndex > 9) {
                     shareThreadIndex = 0;
@@ -699,7 +700,7 @@ function getFreeRam(ns, servers) {
     // deploy threads on servers with lots of free RAM first
     serverRams.sort((a, b) => b.freeRam - a.freeRam);
     // move home server to last position to keep RAM free for player stuff there
-    serverRams.sort((a, b) => (a.host == "home") - (b.host == "home"));
+    // serverRams.sort((a, b) => (a.host == "home") - (b.host == "home"));
 
     return { serverRams, overallFreeRam, overallMaxRam };
 }

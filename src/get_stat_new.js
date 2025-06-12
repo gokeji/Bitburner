@@ -1,11 +1,6 @@
 /**
  * @param {NS} ns
  **/
- /*
-Gets stats of each hacked server.
-RAM: 2.55GB
- */
-
 function get_all_servers(ns, all=false) {
 	/*
 	Scans and iterates through all servers.
@@ -210,7 +205,7 @@ function get_server_data(ns, server) {
 			`${pad_str(formatMoney(moneyAvailable, 2), 8)}/${pad_str(formatMoney(moneyMax, 2), 7)}${pad_str(`(${formatPercentage(moneyPercentage, 1)})`, 8)}|` +
 			`${progressBar}|` +
 			`${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(securityMin, 2)})|` +
-			`${pad_str(parseInt(ram), 4)}|` +
+			`${pad_str(ram, 4)}G|` +
 			`${pad_str(requiredHackingSkill, 5)}|` +
 			`${pad_str(formatMoney(priority, 2), 8)}|`
 
@@ -254,16 +249,16 @@ function generate_chart_data(ns, servers) {
 // Add table header function that matches exact column spacing
 function get_table_header() {
 	// Column layout with separators (exact character counts):
-	// Server: 15 chars
+	// Server: 18 chars
 	// Money: 25 chars (10 + "/" + 6 + 8 for percentage)
 	// Progress Bar: 20 chars
 	// Security: 9 chars (6 + "(" + 2 + ")")
-	// RAM: 4 chars
+	// RAM: 5 chars
 	// Skill: 5 chars
 	// Priority: 8 chars
 	// Attack Info: 20 chars
 
-	return `${pad_str("Server", 18)}|${pad_str("Money Available/Max (%)", 24)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 4)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Attack Threads", 24)}`
+	return `${pad_str("Server", 18)}|${pad_str("Money Available/Max (%)", 24)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 5)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Attack Threads", 24)}`
 }
 
 export async function main(ns) {
