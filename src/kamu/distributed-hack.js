@@ -222,7 +222,7 @@ export async function main(ns) {
             ramUsage = (freeRams.overallMaxRam - freeRams.overallFreeRam) / freeRams.overallMaxRam;
         }
 
-        //ns.print("INFO RAM utilization: " + Math.round(ramUsage * 100) + " % ");
+        ns.print("INFO RAM utilization: " + Math.round(ramUsage * 100) + " % (" + Math.round(freeRams.overallFreeRam/1000) + "GB free)");
 
         await ns.sleep(waitTimeBetweenManagementCycles);
     }
@@ -323,9 +323,9 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
             maxPercentage = freeRams.overallFreeRam / overallRamNeed;
             if (partialWeakGrow == null || partialWeakGrow == target || hackThreads > 0) {
                 if (hackThreads > 0) {
-                    if (maxPercentage < 0.05) {
+                    if (maxPercentage < 0.001) {
                         //ns.print("INFO skip small attack on " + target);
-                        // too small attacks are not efficient, let's wait until we can at least perform 5 % of a full attack
+                        // too small attacks are not efficient, let's wait until we can at least perform 0.1% of a full attack
                         //ns.print("INFO skip because low RAM for attack on " + target);
                         continue;
                     }
@@ -436,8 +436,9 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
                     // check if max parallel attacks have been limited
                     break;
                 }
-                else if ((freeRams.overallFreeRam / freeRams.overallMaxRam < 0.1 || partialAttacks > 2) && (partialWeakGrow != null || freeRams.overallMaxRam < 512)) {
+                else if ((freeRams.overallFreeRam / freeRams.overallMaxRam < 0.01 || partialAttacks > 2) && (partialWeakGrow != null || freeRams.overallMaxRam < 1024)) {
                     // if we are low on RAM, go for single attacks for better efficiency
+                    // Adjusted thresholds for high-RAM scenarios
                     break;
                 }
                 // increment parallel attacks via for loop
@@ -552,8 +553,9 @@ function xpWeaken(ns, freeRams, servers, targets) {
         if (xpAttackOngoing(ns, servers, target, xpWeakSleep) == false) {
             // we have free RAM for this many weak threads
             var weakThreads = freeRams.overallFreeRam / slaveScriptRam;
-            // however, do not use all of it, only use a part of it to leave some buffer for the hack threads
-            weakThreads = Math.floor(weakThreads * 0.6);
+            // XP weaken only runs when ramUsage < 80% and hackMoneyRatio >= 99%, so there's already plenty of buffer
+            // Use 100% of available RAM since this only runs when there's lots of free RAM anyway
+            weakThreads = Math.floor(weakThreads);
             if (weakThreads > 0) {
                 ns.print("WARN XP weaken attack on " + target + " with " + weakThreads);
                 if (!findPlaceToRun(ns, weakenScriptName, weakThreads, freeRams, target, xpWeakSleep)) {
