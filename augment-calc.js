@@ -1,21 +1,36 @@
-// BitBurner Augmentation Purchase Optimizer - Updated with Prerequisites
+// BitBurner Augmentation Purchase Optimizer - New Augmentations
 const augments = [
-    { name: 'NeuroFlux Governor - Level 9', cost: 2.139, rep: 1.426, available: true, prereqs: [] },
-    { name: 'BitWire', cost: 10.000, rep: 3.750, available: true, prereqs: [] },
-    { name: 'Artificial Synaptic Potentiation', cost: 80.000, rep: 6.250, available: true, prereqs: [] },
-    { name: 'Neural-Retention Enhancement', cost: 250.000, rep: 20.000, available: true, prereqs: [] },
-    { name: 'DataJack', cost: 450.000, rep: 112.500, available: true, prereqs: [] }, // Now available!
-    { name: 'Embedded Netburner Module', cost: 250.000, rep: 15.000, available: true, prereqs: [] },
-    { name: 'Cranial Signal Processors - Gen I', cost: 70.000, rep: 10.000, available: true, prereqs: [] },
-    { name: 'Cranial Signal Processors - Gen II', cost: 125.000, rep: 18.750, available: true, prereqs: ['Cranial Signal Processors - Gen I'] },
-    { name: 'Cranial Signal Processors - Gen III', cost: 550.000, rep: 50.000, available: true, prereqs: ['Cranial Signal Processors - Gen II'] },
-    { name: 'Neurotrainer II', cost: 45.000, rep: 10.000, available: true, prereqs: [] },
-    { name: 'CRTX42-AA Gene Modification', cost: 225.000, rep: 45.000, available: true, prereqs: [] }
+    // Tian Di Hui
+    { name: 'Nanofiber Weave', cost: 125, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
+    { name: 'Neuroreceptor Management Implant', cost: 550, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
+
+    // Slum Snakes (marked as bold in table, assuming available)
+    { name: 'SmartSonar Implant', cost: 75, faction: 'Slum Snakes', available: true, prereqs: [], hackingBoost: false },
+    { name: 'LuminCloaking-V2 Skin Implant', cost: 30, faction: 'Slum Snakes', available: true, prereqs: [], hackingBoost: false },
+    { name: 'Combat Rib I', cost: 23.75, faction: 'Slum Snakes', available: true, prereqs: [], hackingBoost: false },
+
+    // Tetrads
+    { name: 'Bionic Arms', cost: 275, faction: 'Tetrads', available: true, prereqs: [], hackingBoost: false },
+    { name: 'Power Recirculation Core', cost: 180, faction: 'Tetrads', available: true, prereqs: [], hackingBoost: true },
+    { name: 'HemoRecirculator', cost: 45, faction: 'Tetrads', available: true, prereqs: [], hackingBoost: false },
+
+    // Volhaven
+    { name: 'DermaForce Particle Barrier', cost: 50, faction: 'Volhaven', available: true, prereqs: [], hackingBoost: false },
+    { name: 'Combat Rib II', cost: 65, faction: 'Volhaven', available: true, prereqs: ['Combat Rib I'], hackingBoost: false },
+
+    // BitRunners - filtering out unavailable ones
+    { name: 'Cranial Signal Processors - Gen V', cost: 2250, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Neural Accelerator', cost: 1750, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Artificial Bio-neural Network Implant', cost: 3000, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+
+    // Unavailable items (marked as "No" in Eligible column)
+    // { name: 'BitRunners Neurolink', cost: 4375, faction: 'BitRunners', available: false, prereqs: [], hackingBoost: true },
+    // { name: 'Embedded Netburner Module Core V2 Upgrade', cost: 4500, faction: 'BitRunners', available: false, prereqs: [], hackingBoost: true },
 ];
 
 const COST_MULTIPLIER = 1.9;
-const STARTING_MONEY = 240000; // 240B in millions
 
+// Let's assume you have enough money to buy everything - we'll calculate total needed
 function formatNumber(num) {
     if (num >= 1e9) return (num/1e9).toFixed(2) + 'B';
     if (num >= 1e6) return (num/1e6).toFixed(2) + 'M';
@@ -29,142 +44,193 @@ function canPurchase(augment, purchasedAugments) {
     );
 }
 
-function calculateOptimalOrder(prioritizeCranial = false) {
-    let availableAugments = augments.filter(aug => aug.available).map(aug => ({
-        ...aug,
-        originalCost: aug.cost,
-        currentCost: aug.cost
-    }));
+function calculateCombinedCost(augmentName, augments) {
+    // Find the augment and its dependency chain
+    const augment = augments.find(aug => aug.name === augmentName);
+    if (!augment) return 0;
 
-    let remainingMoney = STARTING_MONEY;
+    let totalCost = augment.cost;
+    let multiplier = 1;
+
+    // Add prerequisite costs (they get bought first, so no multiplier)
+    for (const prereqName of augment.prereqs) {
+        const prereq = augments.find(aug => aug.name === prereqName);
+        if (prereq) {
+            totalCost += prereq.cost;
+            multiplier *= COST_MULTIPLIER; // Each prereq increases the multiplier for the final item
+        }
+    }
+
+    // The final item in the chain gets the accumulated multiplier
+    totalCost = augment.cost + (augment.prereqs.reduce((sum, prereqName) => {
+        const prereq = augments.find(aug => aug.name === prereqName);
+        return sum + (prereq ? prereq.cost : 0);
+    }, 0));
+
+    return totalCost;
+}
+
+function calculateOptimalOrder() {
+    // Remove duplicates - keep the one from the preferred faction (or first occurrence)
+    const deduplicatedAugments = [];
+    const seenNames = new Set();
+
+    for (const aug of augments) {
+        if (!seenNames.has(aug.name) && aug.available) {
+            deduplicatedAugments.push({
+                ...aug,
+                originalCost: aug.cost,
+                currentCost: aug.cost,
+                combinedCost: calculateCombinedCost(aug.name, augments)
+            });
+            seenNames.add(aug.name);
+        }
+    }
+
+    console.log('=== DEDUPLICATED AUGMENTATIONS WITH COMBINED COSTS ===');
+    deduplicatedAugments.forEach(aug => {
+        const hackingMark = aug.hackingBoost ? ' 🧠' : '';
+        const prereqInfo = aug.prereqs.length > 0 ? ` (requires: ${aug.prereqs.join(', ')})` : '';
+        const combinedInfo = aug.combinedCost !== aug.cost ? ` [Combined: $${formatNumber(aug.combinedCost * 1000000)}]` : '';
+        console.log(`${aug.name}${hackingMark} - $${formatNumber(aug.cost * 1000000)}${combinedInfo} [${aug.faction}]${prereqInfo}`);
+    });
+    console.log('');
+
+        // Create a priority list by treating dependency chains as single units
+    const priorityItems = [];
+    const processedAugments = new Set();
+
+    for (const aug of deduplicatedAugments) {
+        if (processedAugments.has(aug.name)) continue;
+
+        // Check if this augment is the END of a dependency chain
+        const dependentAugment = deduplicatedAugments.find(a => a.prereqs.includes(aug.name));
+
+        if (!dependentAugment) {
+            // This is either standalone or the final item in a chain
+            if (aug.prereqs.length === 0) {
+                // Standalone item
+                priorityItems.push({
+                    type: 'single',
+                    augments: [aug],
+                    priorityCost: aug.cost
+                });
+                processedAugments.add(aug.name);
+            } else {
+                // Final item in a chain - build the full chain
+                const chain = [];
+                let current = aug;
+
+                // Build the chain backwards from the final item
+                while (current) {
+                    chain.unshift(current);
+                    processedAugments.add(current.name);
+
+                    if (current.prereqs.length > 0) {
+                        current = deduplicatedAugments.find(a => a.name === current.prereqs[0]);
+                    } else {
+                        current = null;
+                    }
+                }
+
+                // Calculate combined cost for priority (first item + second item * 1.9)
+                const combinedCost = chain.reduce((sum, item, index) => {
+                    return sum + (item.cost * Math.pow(COST_MULTIPLIER, index));
+                }, 0);
+
+                priorityItems.push({
+                    type: 'chain',
+                    augments: chain,
+                    priorityCost: combinedCost
+                });
+            }
+        }
+        // If this augment has a dependent, skip it - it will be processed as part of the chain
+    }
+
+    // Sort priority items by their priority cost (descending)
+    priorityItems.sort((a, b) => b.priorityCost - a.priorityCost);
+
+    console.log('=== PRIORITY ORDER CALCULATION ===');
+    priorityItems.forEach((item, index) => {
+        if (item.type === 'single') {
+            console.log(`${index + 1}. ${item.augments[0].name} - $${formatNumber(item.priorityCost * 1000000)}`);
+        } else {
+            console.log(`${index + 1}. ${item.augments.map(a => a.name).join(' → ')} - $${formatNumber(item.priorityCost * 1000000)} (chain)`);
+        }
+    });
+    console.log('');
+
+    // Now execute purchases in this priority order
     let purchaseOrder = [];
     let totalCost = 0;
-    let cranialChainComplete = false;
+    let multiplier = 1;
 
-    while (true) {
-        let purchasableAugments = availableAugments.filter(aug =>
-            canPurchase(aug, purchaseOrder)
-        );
-
-        if (purchasableAugments.length === 0) {
-            break;
-        }
-
-        // Special logic for cranial-first strategy
-        if (prioritizeCranial && !cranialChainComplete) {
-            // Check if we still have cranial processors to buy
-            const cranialAugments = purchasableAugments.filter(aug =>
-                aug.name.includes('Cranial Signal Processors')
-            );
-
-            if (cranialAugments.length > 0) {
-                // Sort cranial by generation (I, II, III) - buy in order
-                cranialAugments.sort((a, b) => {
-                    const genA = a.name.includes('Gen I') ? 1 : a.name.includes('Gen II') ? 2 : 3;
-                    const genB = b.name.includes('Gen I') ? 1 : b.name.includes('Gen II') ? 2 : 3;
-                    return genA - genB;
-                });
-
-                // Only consider the next cranial processor in the chain
-                purchasableAugments = [cranialAugments[0]];
-            } else {
-                // No more cranial processors available, chain is complete
-                cranialChainComplete = true;
-                // Now apply normal strategy (most expensive first) to remaining augments
-                purchasableAugments.sort((a, b) => b.currentCost - a.currentCost);
-            }
-        } else {
-            // Normal strategy: sort by current cost descending (most expensive first)
-            purchasableAugments.sort((a, b) => b.currentCost - a.currentCost);
-        }
-
-        let affordableAugment = null;
-        let augmentIndex = -1;
-
-        for (let i = 0; i < purchasableAugments.length; i++) {
-            if (purchasableAugments[i].currentCost <= remainingMoney) {
-                affordableAugment = purchasableAugments[i];
-                augmentIndex = availableAugments.findIndex(aug => aug.name === affordableAugment.name);
-                break;
-            }
-        }
-
-        if (!affordableAugment) {
-            break;
-        }
-
-        purchaseOrder.push(affordableAugment);
-        remainingMoney -= affordableAugment.currentCost;
-        totalCost += affordableAugment.currentCost;
-
-        availableAugments.splice(augmentIndex, 1);
-
-        for (let aug of availableAugments) {
-            aug.currentCost *= COST_MULTIPLIER;
+    for (const item of priorityItems) {
+        for (const aug of item.augments) {
+            const actualCost = aug.cost * multiplier;
+            purchaseOrder.push({
+                ...aug,
+                currentCost: actualCost
+            });
+            totalCost += actualCost;
+            multiplier *= COST_MULTIPLIER;
         }
     }
 
-    return { purchaseOrder, totalCost, remainingMoney };
+    return { purchaseOrder, totalCost };
 }
 
-console.log('=== AUGMENTATION PURCHASE OPTIMIZER (COMPARISON) ===');
-console.log(`Starting money: $${formatNumber(STARTING_MONEY * 1000000)}`);
+// Calculate and display results
+console.log('=== BITBURNER AUGMENTATION PURCHASE OPTIMIZER ===');
 console.log(`Cost multiplier per purchase: ${COST_MULTIPLIER}x`);
+console.log('Legend: 🧠 = Improves hacking');
+console.log('Note: Dependency chains are prioritized by their combined cost');
 console.log('');
 
-// Calculate optimal strategy
-console.log('=== STRATEGY 1: OPTIMAL ORDER (Most Expensive First) ===');
-const optimal = calculateOptimalOrder(false);
-for (let i = 0; i < optimal.purchaseOrder.length; i++) {
-    const aug = optimal.purchaseOrder[i];
-    console.log(`${i+1}. ${aug.name} - $${formatNumber(aug.currentCost * 1000000)}`);
+const result = calculateOptimalOrder();
+
+console.log('=== OPTIMAL PURCHASE ORDER (WITH DEPENDENCY CHAIN PRIORITY) ===');
+for (let i = 0; i < result.purchaseOrder.length; i++) {
+    const aug = result.purchaseOrder[i];
+    const hackingMark = aug.hackingBoost ? ' 🧠' : '';
+    const prereqInfo = aug.prereqs.length > 0 ? ` (required: ${aug.prereqs.join(', ')})` : '';
+    console.log(`${i+1}. ${aug.name}${hackingMark} - $${formatNumber(aug.currentCost * 1000000)} [${aug.faction}]${prereqInfo}`);
 }
-console.log(`Total cost: $${formatNumber(optimal.totalCost * 1000000)}`);
-console.log(`Remaining: $${formatNumber(optimal.remainingMoney * 1000000)}`);
-console.log(`Augments purchased: ${optimal.purchaseOrder.length}`);
+
 console.log('');
+console.log('=== SUMMARY ===');
+console.log(`Total augments to purchase: ${result.purchaseOrder.length}`);
+console.log(`Total cost: $${formatNumber(result.totalCost * 1000000)}`);
+console.log(`Hacking augments: ${result.purchaseOrder.filter(aug => aug.hackingBoost).length}`);
 
-// Calculate cranial-first strategy
-console.log('=== STRATEGY 2: CRANIAL PROCESSORS FIRST ===');
-const cranialFirst = calculateOptimalOrder(true);
-for (let i = 0; i < cranialFirst.purchaseOrder.length; i++) {
-    const aug = cranialFirst.purchaseOrder[i];
-    const isCranial = aug.name.includes('Cranial Signal Processors');
-    const marker = isCranial ? ' 🧠' : '';
-    console.log(`${i+1}. ${aug.name}${marker} - $${formatNumber(aug.currentCost * 1000000)}`);
-}
-console.log(`Total cost: $${formatNumber(cranialFirst.totalCost * 1000000)}`);
-console.log(`Remaining: $${formatNumber(cranialFirst.remainingMoney * 1000000)}`);
-console.log(`Augments purchased: ${cranialFirst.purchaseOrder.length}`);
 console.log('');
+console.log('=== COST BREAKDOWN BY ORIGINAL PRICE ===');
+const costBreakdown = result.purchaseOrder.map((aug, index) => ({
+    name: aug.name,
+    originalCost: aug.originalCost,
+    actualCost: aug.currentCost,
+    multiplier: aug.currentCost / aug.originalCost,
+    order: index + 1
+}));
 
-// Calculate the difference
-const costDifference = cranialFirst.totalCost - optimal.totalCost;
-const augmentDifference = optimal.purchaseOrder.length - cranialFirst.purchaseOrder.length;
+costBreakdown.sort((a, b) => b.originalCost - a.originalCost);
+costBreakdown.forEach(item => {
+    console.log(`${item.name}: $${formatNumber(item.originalCost * 1000000)} → $${formatNumber(item.actualCost * 1000000)} (${item.multiplier.toFixed(2)}x, bought ${item.order}${item.order === 1 ? 'st' : item.order === 2 ? 'nd' : item.order === 3 ? 'rd' : 'th'})`);
+});
 
-console.log('=== COMPARISON RESULTS ===');
-console.log(`Optimal strategy: ${optimal.purchaseOrder.length} augments for $${formatNumber(optimal.totalCost * 1000000)}`);
-console.log(`Cranial-first strategy: ${cranialFirst.purchaseOrder.length} augments for $${formatNumber(cranialFirst.totalCost * 1000000)}`);
 console.log('');
-console.log(`Cost difference: $${formatNumber(Math.abs(costDifference) * 1000000)} ${costDifference > 0 ? 'MORE expensive' : 'LESS expensive'}`);
-console.log(`Augment difference: ${Math.abs(augmentDifference)} ${augmentDifference > 0 ? 'FEWER' : 'MORE'} augments`);
-
-if (augmentDifference !== 0) {
-    console.log('');
-    console.log('=== AUGMENTS MISSED IN CRANIAL-FIRST STRATEGY ===');
-    const optimalNames = new Set(optimal.purchaseOrder.map(aug => aug.name));
-    const cranialNames = new Set(cranialFirst.purchaseOrder.map(aug => aug.name));
-
-    for (let aug of optimal.purchaseOrder) {
-        if (!cranialNames.has(aug.name)) {
-            console.log(`- ${aug.name} (would cost too much after cranial purchases)`);
-        }
-    }
-}
+console.log('=== DEPENDENCY CHAIN ANALYSIS ===');
+console.log('Combat Rib I + II chain:');
+console.log(`- Combat Rib I: $23.75M (base cost)`);
+console.log(`- Combat Rib II: $65M × 1.9 = $123.50M (after Combat Rib I purchase)`);
+console.log(`- Combined chain cost: $147.25M`);
+console.log(`- This combined cost ranks it above Nanofiber Weave ($125M)`);
 
 console.log('');
 console.log('=== KEY INSIGHTS ===');
-console.log('1. Buying expensive augments first minimizes the impact of the 1.9x multiplier');
-console.log('2. The cranial chain gets VERY expensive if other augments are bought first');
-console.log('3. But other expensive augments become unaffordable if cranial chain is prioritized');
-console.log('4. The optimal strategy balances chain completion timing with cost minimization');
+console.log('1. Dependency chains are prioritized by their COMBINED cost');
+console.log('2. Combat Rib I+II combined ($147.25M) > Nanofiber Weave ($125M)');
+console.log('3. Most expensive individual augments still purchased first');
+console.log('4. Dependencies must be bought in order within their priority slot');
+console.log(`5. You need approximately $${formatNumber(result.totalCost * 1000000)} total to buy all available augments`);
