@@ -32,17 +32,6 @@ function get_all_servers(ns, all=false) {
 	return result
 }
 
-// Get purchased servers (servers with no money but have RAM) - reused from mcp.js
-function get_purchased_servers(ns) {
-	const allServers = get_all_servers(ns, true)
-	return allServers.filter(server =>
-		ns.hasRootAccess(server) &&
-		ns.getServerMaxMoney(server) === 0 &&
-		ns.getServerMaxRam(server) > 0 &&
-		server !== "home"
-	)
-}
-
 // Updated: Count total threads attacking a server from distributed-hack.js system
 function get_distributed_attack_info(ns, targetServer) {
 	const allServers = get_all_servers(ns, true)
@@ -224,8 +213,8 @@ function get_server_data(ns, server) {
 	var progressBar = createProgressBar(moneyPercentage)
 
 	// Build row with separators and no column labels
-	var result = `${pad_str(server, 15)}|`+
-			`${pad_str(formatMoney(moneyAvailable, 2), 10)}/${pad_str(formatMoney(moneyMax, 2), 6)}${pad_str(`(${formatPercentage(moneyPercentage, 1)})`, 8)}|` +
+	var result = `${pad_str(server, 18)}|`+
+			`${pad_str(formatMoney(moneyAvailable, 2), 8)}/${pad_str(formatMoney(moneyMax, 2), 7)}${pad_str(`(${formatPercentage(moneyPercentage, 1)})`, 8)}|` +
 			`${progressBar}|` +
 			`${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(securityMin, 2)})|` +
 			`${pad_str(parseInt(ram), 4)}|` +
@@ -281,7 +270,7 @@ function get_table_header() {
 	// Priority: 8 chars
 	// Attack Info: 20 chars
 
-	return `${pad_str("Server", 15)}|${pad_str("Money Available/Max (%)", 25)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 4)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Attack Threads", 24)}`
+	return `${pad_str("Server", 18)}|${pad_str("Money Available/Max (%)", 24)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 4)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Attack Threads", 24)}`
 }
 
 export async function main(ns) {
@@ -302,7 +291,7 @@ export async function main(ns) {
 	// Filter out chart-related arguments for server list
 	const serverArgs = ns.args.filter(arg => !['--chart', '-c', '--refresh'].includes(arg))
 
-	const charsWidth = 117  // Updated to include 8-char priority column + separator
+	const charsWidth = 120  // Updated to include 8-char priority column + separator
 
 	if (isChartMode) {
 
