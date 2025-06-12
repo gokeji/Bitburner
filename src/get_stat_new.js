@@ -109,44 +109,36 @@ function get_distributed_attack_info(ns, targetServer) {
 	return `${threadParts.join(":")} ${paddedTotal}`
 }
 
-// NEW: Calculate hacking priority (profit per minute) similar to distributed-hack.js
-function calculate_hacking_priority(ns, server) {
-	const money = Math.max(ns.getServerMoneyAvailable(server), 1) // Avoid division by zero
-	const maxMoney = ns.getServerMaxMoney(server)
-	const minSec = ns.getServerMinSecurityLevel(server)
-	const sec = ns.getServerSecurityLevel(server)
-	const weakTime = ns.getWeakenTime(server)
+// Global variable to store profit data from distributed-hack.js
+var distributedHackProfits = new Map();
 
-	// Skip servers that can't be hacked or have no money
-	if (maxMoney === 0 || ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) {
-		return 0
+// Function to read profit data from port 4 (sent by distributed-hack.js)
+function update_distributed_hack_profits(ns) {
+	const profitPortHandle = ns.getPortHandle(4);
+
+	// Clear existing data
+	distributedHackProfits.clear();
+
+	// Read all profit data from the port
+	while (!profitPortHandle.empty()) {
+		try {
+			const data = JSON.parse(profitPortHandle.read());
+			distributedHackProfits.set(data.server, data.profit);
+		} catch (e) {
+			// Skip invalid JSON data
+			continue;
+		}
+	}
+}
+
+// Get hacking priority from distributed-hack.js data, fallback to local calculation
+function get_hacking_priority(ns, server) {
+	// Try to get from distributed-hack.js first
+	if (distributedHackProfits.has(server)) {
+		return distributedHackProfits.get(server);
 	}
 
-	// Basic calculation similar to distributed-hack.js
-	const hackMoneyRatio = 0.1 // Default ratio from distributed-hack.js
-	const hackThreadSecurityIncrease = 0.002
-	const growThreadSecurityIncrease = 0.004
-
-	// Calculate required threads (simplified version)
-	const hackThreads = Math.max(1, Math.floor(ns.hackAnalyzeThreads(server, hackMoneyRatio * money)))
-	const initialGrowRatio = maxMoney / money
-	const hackReGrowRatio = 1 / (1 - hackMoneyRatio)
-	const overallGrowRatio = initialGrowRatio * hackReGrowRatio
-	const growThreads = Math.ceil(ns.growthAnalyze(server, overallGrowRatio, 1))
-
-	const addedHackSecurity = hackThreads * hackThreadSecurityIncrease
-	const addedGrowSecurity = growThreads * growThreadSecurityIncrease
-	const secDiff = sec - minSec
-	const weakThreads = Math.ceil((secDiff + addedGrowSecurity + addedHackSecurity) * 20)
-
-	// Calculate profit per minute
-	const totalThreads = hackThreads + growThreads + weakThreads
-	if (totalThreads === 0) return 0
-
-	const profit = money * hackMoneyRatio / totalThreads
-	const profitPerMinute = profit * 60 / weakTime
-
-	return profitPerMinute
+	return null;
 }
 
 function pad_str(string, len) {
@@ -168,10 +160,11 @@ function get_server_data(ns, server) {
 	var ram = ns.getServerMaxRam(server)
 	var requiredHackingSkill = ns.getServerRequiredHackingLevel(server)
 	var attackInfo = get_distributed_attack_info(ns, server)  // Get distributed attack info
-	var priority = calculate_hacking_priority(ns, server)  // Get hacking priority
+	var priority = get_hacking_priority(ns, server)  // Get hacking priority
 
 	// Format money with M suffix for millions
 	var formatMoney = (amount, digits = 0) => {
+		if (amount === null) return "--"
 		if (amount === 0) return "0"
 
 		const units = ["", "k", "m", "b", "t", "q"]
@@ -303,6 +296,9 @@ export async function main(ns) {
 		ns.ui.moveTail(120, 0)
 
 		while (true) {
+			// Update profit data from distributed-hack.js
+			update_distributed_hack_profits(ns);
+
 			// Rescan for servers on each iteration to detect new servers
 			var servers = get_servers(ns, serverArgs)
 
@@ -340,6 +336,9 @@ export async function main(ns) {
 		}
 	} else {
 		// Normal mode: single output with formatted table
+		// Update profit data from distributed-hack.js
+		update_distributed_hack_profits(ns);
+
 		const servers = get_servers(ns, serverArgs)
 		const chartData = generate_chart_data(ns, servers)
 
