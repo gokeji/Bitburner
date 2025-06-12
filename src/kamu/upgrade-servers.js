@@ -8,7 +8,8 @@ export async function main(ns) {
 	var notAllServersMaxed = true;
 	const ramLimit = ns.getPurchasedServerMaxRam();
 	var maxPurchaseableRam = ns.getServerMaxRam("home") / 2;  // we would not buy less than half home RAM
-	if (maxPurchaseableRam > ramLimit) {
+	if (maxPurchaseableRam > ramLimit || ns.getServerMaxRam("home") >= ramLimit) {
+		// If home is sufficiently large, don't buy anything cheaper than max RAM since you can easily afford it.
 		maxPurchaseableRam = ramLimit;
 	}
 	ns.print("Initial RAM tier: " + maxPurchaseableRam + " GB");
@@ -38,11 +39,11 @@ export async function main(ns) {
 		}
 
 		while (ownedServers.length < ns.getPurchasedServerLimit() && homeMoney > ramUpgradeCost) {
-			if ((ownedServers.length == 7 || ownedServers.length == 14 || ownedServers.length == 21) && maxPurchaseableRam * 2 < ramLimit) {
-				// switch to a higher RAM tier after 10 servers, so we got the second 10 at 50% and the last 5 at 25%
+			if ((ownedServers.length == 7 || ownedServers.length == 13 || ownedServers.length == 20) && maxPurchaseableRam * 2 <= ramLimit) {
+				// switch to a higher RAM tier for the 8th, 14th, and 21st server
 				// - make a substantial impact (the increase would be < 10%)
 				// - reduce the money lost by deleting servers often
-				// - reduce the impact of killing running threads by having the last 5 servers with 1/4 RAM
+				// - reduce the impact of killing running threads by having the last servers with most of the RAM
 				// 		and "baiting" threads to the high RAM servers so that the last small ones have low utilization.
 				maxPurchaseableRam *= 2
 				ramUpgradeCost = ns.getPurchasedServerCost(maxPurchaseableRam);
@@ -57,12 +58,7 @@ export async function main(ns) {
 				ns.print(printMessage);
 				ns.toast(printMessage, "success");
 			}
-
 		}
-
-		//ns.tprint(ownedServers);
-		//ns.print("maxPurchaseableRam: " + maxPurchaseableRam)
-		//ns.print("RamCost: " + ns.getPurchasedServerCost(maxPurchaseableRam))
 
 		while (ownedServers.length > 0 && homeMoney > ramUpgradeCost) {
 			var upgradeServer = ownedServers.pop();
@@ -73,12 +69,7 @@ export async function main(ns) {
 				ns.toast("All servers at max RAM", "success");
 				notAllServersMaxed = false;
 				return;
-			} else if (upgradeServerRAM >= maxPurchaseableRam) {
-				// we would not actually upgrade the ram of the server.
-				// Since sorted, all remaining servers would not have less, so we can stop.
-				break;
-			}
-			else {
+			} else {
 				if (maxPurchaseableRam * 2 <= ramLimit && ownedServers.length > 6) {
 					if (upgradeServerRAM <= ns.getServerMaxRam(ownedServers[6]) * 2) {
 						// switch to double RAM after x servers, so we got the second / third set of servers sizes
@@ -89,19 +80,24 @@ export async function main(ns) {
 						maxPurchaseableRam *= 2;
 						ramUpgradeCost = ns.getPurchasedServerCost(maxPurchaseableRam);
 						ns.print("Double RAM tier: " + maxPurchaseableRam + " GB");
+
 						if (homeMoney < ramUpgradeCost) {
 							// we should switch to a higher RAM tier but cannot afford it. Wait for more money.
 							break;
 						}
 					}
 				}
+
 				ns.tprint("Upgrade server " + upgradeServer + " RAM from " + upgradeServerRAM + " to " + maxPurchaseableRam + " for " + Math.round(ramUpgradeCost / 1000000) + " m");
 				ns.killall(upgradeServer);
 				ns.deleteServer(upgradeServer);
 				ns.purchaseServer(upgradeServer, maxPurchaseableRam);
 				homeMoney = ns.getServerMoneyAvailable("home");
-			}
 
+				const printMessage = "Upgraded Server " + upgradeServer + " RAM from " + upgradeServerRAM + " to " + maxPurchaseableRam + " for " + Math.round(ramUpgradeCost / 1000000) + " m";
+				ns.print(printMessage);
+				ns.toast(printMessage, "success");
+			}
 		}
 		await ns.sleep(5 * 1000);
 	}
