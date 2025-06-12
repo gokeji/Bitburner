@@ -51,7 +51,8 @@ export async function main(ns) {
 
 			// ns.print("money: " + Math.round(homeMoney / 1000000) + "m cost: " + Math.round(ramUpgradeCost / 1000000) + " m")
 			if (homeMoney > ramUpgradeCost) {
-				const newServer = ns.purchaseServer("b-" + ownedServers.length, maxPurchaseableRam);
+				const newServerName = "b-" + ownedServers.length.toString().padStart(2, '0');
+				const newServer = ns.purchaseServer(newServerName, maxPurchaseableRam);
 				ownedServers.push(newServer);
 				homeMoney = ns.getServerMoneyAvailable("home");
 				const printMessage = "Purchased Server " + newServer + " with " + maxPurchaseableRam + " RAM for " + Math.round(ramUpgradeCost / 1000000) + " m";
