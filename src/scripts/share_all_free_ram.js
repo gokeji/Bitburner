@@ -9,12 +9,14 @@ export async function main(ns) {
     const freeRam = maxRam - usedRam;
     const shareScriptRam = 4;
     const maxThreads = Math.floor(freeRam / shareScriptRam);
-    ns.print(`${server} has ${freeRam} free RAM, kicking off ${maxThreads} threads of share.js`);
 
     if (maxThreads == 0) {
       await ns.sleep(1000);
       continue;
     }
+
+    ns.print(`${server} has ${freeRam} free RAM, kicking off ${maxThreads} threads of share.js`);
+    ns.scp("kamu/share.js", server);
     ns.exec("kamu/share.js", server, maxThreads);
     await ns.sleep(10025); // Sleep 25ms extra to make sure share is done running
   }
