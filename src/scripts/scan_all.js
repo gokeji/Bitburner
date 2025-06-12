@@ -3,6 +3,8 @@ export async function main(ns) {
   // Disable default logging for cleaner output
   ns.disableLog("ALL");
 
+  const showPurchased = ns.args.includes("--show-purchased");
+
   // Function to recursively scan all servers
   function scanAllServers(ns, host, servers) {
       var hosts = ns.scan(host);
@@ -14,14 +16,22 @@ export async function main(ns) {
       }
   }
 
+  ns.tprint("=== Scanning all servers ===");
+
   // Start scanning from home
   let servers = new Set(["home"]);
   scanAllServers(ns, "home", servers);
 
-  ns.tprint("=== Scanning for .cct files ===");
-  let foundFiles = false;
+  for (let server of servers) {
+    if (!showPurchased && ns.getServer(server).purchasedByPlayer) {
+        continue;
+    }
+    ns.tprint(server);
+  }
 
   // Check each server for .cct files
+  let foundFiles = false;
+
   for (let server of servers) {
       let cctFiles = ns.ls(server, ".cct");
       if (cctFiles.length > 0) {
