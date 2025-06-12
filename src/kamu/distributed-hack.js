@@ -451,7 +451,7 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
             // Typically, there should be enough RAM for the planned attack. Warn if not.
             ns.print("WARN RAM calculation issue for target: " + target + " need / free: " + overallRamNeed + " / " + freeRams.overallFreeRam);
         }
-        freeRams.overallFreeRam -= overallRamNeed;
+        // Note: overallFreeRam will be updated by findPlaceToRun() as RAM is actually consumed
 
         // by default, no sleep time for threads
         var weakSleep = 0;
@@ -513,17 +513,17 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
 
         for (var i = 0; i < parallelAttacks; i++) {
             if (hackThreads > 0) {
-                if (!findPlaceToRun(ns, hackScriptName, hackThreads, freeRams.serverRams, target, hackSleep, hackStock)) {
+                if (!findPlaceToRun(ns, hackScriptName, hackThreads, freeRams, target, hackSleep, hackStock)) {
                     ns.print("WARN Did not find a place to run hack " + target + " needs " + overallRamNeed)
                 }
             }
             if (weakThreads > 0) {
-                if (!findPlaceToRun(ns, weakenScriptName, weakThreads, freeRams.serverRams, target, weakSleep)) {
+                if (!findPlaceToRun(ns, weakenScriptName, weakThreads, freeRams, target, weakSleep)) {
                     ns.print("WARN Did not find a place to run weaken " + target + " needs " + overallRamNeed)
                 }
             }
             if (growThreads > 0) {
-                if (!findPlaceToRun(ns, growScriptName, growThreads, freeRams.serverRams, target, growSleep, growStock)) {
+                if (!findPlaceToRun(ns, growScriptName, growThreads, freeRams, target, growSleep, growStock)) {
                     ns.print("WARN Did not find a place to run grow " + target + " needs " + overallRamNeed)
                 }
             }
@@ -556,7 +556,7 @@ function xpWeaken(ns, freeRams, servers, targets) {
             weakThreads = Math.floor(weakThreads * 0.6);
             if (weakThreads > 0) {
                 ns.print("WARN XP weaken attack on " + target + " with " + weakThreads);
-                if (!findPlaceToRun(ns, weakenScriptName, weakThreads, freeRams.serverRams, target, xpWeakSleep)) {
+                if (!findPlaceToRun(ns, weakenScriptName, weakThreads, freeRams, target, xpWeakSleep)) {
                     ns.print("WARN Did not find a place to run XP weaken " + target)
 
                 }
@@ -576,19 +576,20 @@ function weakenXPgainCompare(ns, playerHackingLevel, target) {
 // find some place to run the script with given amount of threads
 // returns true means script was executed, false means it didnt
 function findPlaceToRun(ns, script, threads, freeRams, target, sleepTime, manipulateStock = false) {
-    while (freeRams.length > 0) {
+    while (freeRams.serverRams.length > 0) {
         // try with first availiable host
-        var host = freeRams[0].host;
-        var ram = freeRams[0].freeRam;
+        var host = freeRams.serverRams[0].host;
+        var ram = freeRams.serverRams[0].freeRam;
 
         // if not enough ram on host to even run 1 thread, remove the host from list
         if (ram < slaveScriptRam) {
-            freeRams.shift();
+            freeRams.serverRams.shift();
 
             // else if the ram on the host is not enough to run all threads, just run as much as it can
         }
         else if (ram < slaveScriptRam * threads) {
             const threadForThisHost = Math.floor(ram / slaveScriptRam);
+            const ramUsed = threadForThisHost * slaveScriptRam;
             if (manipulateStock) {
                 ns.exec(script, host, threadForThisHost, target, sleepTime, manipulateStock);
             }
@@ -596,16 +597,19 @@ function findPlaceToRun(ns, script, threads, freeRams, target, sleepTime, manipu
                 ns.exec(script, host, threadForThisHost, target, sleepTime);
             }
             threads -= threadForThisHost;
-            freeRams.shift();
+            freeRams.overallFreeRam -= ramUsed;
+            freeRams.serverRams.shift();
         }
         else { // enough RAM on this host to run all threads
+            const ramUsed = threads * slaveScriptRam;
             if (manipulateStock) {
                 ns.exec(script, host, threads, target, sleepTime, manipulateStock)
             }
             else {
                 ns.exec(script, host, threads, target, sleepTime);
             }
-            freeRams[0].freeRam -= slaveScriptRam * threads;
+            freeRams.serverRams[0].freeRam -= ramUsed;
+            freeRams.overallFreeRam -= ramUsed;
             return true;
         }
     }
