@@ -44,10 +44,9 @@ export function main(ns) {
         const onServer = ns.ls(server, ".cct").map((contract) => {
             const type = ns.codingcontract.getContractType(contract, server);
             const data = ns.codingcontract.getData(contract, server);
-            const didSolve = solve(type, data, server, contract, ns);
-            const result = didSolve ? "COMPLETE!" : "FAILED!";
-            const logType = didSolve ? "SUCCESS:" : "WARN:";
-            return `${logType} ${server} - ${contract} - ${type} - ${result}`;
+            const result = solve(type, data, server, contract, ns);
+            const logType = result.success ? "SUCCESS:" : "WARN:";
+            return `${logType} ${server} - ${contract} - ${type} - ${result.result}`;
         });
         return onServer;
     });
@@ -159,8 +158,11 @@ function solve(type, data, server, contract, ns) {
         case "Encryption II: Vigenère Cipher":
             solution = vigenereCipher(data);
             break;
+        case "Square Root":
+            solution = squareRoot(data);
+            break;
         default:
-            ns.tprintf("ERROR: Contract type '%s' has no solving function.", type);
+            // ns.tprintf("ERROR: Contract type '%s' has no solving function.", type);
             solution = "FUCKMEINTHEGOATASS!"
             break;
     }
@@ -1063,4 +1065,30 @@ function vigenereCipher(data) {
         })
         .join("");
     return cipher;
+}
+
+// Square Root
+
+function squareRoot(n) {
+    const two = BigInt(2);
+    if (n < two) return n; // Square root of 1 is 1, square root of 0 is 0
+    let root = n / two; // Initial guess
+    let x1 = (root + n / root) / two;
+    while (x1 < root) {
+        root = x1;
+        x1 = (root + n / root) / two;
+    }
+    // That's it, solved! At least, we've converged an an answer which should be as close as we can get (might be off by 1)
+    // We want the answer to the "nearest integer". Check the answer on either side of the one we converged on to see what's closest
+    const bigAbs = (x) => x < 0n ? -x : x; // There's no Math.abs where we're going...
+    let absDiff = bigAbs(root * root - n); // How far off we from the perfect square root
+    if (absDiff == 0n) return root; // Note that this coding contract doesn't guarantee there's an exact integer square root
+    else if (absDiff > bigAbs((root - 1n) * (root - 1n) - n)) root = root - 1n; // Do we get a better answer by subtracting 1?
+    else if (absDiff > bigAbs((root + 1n) * (root + 1n) - n)) root = root + 1n; // Do we get a better answer by adding 1?
+    // Validation: We should be able to tell if we got this right without wasting a guess. Adding/Subtracting 1 should now always be worse
+    absDiff = bigAbs(root * root - n);
+    if (absDiff > bigAbs((root - 1n) * (root - 1n) - n) ||
+        absDiff > bigAbs((root + 1n) * (root + 1n) - n))
+        throw new Error(`Square Root did not converge. Arrived at answer:\n${root} - which when squared, gives:\n${root * root} instead of\n${n}`);
+    return root.toString();
 }
