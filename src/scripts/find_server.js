@@ -11,6 +11,7 @@ export async function main(ns) {
   }
 
   const targetServer = ns.args[0];
+  const fuzzy = ns.args.includes("--fuzzy");
 
   // Function to find path to target server using BFS
   function findPathToServer(ns, target) {
@@ -21,7 +22,7 @@ export async function main(ns) {
       const { server, path } = queue.shift();
 
       // If we found the target server, return the path
-      if (server === target) {
+      if (server === target || (fuzzy && server.includes(target))) {
         return path;
       }
 
