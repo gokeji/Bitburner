@@ -5,8 +5,9 @@ export async function main(ns) {
 	launch_stats_monitoring(ns);
 	start_ipvgo_if_not_running(ns);
 	start_upgrade_servers_if_not_running(ns);
-	start_stock_trader_if_not_running(ns); // Do not run stock trader for now
+	start_stock_trader_if_not_running(ns);
 	start_upgrade_hnet_if_needed(ns);
+	start_share_all_ram_if_not_running(ns);
 
 	ns.tprint("Autoplay check complete - all required scripts are now running");
 }
@@ -64,16 +65,23 @@ function start_stock_trader_if_not_running(ns) {
 
 function start_upgrade_hnet_if_needed(ns) {
 	// Check if "kamu/upgrade-hnet.js" is running on "home"
-	const runningScripts = ns.ps().map(process => process.filename);
-	let upgradeHnetRunning = runningScripts.includes('letsPlayBitburner/hnet-full.js');
+	const upgradeHnetRunning = ns.scriptRunning('letsPlayBitBurner/hnet-full.js', ns.getHostname());
 
 	// If not running, execute the script
 	if (!upgradeHnetRunning) {
-		ns.exec('letsPlayBitburner/hnet-full.js', "home", 1, 0, 0.2);
+		ns.exec('letsPlayBitBurner/hnet-full.js', ns.getHostname(), 1, 0, 0.2);
 	}
 }
 
 function launch_stats_monitoring(ns) {
 	// Launch "get_stats_new.js -c"
 	ns.exec('get_stat_new.js', "home", 1, "--chart");
+}
+
+function start_share_all_ram_if_not_running(ns) {
+	// Launch "run scripts/share_all_free_ram.js b-24" if not running
+	const shareAllRamRunning = ns.scriptRunning('scripts/share_all_free_ram.js', ns.getHostname());
+	if (!shareAllRamRunning) {
+		ns.exec('scripts/share_all_free_ram.js', ns.getHostname(), 1, 'b-24');
+	}
 }

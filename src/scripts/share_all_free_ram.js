@@ -3,6 +3,11 @@
 export async function main(ns) {
   const server = ns.args[0];
 
+  if (!server || !ns.serverExists(server)) {
+    ns.tprint("Server does not exist");
+    return;
+  }
+
   while (true) {
     const maxRam = ns.getServerMaxRam(server);
     const usedRam = ns.getServerUsedRam(server)
