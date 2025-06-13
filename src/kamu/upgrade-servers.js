@@ -8,7 +8,7 @@ export async function main(ns) {
 
 	var notAllServersMaxed = true;
 	const ramLimit = ns.getPurchasedServerMaxRam();
-	var maxPurchaseableRam = ns.getServerMaxRam("home") / 2;  // we would not buy less than half home RAM
+	var maxPurchaseableRam = ns.getServerMaxRam("home");  // we would not buy less than home RAM
 	if (maxPurchaseableRam > ramLimit || ns.getServerMaxRam("home") >= ramLimit) {
 		// If home is sufficiently large, don't buy anything cheaper than max RAM since you can easily afford it.
 		maxPurchaseableRam = ramLimit;
@@ -40,8 +40,8 @@ export async function main(ns) {
 		}
 
 		while (ownedServers.length < ns.getPurchasedServerLimit() && homeMoney > ramUpgradeCost) {
-			if ((ownedServers.length == 7 || ownedServers.length == 13 || ownedServers.length == 20) && maxPurchaseableRam * 2 <= ramLimit) {
-				// switch to a higher RAM tier for the 8th, 14th, and 21st server
+			if ((ownedServers.length == 5 || ownedServers.length == 10 || ownedServers.length == 15 || ownedServers.length == 20) && maxPurchaseableRam * 2 <= ramLimit) {
+				// switch to a higher RAM tier for the 6th, 11th, 16th, and 21st server
 				// - make a substantial impact (the increase would be < 10%)
 				// - reduce the money lost by deleting servers often
 				// - reduce the impact of killing running threads by having the last servers with most of the RAM

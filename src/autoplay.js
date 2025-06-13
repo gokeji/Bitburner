@@ -14,7 +14,7 @@ export async function main(ns) {
 
 function start_distributed_hack_if_not_running(ns) {
 	// Check if "kamu/distributed-hack.js" is running on "home"
-	let distributedHackRunning = ns.isRunning('kamu/distributed-hack.js', 'home');
+	let distributedHackRunning = isScriptRunning(ns, 'kamu/distributed-hack.js', 'home');
 
 	// If not running, execute the script
 	if (!distributedHackRunning) {
@@ -27,7 +27,7 @@ function start_distributed_hack_if_not_running(ns) {
 
 function start_ipvgo_if_not_running(ns) {
 	// Check if "master/ipvgo.js" is running on "home"
-	let ipvgoRunning = ns.isRunning('techLord/master/auto-play-ipvgo.js', 'home');
+	let ipvgoRunning = isScriptRunning(ns, 'techLord/master/auto-play-ipvgo.js', 'home');
 
 	// If not running, execute the script
 	if (!ipvgoRunning) {
@@ -39,7 +39,7 @@ function start_ipvgo_if_not_running(ns) {
 
 function start_upgrade_servers_if_not_running(ns) {
 	// Check if "kamu/upgrade-servers.js" is running on "home"
-	let upgradeServersRunning = ns.isRunning('kamu/upgrade-servers.js', 'home');
+	let upgradeServersRunning = isScriptRunning(ns, 'kamu/upgrade-servers.js', 'home');
 
 	// If not running, execute the script
 	if (!upgradeServersRunning) {
@@ -52,7 +52,7 @@ function start_upgrade_servers_if_not_running(ns) {
 
 function start_stock_trader_if_not_running(ns) {
 	// Check if "kamu/stock-trader.js" is running on "home"
-	let stockTraderRunning = ns.isRunning('kamu/stock-trader.js', 'home');
+	let stockTraderRunning = isScriptRunning(ns, 'kamu/stock-trader.js', 'home');
 
 	// If not running, execute the script
 	if (!stockTraderRunning) {
@@ -65,7 +65,7 @@ function start_stock_trader_if_not_running(ns) {
 
 function start_upgrade_hnet_if_needed(ns) {
 	// Check if "kamu/upgrade-hnet.js" is running on "home"
-	const upgradeHnetRunning = ns.scriptRunning('letsPlayBitBurner/hnet-full.js', ns.getHostname());
+	const upgradeHnetRunning = isScriptRunning(ns, 'letsPlayBitBurner/hnet-full.js', ns.getHostname());
 
 	// If not running, execute the script
 	if (!upgradeHnetRunning) {
@@ -80,8 +80,13 @@ function launch_stats_monitoring(ns) {
 
 function start_share_all_ram_if_not_running(ns) {
 	// Launch "run scripts/share_all_free_ram.js b-24" if not running
-	const shareAllRamRunning = ns.scriptRunning('scripts/share_all_free_ram.js', ns.getHostname());
+	const shareAllRamRunning = isScriptRunning(ns, 'scripts/share_all_free_ram.js', ns.getHostname());
 	if (!shareAllRamRunning) {
 		ns.exec('scripts/share_all_free_ram.js', ns.getHostname(), 1, 'b-24');
 	}
+}
+
+function isScriptRunning(ns, scriptName, hostname) {
+	const runningScripts = ns.ps(hostname).map(process => process.filename);
+	return runningScripts.includes(scriptName);
 }
