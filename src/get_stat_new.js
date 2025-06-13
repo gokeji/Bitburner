@@ -42,6 +42,11 @@ function get_distributed_attack_info(ns, targetServer) {
 		weaken: 0,
 		hack: 0
 	}
+	let scriptCounts = {
+		weaken: 0,
+		grow: 0,
+		hack: 0
+	}
 
 	// Check all servers for kamu scripts targeting this server
 	for (const server of allServers) {
@@ -56,6 +61,7 @@ function get_distributed_attack_info(ns, targetServer) {
 				const actionType = kamuScripts[process.filename]
 				threadCounts[actionType] += process.threads
 				totalThreads += process.threads
+				scriptCounts[actionType] += 1
 			}
 		}
 	}
@@ -93,14 +99,15 @@ function get_distributed_attack_info(ns, targetServer) {
 	const scaleFactor = 10 ** (numDigits - 2)
 
 	// Scale and format the thread counts
-	for (let i = 0; i < activeThreadCounts.length; i++) {
-		const scaledValue = activeThreadCounts[i] / scaleFactor
+	for (const action in activeThreadCounts) {
+		const scaledValue = activeThreadCounts[action] / scaleFactor
 		const formattedValue = Math.round(scaledValue).toString()
-		threadParts.push(`${displayParts[i]}${formattedValue}`)
+		threadParts.push(`${displayParts[action]}${formattedValue}`)
 	}
 
+	const totalScriptCount = scriptCounts.weaken + scriptCounts.grow + scriptCounts.hack
 	// Format total threads with padding
-	const totalThreadsStr = `[${totalThreads}t]`
+	const totalThreadsStr = `[${ns.formatNumber(totalThreads, 1)}-${ns.formatNumber(totalScriptCount, 0)}]`
 	const paddedTotal = totalThreadsStr.padStart(10)
 
 	return `${threadParts.join(":")} ${paddedTotal}`

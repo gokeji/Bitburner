@@ -15,10 +15,10 @@ var maxParallelAttacks = 50;
 const waitTimeBetweenManagementCycles = 1000;
 
 // time difference between finishing [ hack - grow - weaken ] in burst attacks (in ms)
-const timeDiff = 200;
+const timeDiff = 30;
 
 // time between burst attacks. Needs to be bigger than 2 * time diff (in ms)
-const timeBetweenAttacks = 500;
+const timeBetweenAttacks = 100;
 
 // Ignore servers
 const ignoreServers = [];
@@ -589,6 +589,7 @@ function findPlaceToRun(ns, script, threads, freeRams, target, sleepTime, manipu
         else if (ram < slaveScriptRam * threads) {
             const threadForThisHost = Math.floor(ram / slaveScriptRam);
             if (manipulateStock) {
+                ns.print(`Stock GROW ${host} ${target} ${threadForThisHost} ${sleepTime}`)
                 ns.exec(script, host, threadForThisHost, target, sleepTime, manipulateStock);
             }
             else {
@@ -746,7 +747,7 @@ async function scanAndNuke(ns) {
     return accessibleServers;
 }
 
-function scanAll(ns, host, servers) {
+export function scanAll(ns, host, servers) {
     var hosts = ns.scan(host);
     for (let i = 0; i < hosts.length; i++) {
         if (!servers.has(hosts[i])) {

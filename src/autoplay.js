@@ -2,9 +2,11 @@
 export async function main(ns) {
 	// Start all required scripts if not running
 	start_distributed_hack_if_not_running(ns);
+	launch_stats_monitoring(ns);
 	start_ipvgo_if_not_running(ns);
 	start_upgrade_servers_if_not_running(ns);
-	// start_stock_trader_if_not_running(ns); // Do not run stock trader for now
+	start_stock_trader_if_not_running(ns); // Do not run stock trader for now
+	start_upgrade_hnet_if_needed(ns);
 
 	ns.tprint("Autoplay check complete - all required scripts are now running");
 }
@@ -58,4 +60,20 @@ function start_stock_trader_if_not_running(ns) {
 	} else {
 		ns.tprint("kamu/stock-trader.js is already running");
 	}
+}
+
+function start_upgrade_hnet_if_needed(ns) {
+	// Check if "kamu/upgrade-hnet.js" is running on "home"
+	const runningScripts = ns.ps().map(process => process.filename);
+	let upgradeHnetRunning = runningScripts.includes('letsPlayBitburner/hnet-full.js');
+
+	// If not running, execute the script
+	if (!upgradeHnetRunning) {
+		ns.exec('letsPlayBitburner/hnet-full.js', "home", 1, 0, 0.2);
+	}
+}
+
+function launch_stats_monitoring(ns) {
+	// Launch "get_stats_new.js -c"
+	ns.exec('get_stat_new.js', "home", 1, "--chart");
 }
