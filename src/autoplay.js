@@ -1,18 +1,35 @@
 /** @param {NS} ns */
 export async function main(ns) {
 	// Start all required scripts if not running
-	start_distributed_hack_if_not_running(ns);
-	launch_stats_monitoring(ns);
-	start_ipvgo_if_not_running(ns);
-	start_upgrade_servers_if_not_running(ns);
-	start_stock_trader_if_not_running(ns);
-	start_upgrade_hnet_if_needed(ns);
-	start_share_all_ram_if_not_running(ns);
+	startDistributedHackIfNotRunning(ns);
+	launchStatsMonitoring(ns);
+	startIpvgoIfNotRunning(ns);
+	startUpgradeServersIfNotRunning(ns);
+	startUpgradeHnetIfNeeded(ns);
 
-	ns.tprint("Autoplay check complete - all required scripts are now running");
+	let startedStockTrader = false;
+	let sharedRam = false;
+
+	ns.tprint("INFO Autoplay check complete - all required scripts are now running");
+	ns.tprint("INFO Waiting for stock trader and share ram to start");
+
+	while (!startedStockTrader || !sharedRam) {
+		// Start stock trader and also share ram after we purchase server b-24
+		if (ns.serverExists("b-24")) {
+			startStockTraderIfNotRunning(ns);
+			startShareAllRamIfNotRunning(ns);
+
+			startedStockTrader = true;
+			sharedRam = true;
+			break;
+		}
+		await ns.sleep(10000);
+	}
+
+	ns.tprint("INFO Stock trader and share ram started - Autoplay complete");
 }
 
-function start_distributed_hack_if_not_running(ns) {
+function startDistributedHackIfNotRunning(ns) {
 	// Check if "kamu/distributed-hack.js" is running on "home"
 	let distributedHackRunning = isScriptRunning(ns, 'kamu/distributed-hack.js', 'home');
 
@@ -25,7 +42,7 @@ function start_distributed_hack_if_not_running(ns) {
 	}
 }
 
-function start_ipvgo_if_not_running(ns) {
+function startIpvgoIfNotRunning(ns) {
 	// Check if "master/ipvgo.js" is running on "home"
 	let ipvgoRunning = isScriptRunning(ns, 'techLord/master/auto-play-ipvgo.js', 'home');
 
@@ -37,7 +54,7 @@ function start_ipvgo_if_not_running(ns) {
 	}
 }
 
-function start_upgrade_servers_if_not_running(ns) {
+function startUpgradeServersIfNotRunning(ns) {
 	// Check if "kamu/upgrade-servers.js" is running on "home"
 	let upgradeServersRunning = isScriptRunning(ns, 'kamu/upgrade-servers.js', 'home');
 
@@ -50,7 +67,7 @@ function start_upgrade_servers_if_not_running(ns) {
 	}
 }
 
-function start_stock_trader_if_not_running(ns) {
+function startStockTraderIfNotRunning(ns) {
 	// Check if "kamu/stock-trader.js" is running on "home"
 	let stockTraderRunning = isScriptRunning(ns, 'kamu/stock-trader.js', 'home');
 
@@ -63,7 +80,7 @@ function start_stock_trader_if_not_running(ns) {
 	}
 }
 
-function start_upgrade_hnet_if_needed(ns) {
+function startUpgradeHnetIfNeeded(ns) {
 	// Check if "kamu/upgrade-hnet.js" is running on "home"
 	const upgradeHnetRunning = isScriptRunning(ns, 'letsPlayBitBurner/hnet-full.js', ns.getHostname());
 
@@ -73,12 +90,12 @@ function start_upgrade_hnet_if_needed(ns) {
 	}
 }
 
-function launch_stats_monitoring(ns) {
+function launchStatsMonitoring(ns) {
 	// Launch "get_stats_new.js -c"
 	ns.exec('get_stat_new.js', "home", 1, "--chart");
 }
 
-function start_share_all_ram_if_not_running(ns) {
+function startShareAllRamIfNotRunning(ns) {
 	// Launch "run scripts/share_all_free_ram.js b-24" if not running
 	const shareAllRamRunning = isScriptRunning(ns, 'scripts/share_all_free_ram.js', ns.getHostname());
 	if (!shareAllRamRunning) {
