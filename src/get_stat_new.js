@@ -281,7 +281,7 @@ export async function main(ns) {
 	// Filter out chart-related arguments for server list
 	const serverArgs = ns.args.filter(arg => !['--chart', '-c', '--refresh'].includes(arg))
 
-	const charsWidth = 120  // Updated to include 8-char priority column + separator
+	const charsWidth = 121  // Updated to include 8-char priority column + separator
 
 	if (isChartMode) {
 

@@ -3,13 +3,14 @@
  * @param {NS} ns
  */
 
-import { get_purchased_servers } from "../mcp.js"
+// import { get_purchased_servers } from "../mcp.js"
+import { scanAll } from "../kamu/distributed-hack.js"
 
 // Direct action scripts used for assistance
 const ACTION_SCRIPTS = {
-	"scripts/grow.js": "grow",
-	"scripts/hack.js": "hack",
-	"scripts/weaken.js": "weaken"
+	"kamu/grow.js": "grow",
+	"kamu/hack.js": "hack",
+	"kamu/weaken.js": "weaken"
 }
 
 function disable_logs(ns) {
@@ -18,8 +19,11 @@ function disable_logs(ns) {
 }
 
 function cleanup_home_assist_processes(ns) {
-	const purchasedServers = get_purchased_servers(ns)
-	const assistanceServers = ["home", ...purchasedServers]
+	const servers = new Set(["home"])
+	scanAll(ns, "home", servers)
+	ns.tprint(`Found ${servers.size} servers`)
+
+	const assistanceServers = ["home", ...servers]
 
 	let totalKilled = 0
 	const killReport = []
@@ -52,9 +56,6 @@ export async function main(ns) {
 	ns.tprint("=== Direct Action Assistance Cleanup Script ===")
 	ns.tprint("Scanning all servers for direct action assistance processes...")
 	ns.tprint(`Looking for: ${Object.keys(ACTION_SCRIPTS).join(", ")}`)
-
-	const purchasedServers = get_purchased_servers(ns)
-	ns.tprint(`Found ${purchasedServers.length} purchased servers`)
 
 	const { totalKilled, killReport } = cleanup_home_assist_processes(ns)
 

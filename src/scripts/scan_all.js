@@ -26,7 +26,7 @@ export async function main(ns) {
     if (!showPurchased && ns.getServer(server).purchasedByPlayer) {
         continue;
     }
-    ns.tprint(server);
+    ns.tprint(`${server} ${ns.getServer(server).maxRam} root access: ${ns.hasRootAccess(server)} open ports: ${ns.getServerNumPortsRequired(server)}/${ns.getServerNumPortsRequired(server)}`);
   }
 
   // Check each server for .cct files
