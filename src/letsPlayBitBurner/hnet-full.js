@@ -3,7 +3,7 @@ import BasePlayer from "./if.player";
 export async function main(ns) {
 	let player = new BasePlayer(ns, "player");
 	let runtime = ns.args[0];
-	let maxPaybackHours = ns.args[1] || 24; // Stop upgrading if payback time > 24 hours
+	let maxPaybackHours = ns.args[1] || 1; // Stop upgrading if payback time > 24 hours
 
 	if (runtime) {
 		runtime *= 1000
@@ -28,22 +28,6 @@ export async function main(ns) {
 		}
 
 		let currentNodeStats = [];
-
-		let nodeValue = getProd(10, 1, 1) * player.hnet.multipliers.production
-		let nodeCost = ns.hacknet.getPurchaseNodeCost()
-
-		// Calculate payback time for new node
-		let nodePaybackTime = nodeCost / nodeValue;
-		let nodePaybackHours = nodePaybackTime / 3600;
-
-		currentNodeStats.push({
-			value: nodeValue,
-			cost: nodeCost,
-			ratio: nodeValue/nodeCost,
-			paybackTime: nodePaybackTime,
-			paybackHours: nodePaybackHours,
-			type: "node"
-		});
 
 		for (let idx = 0; idx < ns.hacknet.numNodes(); idx++) {
 			let {level, ram, cores, production} = ns.hacknet.getNodeStats(idx);
@@ -93,8 +77,13 @@ export async function main(ns) {
 
 			}
 
-		currentNodeStats.sort((a,b) => b.ratio - a.ratio)
+		currentNodeStats.sort((a,b) => a.paybackTime - b.paybackTime)
 		let bestUpgrade = currentNodeStats[0];
+
+		// Debug all of the upgrade types before returning
+		for (let upgrade of currentNodeStats) {
+			ns.print(`Node ${upgrade.index} ${upgrade.type.padEnd(5)}: power: ${ns.formatNumber(upgrade.value, 2).padStart(8)}, cost: ${ns.formatNumber(upgrade.cost, 2).padStart(10)}, ratio: ${upgrade.ratio.toFixed(6).padStart(10)}, payback: ${(upgrade.paybackTime / 3600).toFixed(2).padStart(6)}h`)
+		}
 
 		// Log the best upgrade with payback time info
 		let nodeInfo = bestUpgrade.type === "node" ? "" : ` on node ${bestUpgrade.index}`;

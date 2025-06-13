@@ -8,7 +8,7 @@ export async function main(ns) {
     if (!ipvgoRunning) {
       // Determine which opponent to reset the board against
       const opponents = ["Netburners", "Slum Snakes", "The Black Hand", "Tetrads", "Daedalus", "Illuminati"];
-      const randomOpponent = "Daedalus"; //opponents[Math.floor(Math.random() * opponents.length)];
+      const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
 
       // Reset the board state with the randomly chosen opponent
       ns.go.resetBoardState(randomOpponent, 13);

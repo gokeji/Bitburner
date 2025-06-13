@@ -21,7 +21,7 @@ const timeDiff = 200;
 const timeBetweenAttacks = 500;
 
 // Ignore servers
-const ignoreServers = ["b-24"];
+const ignoreServers = [];
 
 // Potential issue with burst attack timing:
 // Hacking skill might increase after launching them while hack / grow wait before they start.

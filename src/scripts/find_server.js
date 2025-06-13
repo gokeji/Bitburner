@@ -47,9 +47,11 @@ export async function main(ns) {
   const path = findPathToServer(ns, targetServer);
 
   if (path) {
+    let commandToGetToServer = "";
     ns.tprint(`=== Path to ${targetServer} ===`);
     ns.tprint("Connection chain:");
     for (let i = 0; i < path.length; i++) {
+      commandToGetToServer += `connect ${path[i]}; `;
       if (i === path.length - 1) {
         ns.tprint(`${i + 1}. ${path[i]} (TARGET)`);
       } else {
@@ -57,6 +59,7 @@ export async function main(ns) {
       }
     }
     ns.tprint(`\nTotal hops: ${path.length - 1}`);
+    ns.tprint(`\nCommand to get to server: ${commandToGetToServer}`);
   } else {
     ns.tprint(`ERROR: Server '${targetServer}' not found in the network`);
   }
