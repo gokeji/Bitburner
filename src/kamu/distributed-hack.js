@@ -201,8 +201,8 @@ export async function main(ns) {
             const maxRam = ns.getServerMaxRam("home");
             const usedRam = ns.getServerUsedRam("home")
             var freeRam = maxRam - usedRam;
-            // Only use 10% of home server RAM for share scripts, leave 90% for hacking
-            var shareThreads = Math.floor((freeRam * 0.1) / shareScriptRam);
+            // Use 90% of home server RAM for share scripts, leave 10% for usage
+            var shareThreads = Math.floor((freeRam * 0.9) / shareScriptRam);
             if (shareThreads > 0) {
                 ns.print("INFO share threads " + shareThreads + " (using 10% of home RAM)");
                 ns.exec(shareScriptName, "home", shareThreads, shareThreadIndex);
@@ -217,10 +217,10 @@ export async function main(ns) {
         }
 
         // if lots of RAM to spare and money is not an issue, spam weak attacks for hacking XP gain
-        if (ramUsage < 0.8 && hackMoneyRatio >= 0.99) {
-            xpWeaken(ns, freeRams, servers, targets);
-            ramUsage = (freeRams.overallMaxRam - freeRams.overallFreeRam) / freeRams.overallMaxRam;
-        }
+        // if (ramUsage < 0.8 && hackMoneyRatio >= 0.99) {
+        //     xpWeaken(ns, freeRams, servers, targets);
+        //     ramUsage = (freeRams.overallMaxRam - freeRams.overallFreeRam) / freeRams.overallMaxRam;
+        // }
 
         ns.print("INFO RAM utilization: " + Math.round(ramUsage * 100) + " % (" + Math.round(freeRams.overallFreeRam/1000) + "GB free)");
 

@@ -60,6 +60,8 @@ function get_distributed_attack_info(ns, targetServer) {
 		}
 	}
 
+	// ns.tprint(`${targetServer}: ${totalThreads}`)
+
 	if (totalThreads === 0) return null
 
 	// Build the display string based on which actions are present
