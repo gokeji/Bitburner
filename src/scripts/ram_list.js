@@ -103,7 +103,7 @@ function get_server_ram_info(ns, server) {
 	// Column layout: Server (20) | Type (10) | Max RAM (8) | Cores (6) | Cost (12)
 	var result = `${pad_str(server, 20)}|` +
 			`${pad_str(serverType, 10)}|` +
-			`${pad_str(maxRamFormatted, 8)}|` +
+			`${pad_str(maxRamFormatted, 10)}|` +
 			`${pad_str(cores.toString(), 6)}|` +
 			`${pad_str(costFormatted, 12)}`
 
@@ -114,10 +114,10 @@ function get_table_header() {
 	// Column layout with separators:
 	// Server: 20 chars
 	// Type: 10 chars
-	// Max RAM: 8 chars
+	// Max RAM: 10 chars
 	// Cores: 6 chars
 	// Cost: 12 chars
-	return `${pad_str("Server", 20)}|${pad_str("Type", 10)}|${pad_str("Max RAM", 8)}|${pad_str("Cores", 6)}|${pad_str("Cost", 12)}`
+	return `${pad_str("Server", 20)}|${pad_str("Type", 10)}|${pad_str("Max RAM", 10)}|${pad_str("Cores", 6)}|${pad_str("Cost", 12)}`
 }
 
 export async function main(ns) {
@@ -132,7 +132,7 @@ export async function main(ns) {
 		return a.localeCompare(b)
 	})
 
-	const charsWidth = 62 // Increased width to accommodate cost column
+	const charsWidth = 64 // Increased width to accommodate cost column
 
 	// Add header
 	ns.tprint(`Server RAM & Cores List - ${new Date().toLocaleTimeString()}`)
@@ -160,7 +160,7 @@ export async function main(ns) {
 
 	// Add footer with summary
 	ns.tprint('-'.repeat(charsWidth))
-	ns.tprint(`${pad_str("TOTALS", 20)}|${pad_str("", 10)}|${pad_str(format_ram(totalMaxRam), 8)}|${pad_str(totalCores.toString(), 6)}|${pad_str("$" + format_cost(totalCost), 12)}`)
+	ns.tprint(`${pad_str("TOTALS", 20)}|${pad_str("", 10)}|${pad_str(format_ram(totalMaxRam), 10)}|${pad_str(totalCores.toString(), 6)}|${pad_str("$" + format_cost(totalCost), 12)}`)
 	ns.tprint('='.repeat(charsWidth))
 	ns.tprint(`Total owned servers: ${ownedServers.length}`)
 	ns.tprint(`Home servers: 1, Purchased servers: ${ownedServers.length - 1}`)
