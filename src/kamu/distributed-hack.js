@@ -1,5 +1,4 @@
 // file: distributed-hack.js
-import { NS } from "@ns";
 
 // Detailed explanation at the end of the file.
 
@@ -7,22 +6,21 @@ import { NS } from "@ns";
 // the money ratio is increased and decreased automatically, starting with this value initially
 var hackMoneyRatio = 0.1;
 
-// the maximum number of parallel burst attacks against one server
-// Set very high to allow maximum parallel attacks limited only by timing and RAM
-// Real limit is: Math.floor(weakenTime / timeBetweenAttacks)
-var maxParallelAttacks = 200;
+// the maximum numberof parallel burst attacks against one server
+// the value of this variable should not make a big difference however
+var maxParallelAttacks = 50;
 
 // time to wait between checking and calculating new attacks (in ms)
 const waitTimeBetweenManagementCycles = 1000;
 
 // time difference between finishing [ hack - grow - weaken ] in burst attacks (in ms)
-const timeDiff = 30;
+const timeDiff = 200;
 
 // time between burst attacks. Needs to be bigger than 2 * time diff (in ms)
-const timeBetweenAttacks = 100;
+const timeBetweenAttacks = 500;
 
 // Ignore servers
-const ignoreServers = [];
+const ignoreServers = ["b-24"];
 
 // Potential issue with burst attack timing:
 // Hacking skill might increase after launching them while hack / grow wait before they start.
@@ -155,17 +153,9 @@ export async function main(ns) {
             // hack for faction reputation only: share-only
             moneyXpShare = portHandle.read();
         }
+
         // Main logic sits here, determine whether or not and how many threads we should call weaken, grow and hack
         var attacksLaunched = manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks);
-
-
-        // Send profitsm data to port 4 for get_stat_new.js
-        var profitPortHandle = ns.getPortHandle(4);
-        profitPortHandle.clear(); // Clear old data
-        for (let [server, profit] of profitsm.entries()) {
-            profitPortHandle.write(JSON.stringify({server: server, profit: profit}));
-        }
-
 
         if (attacksLaunched > 0) {
             // Adjust hackMoneyRatio
@@ -217,10 +207,10 @@ export async function main(ns) {
         }
 
         // if lots of RAM to spare and money is not an issue, spam weak attacks for hacking XP gain
-        // if (ramUsage < 0.8 && hackMoneyRatio >= 0.99) {
-        //     xpWeaken(ns, freeRams, servers, targets);
-        //     ramUsage = (freeRams.overallMaxRam - freeRams.overallFreeRam) / freeRams.overallMaxRam;
-        // }
+        if (ramUsage < 0.8 && hackMoneyRatio >= 0.99) {
+            xpWeaken(ns, freeRams, servers, targets);
+            ramUsage = (freeRams.overallMaxRam - freeRams.overallFreeRam) / freeRams.overallMaxRam;
+        }
 
         //ns.print("INFO RAM utilization: " + Math.round(ramUsage * 100) + " % ");
 
@@ -487,8 +477,8 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
             }
         }
 
+        // var profit = money * maxPercentage * ns.hackAnalyzeChance(target) / (hackThreads + growThreads + weakThreads);
         // Could use hackAnalyzeChance for better value rating - costs ram however
-        // var profit = maxMoney * maxPercentage * ns.hackAnalyzeChance(target) / (hackThreads + growThreads + weakThreads);
 
         var profit = money * maxPercentage / (hackThreads + growThreads + weakThreads);
         var profitM = profit * 60 / weakTime;
@@ -590,7 +580,6 @@ function findPlaceToRun(ns, script, threads, freeRams, target, sleepTime, manipu
         else if (ram < slaveScriptRam * threads) {
             const threadForThisHost = Math.floor(ram / slaveScriptRam);
             if (manipulateStock) {
-                ns.print(`Stock GROW ${host} ${target} ${threadForThisHost} ${sleepTime}`)
                 ns.exec(script, host, threadForThisHost, target, sleepTime, manipulateStock);
             }
             else {
@@ -748,7 +737,7 @@ async function scanAndNuke(ns) {
     return accessibleServers;
 }
 
-export function scanAll(ns, host, servers) {
+function scanAll(ns, host, servers) {
     var hosts = ns.scan(host);
     for (let i = 0; i < hosts.length; i++) {
         if (!servers.has(hosts[i])) {

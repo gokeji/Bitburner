@@ -119,19 +119,22 @@ var distributedHackProfits = new Map();
 // Function to read profit data from port 4 (sent by distributed-hack.js)
 function update_distributed_hack_profits(ns) {
 	const profitPortHandle = ns.getPortHandle(4);
-
-	// Clear existing data
-	distributedHackProfits.clear();
+	const newProfits = new Map();
 
 	// Read all profit data from the port
 	while (!profitPortHandle.empty()) {
 		try {
 			const data = JSON.parse(profitPortHandle.read());
-			distributedHackProfits.set(data.server, data.profit);
+			newProfits.set(data.server, data.profit);
 		} catch (e) {
 			// Skip invalid JSON data
 			continue;
 		}
+	}
+
+	if (newProfits.size > 0) {
+		// Update the global variable with the new profits
+		distributedHackProfits = newProfits;
 	}
 }
 
@@ -283,7 +286,7 @@ export async function main(ns) {
 
 	// Check for chart mode argument
 	const isChartMode = ns.args.includes('--chart') || ns.args.includes('-c')
-	const refreshRate = ns.args.includes('--refresh') ? parseInt(ns.args[ns.args.indexOf('--refresh') + 1]) || 1000 : 1000
+	const refreshRate = 200
 
 	// Filter out chart-related arguments for server list
 	const serverArgs = ns.args.filter(arg => !['--chart', '-c', '--refresh'].includes(arg))
