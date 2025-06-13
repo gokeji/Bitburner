@@ -7,7 +7,14 @@ export async function main(ns) {
     // If not running, execute the script
     if (!ipvgoRunning) {
       // Determine which opponent to reset the board against
-      const opponents = ["Netburners", "Slum Snakes", "The Black Hand", "Tetrads", "Daedalus", "Illuminati"];
+      const opponents = [
+        // "Netburners",
+        // "Slum Snakes",
+        "The Black Hand",
+        // "Tetrads",
+        "Daedalus",
+        "Illuminati",
+      ];
       const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
 
       // Reset the board state with the randomly chosen opponent
