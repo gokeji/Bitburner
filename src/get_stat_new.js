@@ -108,7 +108,7 @@ function get_distributed_attack_info(ns, targetServer) {
 	const totalScriptCount = scriptCounts.weaken + scriptCounts.grow + scriptCounts.hack
 	// Format total threads with padding
 	const totalThreadsStr = `[${ns.formatNumber(totalThreads, 1)}-${ns.formatNumber(totalScriptCount, 0)}]`
-	const paddedTotal = totalThreadsStr.padStart(10)
+	const paddedTotal = totalThreadsStr.padStart(12)
 
 	return `${threadParts.join(":")} ${paddedTotal}`
 }
@@ -158,7 +158,7 @@ function pad_str(string, len) {
 
 function get_server_data(ns, server) {
 	/*
-	Creates the info text for each server. Currently gets money, security, RAM, distributed attack info, and priority.
+	Creates the info text for each server. Currently gets money, security, RAM, distributed attack info, priority, and batch time.
 	*/
 	var moneyAvailable = ns.getServerMoneyAvailable(server)
 	var moneyMax =  ns.getServerMaxMoney(server)
@@ -168,6 +168,7 @@ function get_server_data(ns, server) {
 	var requiredHackingSkill = ns.getServerRequiredHackingLevel(server)
 	var attackInfo = get_distributed_attack_info(ns, server)  // Get distributed attack info
 	var priority = get_hacking_priority(ns, server)  // Get hacking priority
+	var weakenTimeMs = ns.getWeakenTime(server)  // Get weaken time (batch time)
 
 	// Format money with M suffix for millions
 	var formatMoney = (amount, digits = 0) => {
@@ -200,6 +201,14 @@ function get_server_data(ns, server) {
 		return (amount * 100).toFixed(digits) + "%"
 	}
 
+	// Format time from milliseconds to mm:ss
+	var formatTime = (timeMs) => {
+		const totalSeconds = Math.floor(timeMs / 1000)
+		const minutes = Math.floor(totalSeconds / 60)
+		const seconds = totalSeconds % 60
+		return `${minutes.toString()}:${seconds.toString().padStart(2, '0')}`
+	}
+
 	// Create progress bar (20 chars, each char = 5%)
 	var createProgressBar = (percentage) => {
 		const totalChars = 20
@@ -219,7 +228,8 @@ function get_server_data(ns, server) {
 			`${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(securityMin, 2)})|` +
 			`${pad_str(ram, 4)}G|` +
 			`${pad_str(requiredHackingSkill, 5)}|` +
-			`${pad_str(formatMoney(priority, 2), 8)}|`
+			`${pad_str(formatMoney(priority, 2), 8)}|` +
+			`${pad_str(formatTime(weakenTimeMs), 6)}|`
 
 	// Add distributed attack info
 	result += attackInfo ? pad_str(`${attackInfo}`, 24) : pad_str("", 20)
@@ -268,9 +278,10 @@ function get_table_header() {
 	// RAM: 5 chars
 	// Skill: 5 chars
 	// Priority: 8 chars
+	// Batch: 6 chars
 	// Attack Info: 20 chars
 
-	return `${pad_str("Server", 18)}|${pad_str("Money Available/Max (%)", 24)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 5)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Attack Threads", 24)}`
+	return `${pad_str("Server", 18)}|${pad_str("Money Available/Max (%)", 24)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 5)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Batch", 6)}|${pad_str("Attack Threads", 24)}`
 }
 
 export async function main(ns) {
@@ -291,7 +302,7 @@ export async function main(ns) {
 	// Filter out chart-related arguments for server list
 	const serverArgs = ns.args.filter(arg => !['--chart', '-c', '--refresh'].includes(arg))
 
-	const charsWidth = 121  // Updated to include 8-char priority column + separator
+	const charsWidth = 128  // Updated to include 8-char priority column + 6-char batch column + separators
 
 	if (isChartMode) {
 
