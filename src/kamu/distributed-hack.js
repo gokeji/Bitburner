@@ -1,4 +1,5 @@
 // file: distributed-hack.js
+// import { NS } from "@ns";
 
 // Detailed explanation at the end of the file.
 
@@ -156,6 +157,15 @@ export async function main(ns) {
 
         // Main logic sits here, determine whether or not and how many threads we should call weaken, grow and hack
         var attacksLaunched = manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks);
+
+
+        // Send profitsm data to port 4 for get_stat_new.js
+        var profitPortHandle = ns.getPortHandle(4);
+        profitPortHandle.clear(); // Clear old data
+        for (let [server, profit] of profitsm.entries()) {
+            profitPortHandle.write(JSON.stringify({server: server, profit: profit}));
+        }
+
 
         if (attacksLaunched > 0) {
             // Adjust hackMoneyRatio
@@ -737,7 +747,7 @@ async function scanAndNuke(ns) {
     return accessibleServers;
 }
 
-function scanAll(ns, host, servers) {
+export function scanAll(ns, host, servers) {
     var hosts = ns.scan(host);
     for (let i = 0; i < hosts.length; i++) {
         if (!servers.has(hosts[i])) {
