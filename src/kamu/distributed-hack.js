@@ -1,4 +1,5 @@
 // file: distributed-hack.js
+// import { NS } from "@ns";
 
 // Detailed explanation at the end of the file.
 
@@ -153,9 +154,17 @@ export async function main(ns) {
             // hack for faction reputation only: share-only
             moneyXpShare = portHandle.read();
         }
-
         // Main logic sits here, determine whether or not and how many threads we should call weaken, grow and hack
         var attacksLaunched = manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks);
+
+
+        // Send profitsm data to port 4 for get_stat_new.js
+        var profitPortHandle = ns.getPortHandle(4);
+        profitPortHandle.clear(); // Clear old data
+        for (let [server, profit] of profitsm.entries()) {
+            profitPortHandle.write(JSON.stringify({server: server, profit: profit}));
+        }
+
 
         if (attacksLaunched > 0) {
             // Adjust hackMoneyRatio
@@ -477,8 +486,8 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
             }
         }
 
-        // var profit = money * maxPercentage * ns.hackAnalyzeChance(target) / (hackThreads + growThreads + weakThreads);
         // Could use hackAnalyzeChance for better value rating - costs ram however
+        // var profit = maxMoney * maxPercentage * ns.hackAnalyzeChance(target) / (hackThreads + growThreads + weakThreads);
 
         var profit = money * maxPercentage / (hackThreads + growThreads + weakThreads);
         var profitM = profit * 60 / weakTime;
