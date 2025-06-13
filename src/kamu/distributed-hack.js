@@ -66,47 +66,6 @@ const hackThreadSecurityIncrease = 0.002;
 
 var profitsm = new Map();
 
-// Calculate profit potential for all hackable servers for priority sorting
-// This is calculated once per cycle and represents pure server potential
-function calculateServerPriorities(ns, servers) {
-    const playerHackingLevel = ns.getHackingLevel();
-
-    for (let server of servers) {
-        // Skip if not hackable
-        if (ns.getServerMaxMoney(server) <= 100000 ||
-            ns.getServerRequiredHackingLevel(server) > playerHackingLevel ||
-            ns.getServerGrowth(server) <= 1 ||
-            server === "n00dles") {
-            continue;
-        }
-
-        const maxMoney = ns.getServerMaxMoney(server);
-        const weakTime = ns.getWeakenTime(server);
-
-        // Calculate theoretical optimal profit potential (assuming server is at min security and max money)
-        // Use current hackMoneyRatio for realistic comparison
-        const standardHackRatio = Math.min(hackMoneyRatio, 0.5); // Cap at 50% for stable calculations
-
-        // Calculate threads needed for a theoretical optimal attack
-        const hackThreads = Math.max(1, Math.floor(ns.hackAnalyzeThreads(server, standardHackRatio * maxMoney)));
-
-        // Calculate grow threads needed to restore the money
-        const growRatio = 1 / (1 - standardHackRatio);
-        const growThreads = Math.max(1, Math.ceil(ns.growthAnalyze(server, growRatio, 1)));
-
-        // Calculate weaken threads needed
-        const addedHackSecurity = ns.hackAnalyzeSecurity(hackThreads, server);
-        const addedGrowSecurity = ns.growthAnalyzeSecurity(growThreads, server);
-        const weakThreads = (addedHackSecurity + addedGrowSecurity) * 20;
-
-        // Calculate profit potential (money per thread per second) - this is pure server priority
-        const profit = maxMoney * standardHackRatio * ns.hackAnalyzeChance(server) / (hackThreads + growThreads + weakThreads);
-        const profitM = profit * 60 / weakTime;
-
-        profitsm.set(server, profitM);
-    }
-}
-
 /** @param {NS} ns **/
 export async function main(ns) {
     // Disable default Logging
@@ -150,9 +109,6 @@ export async function main(ns) {
         // scan and nuke all accesible servers
         servers = await scanAndNuke(ns);
         // ns.print(`servers:${[...servers.values()]}`)
-
-        // Calculate server priorities once per cycle based on pure profit potential
-        calculateServerPriorities(ns, servers);
 
         for (var server of servers) {
             // transfer files to the servers
@@ -534,12 +490,15 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
         // Could use hackAnalyzeChance for better value rating - costs ram however
         // var profit = maxMoney * maxPercentage * ns.hackAnalyzeChance(target) / (hackThreads + growThreads + weakThreads);
 
+        var profit = money * maxPercentage / (hackThreads + growThreads + weakThreads);
+        var profitM = profit * 60 / weakTime;
+        profitsm.set(target, profitM);
 
         if (parallelAttacks <= 1) {
-            ns.print("INFO " + maxPercentage.toFixed(1) + " WGH " + target + " " + weakThreads + " | " + growThreads + " | " + hackThreads);
+            ns.print("INFO " + maxPercentage.toFixed(1) + " WGH " + target + " " + weakThreads + " | " + growThreads + " | " + hackThreads + " | $/t/s " + profitM.toFixed(2));
         }
         else {
-            ns.print("INFO " + parallelAttacks + "   WGH " + target + " " + weakThreads + " | " + growThreads + " | " + hackThreads);
+            ns.print("INFO " + parallelAttacks + "   WGH " + target + " " + weakThreads + " | " + growThreads + " | " + hackThreads + " | $/t/s " + profitM.toFixed(2));
         }
 
         var growStock = growStocks.has(target);
