@@ -4,7 +4,7 @@ export async function main(ns) {
 	let player = new BasePlayer(ns, "player");
 	let runtime = ns.args[0];
 	let maxPaybackHours = ns.args[1] || 1; // Stop upgrading if payback time > 24 hours
-	let prioritizeNetburnersRequirement = ns.args[2] || true; // If true, prioritize buying 10 nodes
+	let prioritizeNetburnersRequirement = ns.args[2] || true; // If true, prioritize buying 8 nodes
 
 	if (runtime) {
 		runtime *= 1000
@@ -31,22 +31,14 @@ export async function main(ns) {
 		let currentNodeStats = [];
 
 		if (prioritizeNetburnersRequirement) {
-			// Insert dummy node with 10 level, 1 ram, 1 core to trick the algorithm into thinking we want to buy a node
-			let nodeValue = getProd(10, 1, 1) * player.hnet.multipliers.production
-			let nodeCost = ns.hacknet.getPurchaseNodeCost()
-
-			// Calculate payback time for new node
-			let nodePaybackTime = nodeCost / nodeValue;
-			let nodePaybackHours = nodePaybackTime / 3600;
-
-			currentNodeStats.push({
-				value: nodeValue,
-				cost: nodeCost,
-				ratio: nodeValue/nodeCost,
-				paybackTime: nodePaybackTime,
-				paybackHours: nodePaybackHours,
-				type: "node"
-			});
+			// Purchase 8 nodes if we have the money, otherwise wait
+			while (ns.hacknet.numNodes() < 8) {
+				if (player.money < ns.hacknet.getPurchaseNodeCost()) {
+					await ns.sleep(10000)
+				} else {
+					ns.hacknet.purchaseNode()
+				}
+			}
 		}
 
 		for (let idx = 0; idx < ns.hacknet.numNodes(); idx++) {

@@ -1,41 +1,25 @@
 // BitBurner Augmentation Purchase Optimizer - New Augmentations
 const augments = [
-    // Unavailable items (marked as "No" in Eligible column)
-    // { name: 'BitRunners Neurolink', cost: 4375, faction: 'BitRunners', available: false, prereqs: [], hackingBoost: true },
-    // { name: 'Embedded Netburner Module Core V2 Upgrade', cost: 4500, faction: 'BitRunners', available: false, prereqs: [], hackingBoost: true },
+    // BitRunners
+    { name: 'Cranial Signal Processors - Gen III', cost: 550, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
 
-    // Chongqing
-    { name: 'NeuroFlux Governor - Level 43', cost: 184.105, faction: 'Chongqing', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Neuregen Gene Modification', cost: 375, faction: 'Chongqing', available: true, prereqs: [], hackingBoost: true },
+    // Tetrads
+    { name: 'LuminCloaking-V1 Skin Implant', cost: 5, faction: 'Tetrads', available: true, prereqs: [], hackingBoost: false },
 
-    // Ishima
-    { name: 'INFRARET Enhancement', cost: 30, faction: 'Ishima', available: true, prereqs: [], hackingBoost: true },
-    { name: 'NeuroFlux Governor - Level 43', cost: 184.105, faction: 'Ishima', available: true, prereqs: [], hackingBoost: true },
+    // Netburners
+    { name: 'Hacknet Node NIC Architecture Neural-Upload', cost: 4.5, faction: 'Netburners', available: true, prereqs: [], hackingBoost: true },
 
-    // BitRunners (updating with available ones)
-    { name: 'NeuroFlux Governor - Level 43', cost: 184.105, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
-    { name: 'BitRunners Neurolink', cost: 4375, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Embedded Netburner Module Core V2 Upgrade', cost: 4500, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    // Tian Di Hui
+    { name: 'Wired Reflexes', cost: 2.5, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
+    { name: 'NeuroFlux Governor - Level 14', cost: 4.119, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Speech Enhancement', cost: 12.5, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
+    { name: 'ADR-V1 Pheromone Gene', cost: 17.5, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
+    { name: 'Nuoptimal Nootropic Injector Implant', cost: 20, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
+    { name: 'Social Negotiation Assistant (S.N.A)', cost: 30, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
+    { name: 'Speech Processor Implant', cost: 50, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
 
-    // Daedalus
-    { name: 'The Red Pill', cost: 0, faction: 'Daedalus', available: true, prereqs: [], hackingBoost: false },
-    { name: 'NeuroFlux Governor - Level 43', cost: 184.105, faction: 'Daedalus', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Synfibril Muscle', cost: 1125, faction: 'Daedalus', available: true, prereqs: [], hackingBoost: false },
-    { name: 'Synthetic Heart', cost: 2875, faction: 'Daedalus', available: true, prereqs: [], hackingBoost: false },
-    { name: 'NEMEAN Subdermal Weave', cost: 3250, faction: 'Daedalus', available: true, prereqs: [], hackingBoost: false },
-    { name: 'Embedded Netburner Module Analyze Engine', cost: 6000, faction: 'Daedalus', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Embedded Netburner Module Direct Memory Access Upgrade', cost: 7000, faction: 'Daedalus', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Embedded Netburner Module Core V3 Upgrade', cost: 7500, faction: 'Daedalus', available: true, prereqs: ['Embedded Netburner Module Core V2 Upgrade'], hackingBoost: true },
-
-    // The Syndicate
-    { name: 'BrachiBlades', cost: 90, faction: 'The Syndicate', available: true, prereqs: [], hackingBoost: false },
-    { name: 'Augmented Targeting III', cost: 115, faction: 'The Syndicate', available: true, prereqs: [], hackingBoost: false },
-    { name: 'Combat Rib III', cost: 120, faction: 'The Syndicate', available: true, prereqs: [], hackingBoost: false },
-    { name: 'Bionic Spine', cost: 125, faction: 'The Syndicate', available: true, prereqs: [], hackingBoost: false },
-    { name: 'NeuroFlux Governor - Level 43', cost: 184.105, faction: 'The Syndicate', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Bionic Legs', cost: 375, faction: 'The Syndicate', available: true, prereqs: [], hackingBoost: false },
-    { name: 'The Shadow\'s Simulacrum', cost: 400, faction: 'The Syndicate', available: true, prereqs: [], hackingBoost: false },
-    { name: 'NEMEAN Subdermal Weave', cost: 3250, faction: 'The Syndicate', available: true, prereqs: [], hackingBoost: false },
+    // CyberSec
+    { name: 'Synaptic Enhancement Implant', cost: 7.5, faction: 'CyberSec', available: true, prereqs: [], hackingBoost: true },
 ];
 
 const COST_MULTIPLIER = 1.9;

@@ -1,11 +1,20 @@
+const HOST_NAME = "home";
+
 /** @param {NS} ns */
 export async function main(ns) {
+	// Kill all other scripts called autoplay.js
+	ns.ps(HOST_NAME).filter(p => p.filename === "autoplay.js").forEach(p => {
+		if (p.pid !== ns.pid) {
+			ns.kill(p.pid)
+		}
+	})
+
 	// Start all required scripts if not running
 	startDistributedHackIfNotRunning(ns);
-	launchStatsMonitoring(ns);
-	startIpvgoIfNotRunning(ns);
-	startUpgradeServersIfNotRunning(ns);
 	startUpgradeHnetIfNeeded(ns);
+	startUpgradeServersIfNotRunning(ns);
+	startIpvgoIfNotRunning(ns);
+	launchStatsMonitoring(ns);
 
 	let startedStockTrader = false;
 	let sharedRam = false;
@@ -31,11 +40,11 @@ export async function main(ns) {
 
 function startDistributedHackIfNotRunning(ns) {
 	// Check if "kamu/distributed-hack.js" is running on "home"
-	let distributedHackRunning = isScriptRunning(ns, 'kamu/distributed-hack.js', 'home');
+	let distributedHackRunning = isScriptRunning(ns, 'kamu/distributed-hack.js', HOST_NAME);
 
 	// If not running, execute the script
 	if (!distributedHackRunning) {
-		ns.exec('kamu/distributed-hack.js', "home");
+		ns.exec('kamu/distributed-hack.js', HOST_NAME);
 		ns.tprint("Started kamu/distributed-hack.js");
 	} else {
 		ns.tprint("kamu/distributed-hack.js is already running");
@@ -56,11 +65,11 @@ function startIpvgoIfNotRunning(ns) {
 
 function startUpgradeServersIfNotRunning(ns) {
 	// Check if "kamu/upgrade-servers.js" is running on "home"
-	let upgradeServersRunning = isScriptRunning(ns, 'kamu/upgrade-servers.js', 'home');
+	let upgradeServersRunning = isScriptRunning(ns, 'kamu/upgrade-servers.js', HOST_NAME);
 
 	// If not running, execute the script
 	if (!upgradeServersRunning) {
-		ns.exec('kamu/upgrade-servers.js', "home");
+		ns.exec('kamu/upgrade-servers.js', HOST_NAME);
 		ns.tprint("Started kamu/upgrade-servers.js");
 	} else {
 		ns.tprint("kamu/upgrade-servers.js is already running");
@@ -69,11 +78,11 @@ function startUpgradeServersIfNotRunning(ns) {
 
 function startStockTraderIfNotRunning(ns) {
 	// Check if "kamu/stock-trader.js" is running on "home"
-	let stockTraderRunning = isScriptRunning(ns, 'kamu/stock-trader.js', 'home');
+	let stockTraderRunning = isScriptRunning(ns, 'kamu/stock-trader.js', HOST_NAME);
 
 	// If not running, execute the script
 	if (!stockTraderRunning) {
-		ns.exec('kamu/stock-trader.js', "home");
+		ns.exec('kamu/stock-trader.js', HOST_NAME);
 		ns.tprint("Started kamu/stock-trader.js");
 	} else {
 		ns.tprint("kamu/stock-trader.js is already running");
@@ -82,24 +91,24 @@ function startStockTraderIfNotRunning(ns) {
 
 function startUpgradeHnetIfNeeded(ns) {
 	// Check if "kamu/upgrade-hnet.js" is running on "home"
-	const upgradeHnetRunning = isScriptRunning(ns, 'letsPlayBitBurner/hnet-full.js', ns.getHostname());
+	const upgradeHnetRunning = isScriptRunning(ns, 'letsPlayBitBurner/hnet-full.js', HOST_NAME);
 
 	// If not running, execute the script
 	if (!upgradeHnetRunning) {
-		ns.exec('letsPlayBitBurner/hnet-full.js', ns.getHostname(), 1, 0, 0.2);
+		ns.exec('letsPlayBitBurner/hnet-full.js', HOST_NAME, 1, 0, 0.2);
 	}
 }
 
 function launchStatsMonitoring(ns) {
 	// Launch "get_stats_new.js -c"
-	ns.exec('get_stat_new.js', "home", 1, "--chart");
+	ns.exec('get_stat_new.js', HOST_NAME, 1, "--chart");
 }
 
 function startShareAllRamIfNotRunning(ns) {
 	// Launch "run scripts/share_all_free_ram.js b-24" if not running
-	const shareAllRamRunning = isScriptRunning(ns, 'scripts/share_all_free_ram.js', ns.getHostname());
+	const shareAllRamRunning = isScriptRunning(ns, 'scripts/share_all_free_ram.js', HOST_NAME);
 	if (!shareAllRamRunning) {
-		ns.exec('scripts/share_all_free_ram.js', ns.getHostname(), 1, 'b-24');
+		ns.exec('scripts/share_all_free_ram.js', HOST_NAME, 1, 'b-24');
 	}
 }
 

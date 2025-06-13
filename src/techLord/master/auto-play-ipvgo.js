@@ -8,12 +8,12 @@ export async function main(ns) {
     if (!ipvgoRunning) {
       // Determine which opponent to reset the board against
       const opponents = [
-        // "Netburners",
-        // "Slum Snakes",
-        "The Black Hand",
-        // "Tetrads",
-        "Daedalus",
-        "Illuminati",
+        // "Netburners", // increased hacknet production
+        // "Slum Snakes", // crime success rate
+        // "The Black Hand", // hacking money
+        // "Tetrads", // strength, defense, dexterity, and agility levels
+        "Daedalus", // reputation gain
+        // "Illuminati", // faster hack(), grow(), and weaken()
       ];
       const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
 

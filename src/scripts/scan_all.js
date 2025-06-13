@@ -16,6 +16,10 @@ export async function main(ns) {
       }
   }
 
+  function pad(str, length) {
+    return str + " ".repeat(Math.max(length - str.length, 0));
+  }
+
   ns.tprint("=== Scanning all servers ===");
 
   // Start scanning from home
@@ -26,7 +30,7 @@ export async function main(ns) {
     if (!showPurchased && ns.getServer(server).purchasedByPlayer) {
         continue;
     }
-    ns.tprint(`${server} ${ns.getServer(server).maxRam} root access: ${ns.hasRootAccess(server)} open ports: ${ns.getServerNumPortsRequired(server)}/${ns.getServerNumPortsRequired(server)}`);
+    ns.tprint(`${pad(server, 20)} RAM: ${pad(`${ns.getServer(server).maxRam}GB`, 6)} CPU: ${pad(`${ns.getServer(server).cpuCores} Cores`, 9)}  ROOT: ${pad(ns.hasRootAccess(server), 5)}  PORTS: ${pad(ns.getServerNumPortsRequired(server), 2)}/${pad(ns.getServerNumPortsRequired(server), 2)}`);
   }
 
   // Check each server for .cct files
