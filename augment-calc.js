@@ -6,6 +6,8 @@
 const args = process.argv.slice(2);
 const maxBudget = args.length > 0 ? parseFloat(args[0]) / 1000000 : null; // Convert to millions for internal calculations
 
+const neurofluxToPurchase = 10;
+
 let augments = [
     // Aevum
     { name: 'Wired Reflexes', cost: 2.5, faction: 'Aevum', available: true, prereqs: [], hackingBoost: false },
@@ -74,12 +76,17 @@ let augments = [
     { name: 'Embedded Netburner Module Core V2 Upgrade', cost: 4500, faction: 'BitRunners', available: true, prereqs: ['Embedded Netburner Module Core Implant'], hackingBoost: true },
 ];
 
-augments = addNeoruFluxGovernors(augments, 27, 8);
+const neurofluxName = augments.find(aug => aug.name.includes('NeuroFlux Governor')).name;
+const nameParts = neurofluxName.split(' ');
+const neurofluxCurrentLevel = parseInt(nameParts[nameParts.length - 1]);
 
-function addNeoruFluxGovernors(augments, startingLevel, count) {
+console.log(neurofluxCurrentLevel);
+augments = addNeoruFluxGovernors(augments, neurofluxToPurchase);
+
+function addNeoruFluxGovernors(augments, count) {
     const neuroFluxGovernors = [];
-    for (let i = startingLevel; i <= startingLevel + count; i++) {
-        neuroFluxGovernors.push({ name: `NeuroFlux Governor - Level ${i}`, cost: 22.625 * Math.pow(1.9, i - startingLevel), faction: 'BitRunners', available: true, prereqs: [`NeuroFlux Governor - Level ${i - 1}`], hackingBoost: true });
+    for (let i = neurofluxCurrentLevel; i <= neurofluxCurrentLevel + count; i++) {
+        neuroFluxGovernors.push({ name: `NeuroFlux Governor - Level ${i}`, cost: 22.625 * Math.pow(1.9, i - neurofluxCurrentLevel), faction: 'BitRunners', available: true, prereqs: [`NeuroFlux Governor - Level ${i - 1}`], hackingBoost: true });
     }
     return [...augments, ...neuroFluxGovernors];
 }
