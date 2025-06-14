@@ -9,11 +9,21 @@ export async function main(ns) {
 		}
 	})
 
+	const showFactionServerPaths = ns.args.includes("--faction") || ns.args.includes("-f");
+
 	// Start all required scripts if not running
 	startDistributedHackIfNotRunning(ns);
+
 	startUpgradeHnetIfNeeded(ns);
+
 	startUpgradeServersIfNotRunning(ns);
+
 	startIpvgoIfNotRunning(ns);
+
+	if (showFactionServerPaths) {
+		printAllFactionServerPaths(ns);
+	}
+
 	launchStatsMonitoring(ns);
 
 	let startedStockTrader = false;
@@ -110,6 +120,11 @@ function startShareAllRamIfNotRunning(ns) {
 	if (!shareAllRamRunning) {
 		ns.exec('scripts/share_all_free_ram.js', HOST_NAME, 1, 'b-24');
 	}
+}
+
+function printAllFactionServerPaths(ns) {
+	// Call 'scripts/find_server.js' with --faction
+	ns.exec('scripts/find_server.js', HOST_NAME, 1, "--faction");
 }
 
 function isScriptRunning(ns, scriptName, hostname) {
