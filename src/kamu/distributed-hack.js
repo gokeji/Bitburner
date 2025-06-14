@@ -9,7 +9,7 @@ var hackMoneyRatio = 0.1;
 
 // the maximum numberof parallel burst attacks against one server
 // the value of this variable should not make a big difference however
-var maxParallelAttacks = 50;
+var maxParallelAttacks = 100;
 
 // time to wait between checking and calculating new attacks (in ms)
 const waitTimeBetweenManagementCycles = 1000;

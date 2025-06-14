@@ -225,9 +225,9 @@ export async function main(ns) {
         // If the opponent passes their turn, also pass the turn and end the game
         if (opponentMove?.type === "pass") {
             endTheGame = true;
-        } 
+        }
 
-        await ns.sleep(200); // Slight delay to make the loop less intense
+        await ns.sleep(100); // Slight delay to make the loop less intense
 
     } while (result?.type !== "gameOver");
 

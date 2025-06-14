@@ -3,6 +3,7 @@
 export async function main(ns) {
   while (true) {
     let ipvgoRunning = ns.isRunning('techLord/master/ipvgo.js', 'home');
+    // let ipvgoRunning = ns.go.getCurrentPlayer() !== "None"; // Cannot figure out how to continue playing Go from mid game yet
 
     // If not running, execute the script
     if (!ipvgoRunning) {

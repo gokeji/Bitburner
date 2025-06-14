@@ -8,14 +8,19 @@ export async function main(ns) {
     return;
   }
 
+  let reserverRam = 0;
+  if (server === "home") {
+    reserverRam = 100;
+  }
+
   while (true) {
     const maxRam = ns.getServerMaxRam(server);
     const usedRam = ns.getServerUsedRam(server)
     const freeRam = maxRam - usedRam;
     const shareScriptRam = 4;
-    const maxThreads = Math.floor(freeRam / shareScriptRam);
+    const maxThreads = Math.floor((freeRam - reserverRam) / shareScriptRam);
 
-    if (maxThreads == 0) {
+    if (maxThreads <= 0) {
       await ns.sleep(1000);
       continue;
     }

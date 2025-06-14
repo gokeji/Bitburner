@@ -61,7 +61,7 @@ function startDistributedHackIfNotRunning(ns) {
 	}
 }
 
-function startIpvgoIfNotRunning(ns) {
+export function startIpvgoIfNotRunning(ns) {
 	// Check if "master/ipvgo.js" is running on "home"
 	let ipvgoRunning = isScriptRunning(ns, 'techLord/master/auto-play-ipvgo.js', 'home');
 

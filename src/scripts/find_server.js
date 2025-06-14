@@ -51,7 +51,7 @@ export async function main(ns) {
       const {server, path} = findPathToServer(ns, faction);
       if (path) {
         let commandToGetToServer = "home; ";
-        for (let i = 1; i < server.length; i++) {
+        for (let i = 1; i < path.length; i++) {
           commandToGetToServer += `connect ${path[i]}; `;
         }
         ns.tprint(`=== Command to get to ${faction} === \n${commandToGetToServer}\n `);
