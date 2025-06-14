@@ -1,13 +1,20 @@
 /**
  * @param {NS} ns
  **/
-function get_all_servers(ns, all=false) {
+function get_servers(ns, all=false) {
 	/*
 	Scans and iterates through all servers.
 	If all is false, only servers with root access and have money are returned.
 	*/
 	var servers = ["home"]
 	var result = []
+
+	const shouldExclude = (server) => {
+		if (!ns.hasRootAccess(server)) return true
+		if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) return true
+		if (ns.getServerMaxMoney(server) === 0) return true
+		return false
+	}
 
 	var i = 0
 	while (i < servers.length) {
@@ -17,7 +24,7 @@ function get_all_servers(ns, all=false) {
 			var con = s[j]
 			if (servers.indexOf(con) < 0) {
 				servers.push(con)
-				if (all || (ns.hasRootAccess(con) && (ns.getServerRequiredHackingLevel(con) <= ns.getHackingLevel()))) {
+				if (all || !shouldExclude(con)) {
 					result.push(con)
 				}
 			}
@@ -29,7 +36,7 @@ function get_all_servers(ns, all=false) {
 
 // Updated: Count total threads attacking a server from distributed-hack.js system
 function get_distributed_attack_info(ns, targetServer) {
-	const allServers = get_all_servers(ns, true)
+	const allServers = get_servers(ns, true)
 	const kamuScripts = {
 		"kamu/weaken.js": "weaken",
 		"kamu/grow.js": "grow",
@@ -240,32 +247,16 @@ function get_server_data(ns, server) {
 	return result
 }
 
-function get_servers(ns, serverArgs = null) {
-	/*
-	Gets servers. If specific servers requested, then returns those only.
-	Otherwise, scans and returns all servers.
-	return: list of servers
-	*/
-	// Use provided serverArgs if available, otherwise use ns.args
-	const args = serverArgs || ns.args
-
-	if (args.length >= 1) {
-		return args
-	} else {
-		return get_all_servers(ns, false)
-	}
-}
-
 // NEW: Function to generate chart data for dynamic updates
 function generate_chart_data(ns, servers) {
 	var stats = {}
 	// For each server in servers, get the server data and add to our Hash Table.
 	for (var server of servers) {
-		stats[parseInt(ns.getServerMaxMoney(server))] = get_server_data(ns, server)
+		stats[server] = get_server_data(ns, server)
 	}
 	// Sort each server based on how much money it holds.
 	var keys = Object.keys(stats)
-	keys.sort((a, b) => a - b)
+	keys.sort((a, b) => ns.getServerMaxMoney(a) - ns.getServerMaxMoney(b))
 
 	// Return sorted data for chart display
 	return keys.map(key => stats[key])
@@ -273,17 +264,6 @@ function generate_chart_data(ns, servers) {
 
 // Add table header function that matches exact column spacing
 function get_table_header() {
-	// Column layout with separators (exact character counts):
-	// Server: 18 chars
-	// Money: 25 chars (10 + "/" + 6 + 8 for percentage)
-	// Progress Bar: 20 chars
-	// Security: 9 chars (6 + "(" + 2 + ")")
-	// RAM: 5 chars
-	// Skill: 5 chars
-	// Priority: 8 chars
-	// Batch: 6 chars
-	// Attack Info: 20 chars
-
 	return `${pad_str("Server", 18)}|${pad_str("Money Available/Max (%)", 24)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 5)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Batch", 6)}|${pad_str("Attack Threads", 24)}`
 }
 
@@ -302,9 +282,6 @@ export async function main(ns) {
 	const isChartMode = ns.args.includes('--chart') || ns.args.includes('-c')
 	const refreshRate = 200
 
-	// Filter out chart-related arguments for server list
-	const serverArgs = ns.args.filter(arg => !['--chart', '-c', '--refresh'].includes(arg))
-
 	const charsWidth = 128  // Updated to include 8-char priority column + 6-char batch column + separators
 
 	if (isChartMode) {
@@ -316,23 +293,18 @@ export async function main(ns) {
 		ns.ui.resizeTail(charsWidth * 10, 400)
 		ns.ui.moveTail(320, 0)
 
-		let hasResized = false;
-
 		while (true) {
 			// Update profit data from distributed-hack.js
 			update_distributed_hack_profits(ns);
 
 			// Rescan for servers on each iteration to detect new servers
-			var servers = get_servers(ns, serverArgs)
+			var servers = get_servers(ns, false)
 
 			// Dynamically adjust window size based on current server count
 			const windowWidth = charsWidth * 10  // 120 characters * 8px per char
 			const windowHeight = Math.min((servers.length + 6) * 26, 800)  // lines * 16px per line
 
-			if (!hasResized) {
-				ns.ui.resizeTail(windowWidth, windowHeight)
-				hasResized = true;
-			}
+			ns.ui.resizeTail(windowWidth, windowHeight)
 
 			// Generate all content first to minimize flashing
 			const chartData = generate_chart_data(ns, servers)
@@ -365,7 +337,7 @@ export async function main(ns) {
 		// Update profit data from distributed-hack.js
 		update_distributed_hack_profits(ns);
 
-		const servers = get_servers(ns, serverArgs)
+		const servers = get_servers(ns, false)
 		const chartData = generate_chart_data(ns, servers)
 
 		// Add header

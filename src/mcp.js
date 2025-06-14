@@ -114,16 +114,15 @@ function should_home_assist(ns, server, action) {
 }
 
 async function update_servers(ns) {
-	const allServers = get_all_servers(ns)
+	const eligibleServers = get_all_servers(ns)
+		.filter((server) => {
+			if (!ns.hasRootAccess(server)) return false
+			if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) return false
+			return true
+		})
 
 	// Count only eligible servers (those we can actually hack)
-	let eligibleServerCount = 0
-
-	for (const server of allServers) {
-		if (!ns.hasRootAccess(server)) continue
-		if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) continue
-		eligibleServerCount++
-	}
+	let eligibleServerCount = eligibleServers.length
 
 	// Detect if eligible servers changed
 	const eligibleServersChanged = eligibleServerCount !== LAST_ELIGIBLE_SERVER_COUNT
@@ -133,11 +132,8 @@ async function update_servers(ns) {
 	}
 	LAST_ELIGIBLE_SERVER_COUNT = eligibleServerCount
 
-	for (const server of allServers) {
+	for (const server of eligibleServers) {
 		if (parseInt(ns.getServerMaxMoney(server)) === 0) continue
-
-		// Skip servers that are beyond our hacking level
-		if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) continue
 
 		if (!SERVERS[server]) {
 			SERVERS[server] = { "action": null, "servers": [], "needsHomeAssist": false }
