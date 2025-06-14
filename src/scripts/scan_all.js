@@ -25,12 +25,14 @@ export async function main(ns) {
   // Start scanning from home
   let servers = new Set(["home"]);
   scanAllServers(ns, "home", servers);
+  let count = 0;
 
   for (let server of servers) {
     if (!showPurchased && ns.getServer(server).purchasedByPlayer) {
         continue;
     }
-    ns.tprint(`${pad(server, 20)} RAM: ${pad(`${ns.getServer(server).maxRam}GB`, 6)} CPU: ${pad(`${ns.getServer(server).cpuCores} Cores`, 9)}  ROOT: ${pad(ns.hasRootAccess(server), 5)}  PORTS: ${pad(ns.getServerNumPortsRequired(server), 2)}/${pad(ns.getServerNumPortsRequired(server), 2)}`);
+    count++;
+    ns.tprint(`${pad(count, 3)}: ${pad(server, 20)} RAM: ${pad(`${ns.getServer(server).maxRam}GB`, 6)} CPU: ${pad(`${ns.getServer(server).cpuCores} Cores`, 9)}  ROOT: ${pad(ns.hasRootAccess(server), 5)}  PORTS: ${pad(ns.getServerNumPortsRequired(server), 2)}/${pad(ns.getServerNumPortsRequired(server), 2)} ${pad(ns.getServerMaxMoney(server), 10)}`);
   }
 
   // Check each server for .cct files

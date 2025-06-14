@@ -4,7 +4,7 @@ export async function main(ns) {
 	let player = new BasePlayer(ns, "player");
 	let runtime = ns.args[0];
 	let maxPaybackHours = ns.args[1] || 1; // Stop upgrading if payback time > 24 hours
-	let prioritizeNetburnersRequirement = ns.args[2] || true; // If true, prioritize buying 8 nodes
+	let prioritizeNetburnersRequirement = ns.args[2]; // If true, prioritize buying 8 nodes
 
 	if (runtime) {
 		runtime *= 1000
@@ -48,9 +48,12 @@ export async function main(ns) {
 			let ramCost = ns.hacknet.getRamUpgradeCost(idx, 1);
 			let coreCost = ns.hacknet.getCoreUpgradeCost(idx, 1);
 
-			let levelValue = getProd(level + 1, ram, cores) * player.hnet.multipliers.production - production;
-			let ramValue = getProd(level, ram + 1, cores) * player.hnet.multipliers.production - production;
-			let coreValue = getProd(level, ram, cores + 1) * player.hnet.multipliers.production - production;
+			// Don't use production from node stats since it's a different calculation than the one used in the script
+			let currentProduction = getProd(level, ram, cores);
+
+			let levelValue = getProd(level + 1, ram, cores) * player.hnet.multipliers.production - currentProduction;
+			let ramValue = getProd(level, ram + 1, cores) * player.hnet.multipliers.production - currentProduction;
+			let coreValue = getProd(level, ram, cores + 1) * player.hnet.multipliers.production - currentProduction;
 
 			// Calculate payback times in seconds
 			let levelPaybackTime = levelCost / levelValue;
@@ -86,8 +89,7 @@ export async function main(ns) {
 					index: idx,
 					type: "core"
 				})
-
-			}
+		}
 
 		currentNodeStats.sort((a,b) => a.paybackTime - b.paybackTime)
 		let bestUpgrade = currentNodeStats[0];

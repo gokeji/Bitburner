@@ -17,7 +17,7 @@ function get_all_servers(ns, all=false) {
 			var con = s[j]
 			if (servers.indexOf(con) < 0) {
 				servers.push(con)
-				if (all || (ns.hasRootAccess(con) && (ns.getServerRequiredHackingLevel(con) <= ns.getHackingLevel()) && (ns.getServerMaxMoney(con) > 0))) {
+				if (all || (ns.hasRootAccess(con) && (ns.getServerRequiredHackingLevel(con) <= ns.getHackingLevel()))) {
 					result.push(con)
 				}
 			}
@@ -33,7 +33,10 @@ function get_distributed_attack_info(ns, targetServer) {
 	const kamuScripts = {
 		"kamu/weaken.js": "weaken",
 		"kamu/grow.js": "grow",
-		"kamu/hack.js": "hack"
+		"kamu/hack.js": "hack",
+		"scripts/grow.js": "grow",
+		"scripts/hack.js": "hack",
+		"scripts/weaken.js": "weaken"
 	}
 
 	let totalThreads = 0

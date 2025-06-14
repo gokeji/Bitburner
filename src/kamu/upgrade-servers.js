@@ -8,7 +8,7 @@ export async function main(ns) {
 
 	var notAllServersMaxed = true;
 	const ramLimit = ns.getPurchasedServerMaxRam();
-	var maxPurchaseableRam = ns.getServerMaxRam("home");  // we would not buy less than home RAM
+	var maxPurchaseableRam = ns.getServerMaxRam("home") / 2;  // we would not buy less than home RAM
 	if (maxPurchaseableRam > ramLimit || ns.getServerMaxRam("home") >= ramLimit) {
 		// If home is sufficiently large, don't buy anything cheaper than max RAM since you can easily afford it.
 		maxPurchaseableRam = ramLimit;
