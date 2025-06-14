@@ -25,7 +25,7 @@ let augments = [
 
     // NiteSec
     { name: 'NeuroFlux Governor - Level 27', cost: 22.625, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
-    { name: 'DataJack', cost: 450000, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
+    { name: 'DataJack', cost: 450, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
 
     // Slum Snakes
     // { name: 'Wired Reflexes', cost: 2.5, faction: 'Slum Snakes', available: true, prereqs: [], hackingBoost: false },
@@ -85,8 +85,8 @@ augments = addNeoruFluxGovernors(augments, neurofluxToPurchase);
 
 function addNeoruFluxGovernors(augments, count) {
     const neuroFluxGovernors = [];
-    for (let i = neurofluxCurrentLevel; i <= neurofluxCurrentLevel + count; i++) {
-        neuroFluxGovernors.push({ name: `NeuroFlux Governor - Level ${i}`, cost: 22.625 * Math.pow(1.9, i - neurofluxCurrentLevel), faction: 'BitRunners', available: true, prereqs: [`NeuroFlux Governor - Level ${i - 1}`], hackingBoost: true });
+    for (let i = neurofluxCurrentLevel + 1; i <= neurofluxCurrentLevel + count; i++) {
+        neuroFluxGovernors.push({ name: `NeuroFlux Governor - Level ${i}`, cost: 22.625 * Math.pow(1.14, i - neurofluxCurrentLevel), faction: 'BitRunners', available: true, prereqs: [`NeuroFlux Governor - Level ${i - 1}`], hackingBoost: true });
     }
     return [...augments, ...neuroFluxGovernors];
 }
@@ -103,32 +103,6 @@ function formatNumber(num) {
     return num.toFixed(2);
 }
 
-function calculateCombinedCost(augmentName, augments) {
-    // Find the augment and its dependency chain
-    const augment = augments.find(aug => aug.name === augmentName);
-    if (!augment) return 0;
-
-    let totalCost = augment.cost;
-    let multiplier = 1;
-
-    // Add prerequisite costs (they get bought first, so no multiplier)
-    for (const prereqName of augment.prereqs) {
-        const prereq = augments.find(aug => aug.name === prereqName);
-        if (prereq) {
-            totalCost += prereq.cost;
-            multiplier *= COST_MULTIPLIER; // Each prereq increases the multiplier for the final item
-        }
-    }
-
-    // The final item in the chain gets the accumulated multiplier
-    totalCost = augment.cost + (augment.prereqs.reduce((sum, prereqName) => {
-        const prereq = augments.find(aug => aug.name === prereqName);
-        return sum + (prereq ? prereq.cost : 0);
-    }, 0));
-
-    return totalCost;
-}
-
 function calculateOptimalOrder() {
     // Remove duplicates - keep the one from the preferred faction (or first occurrence)
     const deduplicatedAugments = [];
@@ -136,12 +110,7 @@ function calculateOptimalOrder() {
 
     for (const aug of augments) {
         if (!seenNames.has(aug.name) && aug.available) {
-            deduplicatedAugments.push({
-                ...aug,
-                originalCost: aug.cost,
-                currentCost: aug.cost,
-                combinedCost: calculateCombinedCost(aug.name, augments)
-            });
+            deduplicatedAugments.push(aug);
             seenNames.add(aug.name);
         }
     }
@@ -183,19 +152,13 @@ function calculateOptimalOrder() {
                     }
                 }
 
-                // Calculate combined cost for priority (first item + second item * 1.9)
-                let combinedCost = chain.reduce((sum, item, index) => {
-                    return sum + (item.cost * Math.pow(COST_MULTIPLIER, index));
-                }, 0);
-
-                // if (chain.some(item => item.name.includes('NeuroFlux Governor'))) {
-                //     combinedCost = 0;
-                // }
+                // Calculate cost of last item in chain
+                let lastItemCost = chain[chain.length - 1].cost;
 
                 priorityItems.push({
                     type: 'chain',
                     augments: chain,
-                    priorityCost: combinedCost
+                    priorityCost: lastItemCost
                 });
             }
         }
