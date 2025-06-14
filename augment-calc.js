@@ -1,5 +1,12 @@
+/* eslint-env node */
 // BitBurner Augmentation Purchase Optimizer - New Augmentations
-const augments = [
+// Usage: node augment-calc.js [maxBudget]
+// Example: node augment-calc.js 1000000000 (for $1B budget)
+
+const args = process.argv.slice(2);
+const maxBudget = args.length > 0 ? parseFloat(args[0]) / 1000000 : null; // Convert to millions for internal calculations
+
+let augments = [
     // Aevum
     { name: 'Wired Reflexes', cost: 2.5, faction: 'Aevum', available: true, prereqs: [], hackingBoost: false },
     { name: 'NeuroFlux Governor - Level 27', cost: 22.625, faction: 'Aevum', available: true, prereqs: [], hackingBoost: true },
@@ -67,20 +74,26 @@ const augments = [
     { name: 'Embedded Netburner Module Core V2 Upgrade', cost: 4500, faction: 'BitRunners', available: true, prereqs: ['Embedded Netburner Module Core Implant'], hackingBoost: true },
 ];
 
+augments = addNeoruFluxGovernors(augments, 27, 8);
+
+function addNeoruFluxGovernors(augments, startingLevel, count) {
+    const neuroFluxGovernors = [];
+    for (let i = startingLevel; i <= startingLevel + count; i++) {
+        neuroFluxGovernors.push({ name: `NeuroFlux Governor - Level ${i}`, cost: 22.625 * Math.pow(1.9, i - startingLevel), faction: 'BitRunners', available: true, prereqs: [`NeuroFlux Governor - Level ${i - 1}`], hackingBoost: true });
+    }
+    return [...augments, ...neuroFluxGovernors];
+}
+
 const COST_MULTIPLIER = 1.9;
 
 // Let's assume you have enough money to buy everything - we'll calculate total needed
 function formatNumber(num) {
+    if (num >= 1e15) return (num/1e15).toFixed(2) + 'Q';
+    if (num >= 1e12) return (num/1e12).toFixed(2) + 'T';
     if (num >= 1e9) return (num/1e9).toFixed(2) + 'B';
     if (num >= 1e6) return (num/1e6).toFixed(2) + 'M';
     if (num >= 1e3) return (num/1e3).toFixed(2) + 'K';
     return num.toFixed(2);
-}
-
-function canPurchase(augment, purchasedAugments) {
-    return augment.available && augment.prereqs.every(prereq =>
-        purchasedAugments.some(purchased => purchased.name === prereq)
-    );
 }
 
 function calculateCombinedCost(augmentName, augments) {
@@ -126,16 +139,7 @@ function calculateOptimalOrder() {
         }
     }
 
-    console.log('=== DEDUPLICATED AUGMENTATIONS WITH COMBINED COSTS ===');
-    deduplicatedAugments.forEach(aug => {
-        const hackingMark = aug.hackingBoost ? ' 🧠' : '';
-        const prereqInfo = aug.prereqs.length > 0 ? ` (requires: ${aug.prereqs.join(', ')})` : '';
-        const combinedInfo = aug.combinedCost !== aug.cost ? ` [Combined: $${formatNumber(aug.combinedCost * 1000000)}]` : '';
-        console.log(`${aug.name}${hackingMark} - $${formatNumber(aug.cost * 1000000)}${combinedInfo} [${aug.faction}]${prereqInfo}`);
-    });
-    console.log('');
-
-        // Create a priority list by treating dependency chains as single units
+    // Create a priority list by treating dependency chains as single units
     const priorityItems = [];
     const processedAugments = new Set();
 
@@ -173,9 +177,13 @@ function calculateOptimalOrder() {
                 }
 
                 // Calculate combined cost for priority (first item + second item * 1.9)
-                const combinedCost = chain.reduce((sum, item, index) => {
+                let combinedCost = chain.reduce((sum, item, index) => {
                     return sum + (item.cost * Math.pow(COST_MULTIPLIER, index));
                 }, 0);
+
+                // if (chain.some(item => item.name.includes('NeuroFlux Governor'))) {
+                //     combinedCost = 0;
+                // }
 
                 priorityItems.push({
                     type: 'chain',
@@ -242,34 +250,3 @@ console.log('=== SUMMARY ===');
 console.log(`Total augments to purchase: ${result.purchaseOrder.length}`);
 console.log(`Total cost: $${formatNumber(result.totalCost * 1000000)}`);
 console.log(`Hacking augments: ${result.purchaseOrder.filter(aug => aug.hackingBoost).length}`);
-
-console.log('');
-console.log('=== COST BREAKDOWN BY ORIGINAL PRICE ===');
-const costBreakdown = result.purchaseOrder.map((aug, index) => ({
-    name: aug.name,
-    originalCost: aug.originalCost,
-    actualCost: aug.currentCost,
-    multiplier: aug.currentCost / aug.originalCost,
-    order: index + 1
-}));
-
-costBreakdown.sort((a, b) => b.originalCost - a.originalCost);
-costBreakdown.forEach(item => {
-    console.log(`${item.name}: $${formatNumber(item.originalCost * 1000000)} → $${formatNumber(item.actualCost * 1000000)} (${item.multiplier.toFixed(2)}x, bought ${item.order}${item.order === 1 ? 'st' : item.order === 2 ? 'nd' : item.order === 3 ? 'rd' : 'th'})`);
-});
-
-console.log('');
-console.log('=== DEPENDENCY CHAIN ANALYSIS ===');
-console.log('Combat Rib I + II chain:');
-console.log(`- Combat Rib I: $23.75M (base cost)`);
-console.log(`- Combat Rib II: $65M × 1.9 = $123.50M (after Combat Rib I purchase)`);
-console.log(`- Combined chain cost: $147.25M`);
-console.log(`- This combined cost ranks it above Nanofiber Weave ($125M)`);
-
-console.log('');
-console.log('=== KEY INSIGHTS ===');
-console.log('1. Dependency chains are prioritized by their COMBINED cost');
-console.log('2. Combat Rib I+II combined ($147.25M) > Nanofiber Weave ($125M)');
-console.log('3. Most expensive individual augments still purchased first');
-console.log('4. Dependencies must be bought in order within their priority slot');
-console.log(`5. You need approximately $${formatNumber(result.totalCost * 1000000)} total to buy all available augments`);
