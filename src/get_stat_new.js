@@ -311,7 +311,9 @@ export async function main(ns) {
 
 		// Initial window setup (will be adjusted dynamically)
 		ns.ui.resizeTail(charsWidth * 10, 400)
-		ns.ui.moveTail(120, 0)
+		ns.ui.moveTail(320, 0)
+
+		let hasResized = false;
 
 		while (true) {
 			// Update profit data from distributed-hack.js
@@ -324,7 +326,10 @@ export async function main(ns) {
 			const windowWidth = charsWidth * 10  // 120 characters * 8px per char
 			const windowHeight = Math.min((servers.length + 6) * 26, 800)  // lines * 16px per line
 
-			ns.ui.resizeTail(windowWidth, windowHeight)
+			if (!hasResized) {
+				ns.ui.resizeTail(windowWidth, windowHeight)
+				hasResized = true;
+			}
 
 			// Generate all content first to minimize flashing
 			const chartData = generate_chart_data(ns, servers)

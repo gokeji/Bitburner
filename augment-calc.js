@@ -1,25 +1,70 @@
 // BitBurner Augmentation Purchase Optimizer - New Augmentations
 const augments = [
-    // BitRunners
-    { name: 'Cranial Signal Processors - Gen III', cost: 550, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    // Aevum
+    { name: 'Wired Reflexes', cost: 2.5, faction: 'Aevum', available: true, prereqs: [], hackingBoost: false },
+    { name: 'NeuroFlux Governor - Level 27', cost: 22.625, faction: 'Aevum', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Neuralstimulator', cost: 3000, faction: 'Aevum', available: false, prereqs: [], hackingBoost: false }, // Missing rep
+    { name: 'PCMatrix', cost: 2000, faction: 'Aevum', available: false, prereqs: [], hackingBoost: false }, // Missing rep
+
+    // Sector-12
+    { name: 'Wired Reflexes', cost: 2.5, faction: 'Sector-12', available: true, prereqs: [], hackingBoost: false },
+    // { name: 'Augmented Targeting I', cost: 15, faction: 'Sector-12', available: true, prereqs: [], hackingBoost: false },
+    // { name: 'Augmented Targeting II', cost: 42.5, faction: 'Sector-12', available: true, prereqs: ['Augmented Targeting I'], hackingBoost: false },
+    { name: 'CashRoot Starter Kit', cost: 125, faction: 'Sector-12', available: true, prereqs: [], hackingBoost: false },
+    { name: 'NeuroFlux Governor - Level 27', cost: 22.625, faction: 'Sector-12', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Neuralstimulator', cost: 3000, faction: 'Sector-12', available: false, prereqs: [], hackingBoost: false }, // Missing rep
+
+    // NiteSec
+    { name: 'NeuroFlux Governor - Level 27', cost: 22.625, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
+    { name: 'DataJack', cost: 450000, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
+
+    // Slum Snakes
+    // { name: 'Wired Reflexes', cost: 2.5, faction: 'Slum Snakes', available: true, prereqs: [], hackingBoost: false },
+    // { name: 'Augmented Targeting I', cost: 15, faction: 'Slum Snakes', available: true, prereqs: [], hackingBoost: false },
+    // { name: 'LuminCloaking-V2 Skin Implant', cost: 30, faction: 'Slum Snakes', available: true, prereqs: [], hackingBoost: false },
+    // { name: 'Combat Rib I', cost: 23750, faction: 'Slum Snakes', available: true, prereqs: [], hackingBoost: false },
+    // { name: 'NeuroFlux Governor - Level 27', cost: 22.625, faction: 'Slum Snakes', available: true, prereqs: [], hackingBoost: true },
+    // { name: 'SmartSonar Implant', cost: 75000, faction: 'Slum Snakes', available: true, prereqs: [], hackingBoost: false },
 
     // Tetrads
-    { name: 'LuminCloaking-V1 Skin Implant', cost: 5, faction: 'Tetrads', available: true, prereqs: [], hackingBoost: false },
+    { name: 'LuminCloaking-V2 Skin Implant', cost: 30, faction: 'Tetrads', available: true, prereqs: [], hackingBoost: false },
+    // { name: 'HemoRecirculator', cost: 45, faction: 'Tetrads', available: true, prereqs: [], hackingBoost: false },
+    { name: 'NeuroFlux Governor - Level 27', cost: 22.625, faction: 'Tetrads', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Power Recirculation Core', cost: 180, faction: 'Tetrads', available: true, prereqs: [], hackingBoost: false },
+    // { name: 'Bionic Arms', cost: 275, faction: 'Tetrads', available: true, prereqs: [], hackingBoost: false },
 
     // Netburners
-    { name: 'Hacknet Node NIC Architecture Neural-Upload', cost: 4.5, faction: 'Netburners', available: true, prereqs: [], hackingBoost: true },
+    // { name: 'Hacknet Node CPU Architecture Neural-Upload', cost: 11, faction: 'Netburners', available: true, prereqs: [], hackingBoost: true },
+    // { name: 'Hacknet Node Kernel Direct-Neural Interface', cost: 40, faction: 'Netburners', available: true, prereqs: [], hackingBoost: true },
+    // { name: 'Hacknet Node Core Direct-Neural Interface', cost: 60, faction: 'Netburners', available: true, prereqs: [], hackingBoost: true },
+    // { name: 'NeuroFlux Governor - Level 27', cost: 22.625, faction: 'Netburners', available: true, prereqs: [], hackingBoost: true },
 
     // Tian Di Hui
     { name: 'Wired Reflexes', cost: 2.5, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
-    { name: 'NeuroFlux Governor - Level 14', cost: 4.119, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Speech Enhancement', cost: 12.5, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
-    { name: 'ADR-V1 Pheromone Gene', cost: 17.5, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
-    { name: 'Nuoptimal Nootropic Injector Implant', cost: 20, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
-    { name: 'Social Negotiation Assistant (S.N.A)', cost: 30, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
-    { name: 'Speech Processor Implant', cost: 50, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
+    { name: 'NeuroFlux Governor - Level 27', cost: 22.625, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Nanofiber Weave', cost: 125, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
+    { name: 'Neuroreceptor Management Implant', cost: 550, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
 
-    // CyberSec
-    { name: 'Synaptic Enhancement Implant', cost: 7.5, faction: 'CyberSec', available: true, prereqs: [], hackingBoost: true },
+    // The Black Hand
+    { name: 'NeuroFlux Governor - Level 27', cost: 22.625, faction: 'The Black Hand', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Neuralstimulator', cost: 3000, faction: 'The Black Hand', available: true, prereqs: [], hackingBoost: false },
+    { name: 'Enhanced Myelin Sheathing', cost: 1375, faction: 'The Black Hand', available: true, prereqs: [], hackingBoost: true },
+    { name: 'The Black Hand', cost: 550, faction: 'The Black Hand', available: true, prereqs: [], hackingBoost: true },
+    { name: 'DataJack', cost: 450, faction: 'The Black Hand', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Cranial Signal Processors - Gen IV', cost: 1100, faction: 'The Black Hand', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Embedded Netburner Module Core Implant', cost: 2500, faction: 'The Black Hand', available: true, prereqs: [], hackingBoost: true },
+
+    // BitRunners
+    { name: 'NeuroFlux Governor - Level 27', cost: 22.625, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Enhanced Myelin Sheathing', cost: 1375, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'DataJack', cost: 450, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Cranial Signal Processors - Gen IV', cost: 1100, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Embedded Netburner Module Core Implant', cost: 2500, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Neural Accelerator', cost: 1750, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Cranial Signal Processors - Gen V', cost: 2250, faction: 'BitRunners', available: true, prereqs: ['Cranial Signal Processors - Gen IV'], hackingBoost: true },
+    { name: 'Artificial Bio-neural Network Implant', cost: 3000, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'BitRunners Neurolink', cost: 4375, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Embedded Netburner Module Core V2 Upgrade', cost: 4500, faction: 'BitRunners', available: true, prereqs: ['Embedded Netburner Module Core Implant'], hackingBoost: true },
 ];
 
 const COST_MULTIPLIER = 1.9;
