@@ -41,7 +41,7 @@ export async function main(ns) {
       }
     }
 
-    return null; // Server not found
+    return {server: null, path: []}; // Server not found
   }
 
   // If printFactionServerPaths is true, print the commands to get to each of the faction servers
@@ -64,7 +64,7 @@ export async function main(ns) {
   // Find the path to the target server
   const {server, path} = findPathToServer(ns, targetServer);
 
-  if (path) {
+  if (path && server) {
     ns.tprint(`=== Path to ${server} ===`);
     let commandToGetToServer = "home; ";
     for (let i = 0; i < path.length; i++) {

@@ -14,7 +14,7 @@ export async function main(ns) {
 	// Start all required scripts if not running
 	startDistributedHackIfNotRunning(ns);
 
-	startUpgradeHnetIfNeeded(ns);
+	// startUpgradeHnetIfNeeded(ns);
 
 	startUpgradeServersIfNotRunning(ns);
 
@@ -75,14 +75,14 @@ export function startIpvgoIfNotRunning(ns) {
 
 function startUpgradeServersIfNotRunning(ns) {
 	// Check if "kamu/upgrade-servers.js" is running on "home"
-	let upgradeServersRunning = isScriptRunning(ns, 'kamu/upgrade-servers.js', HOST_NAME);
+	let upgradeServersRunning = isScriptRunning(ns, 'kamu/upgrade-servers-new.js', HOST_NAME);
 
 	// If not running, execute the script
 	if (!upgradeServersRunning) {
-		ns.exec('kamu/upgrade-servers.js', HOST_NAME);
-		ns.tprint("Started kamu/upgrade-servers.js");
+		ns.exec('kamu/upgrade-servers-new.js', HOST_NAME);
+		ns.tprint("Started kamu/upgrade-servers-new.js");
 	} else {
-		ns.tprint("kamu/upgrade-servers.js is already running");
+		ns.tprint("kamu/upgrade-servers-new.js is already running");
 	}
 }
 

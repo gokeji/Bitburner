@@ -40,7 +40,7 @@ export async function main(ns) {
 		}
 
 		while (ownedServers.length < ns.getPurchasedServerLimit() && homeMoney > ramUpgradeCost) {
-			if ((ownedServers.length == 5 || ownedServers.length == 10 || ownedServers.length == 15 || ownedServers.length == 20) && maxPurchaseableRam * 2 <= ramLimit) {
+			if ((ownedServers.length == 7 || ownedServers.length == 15 || ownedServers.length == 20) && maxPurchaseableRam * 2 <= ramLimit) {
 				// switch to a higher RAM tier for the 6th, 11th, 16th, and 21st server
 				// - make a substantial impact (the increase would be < 10%)
 				// - reduce the money lost by deleting servers often
@@ -48,6 +48,11 @@ export async function main(ns) {
 				// 		and "baiting" threads to the high RAM servers so that the last small ones have low utilization.
 				maxPurchaseableRam *= 2
 				ramUpgradeCost = ns.getPurchasedServerCost(maxPurchaseableRam);
+
+				// Check if we can still afford the new RAM tier, if not break out of the loop
+				if (homeMoney <= ramUpgradeCost) {
+					break;
+				}
 			}
 
 			// ns.print("money: " + Math.round(homeMoney / 1000000) + "m cost: " + Math.round(ramUpgradeCost / 1000000) + " m")
@@ -56,7 +61,7 @@ export async function main(ns) {
 				const newServer = ns.purchaseServer(newServerName, maxPurchaseableRam);
 				ownedServers.push(newServer);
 				homeMoney = ns.getServerMoneyAvailable("home");
-				const printMessage = "Purchased Server " + newServer + " with " + maxPurchaseableRam + " RAM for " + Math.round(ramUpgradeCost / 1000000) + " m";
+				const printMessage = "Purchased Server " + newServer + " with " + maxPurchaseableRam + " RAM for " + ns.formatNumber(ramUpgradeCost, 2);
 				ns.print(printMessage);
 				ns.toast(printMessage, "success");
 			}
@@ -96,7 +101,7 @@ export async function main(ns) {
 				ns.purchaseServer(upgradeServer, maxPurchaseableRam);
 				homeMoney = ns.getServerMoneyAvailable("home");
 
-				const printMessage = "Upgraded Server " + upgradeServer + " RAM from " + upgradeServerRAM + " to " + maxPurchaseableRam + " for " + Math.round(ramUpgradeCost / 1000000) + " m";
+				const printMessage = "Upgraded Server " + upgradeServer + " RAM from " + upgradeServerRAM + " to " + maxPurchaseableRam + " for " + ns.formatNumber(ramUpgradeCost, 2);
 				ns.print(printMessage);
 				ns.toast(printMessage, "success");
 			}

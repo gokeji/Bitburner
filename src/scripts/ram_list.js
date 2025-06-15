@@ -6,9 +6,10 @@ Lists the RAM and cores for all servers you own (home + purchased servers).
 RAM: 1.75GB
  */
 
-const calculateServerCost = (ram) => {
-	const cost_per_ram = 55000;
-	return cost_per_ram * ram;
+const calculateServerCost = (ns, ram) => {
+	// const cost_per_ram = 55000;
+	// return cost_per_ram * ram;
+	return ns.getPurchasedServerCost(ram) // Need to use this function to get the correct cost for different bitnodes
 }
 
 function get_all_servers(ns) {
@@ -48,32 +49,6 @@ function get_owned_servers(ns) {
 	return ["home", ...purchasedServers]
 }
 
-function format_ram(ram) {
-	/*
-	Formats RAM with appropriate suffix (GB, TB, etc.)
-	*/
-	if (ram >= 1024) {
-		return (ram / 1024).toFixed(1) + "TB"
-	} else {
-		return ram + "GB"
-	}
-}
-
-function format_cost(cost) {
-	/*
-	Formats cost with appropriate suffix (K, M, B, etc.)
-	*/
-	if (cost >= 1000000000) {
-		return (cost / 1000000000).toFixed(1) + "B"
-	} else if (cost >= 1000000) {
-		return (cost / 1000000).toFixed(1) + "M"
-	} else if (cost >= 1000) {
-		return (cost / 1000).toFixed(1) + "K"
-	} else {
-		return cost.toString()
-	}
-}
-
 function pad_str(string, len) {
 	/*
 	Prepends the requested padding to the string.
@@ -90,11 +65,11 @@ function get_server_ram_info(ns, server) {
 	var cores = ns.getServer(server).cpuCores
 
 	// Format RAM values
-	var maxRamFormatted = format_ram(maxRam)
+	var maxRamFormatted = ns.formatRam(maxRam, 0)
 
 	// Calculate and format cost
-	var cost = server === "home" ? 0 : calculateServerCost(maxRam)
-	var costFormatted = server === "home" ? "FREE" : "$" + format_cost(cost)
+	var cost = server === "home" ? 0 : calculateServerCost(ns, maxRam)
+	var costFormatted = server === "home" ? "FREE" : "$" + ns.formatNumber(cost, 2)
 
 	// Determine server type
 	var serverType = server === "home" ? "HOME" : "PURCHASED"
@@ -154,15 +129,15 @@ export async function main(ns) {
 		totalMaxRam += ns.getServerMaxRam(server)
 		totalCores += ns.getServer(server).cpuCores
 		if (server !== "home") {
-			totalCost += calculateServerCost(ns.getServerMaxRam(server))
+			totalCost += calculateServerCost(ns, ns.getServerMaxRam(server))
 		}
 	}
 
 	// Add footer with summary
 	ns.tprint('-'.repeat(charsWidth))
-	ns.tprint(`${pad_str("TOTALS", 20)}|${pad_str("", 10)}|${pad_str(format_ram(totalMaxRam), 10)}|${pad_str(totalCores.toString(), 6)}|${pad_str("$" + format_cost(totalCost), 12)}`)
+	ns.tprint(`${pad_str("TOTALS", 20)}|${pad_str("", 10)}|${pad_str(ns.formatRam(totalMaxRam, 0), 10)}|${pad_str(totalCores.toString(), 6)}|${pad_str("$" + ns.formatNumber(totalCost, 2), 12)}`)
 	ns.tprint('='.repeat(charsWidth))
 	ns.tprint(`Total owned servers: ${ownedServers.length}`)
 	ns.tprint(`Home servers: 1, Purchased servers: ${ownedServers.length - 1}`)
-	ns.tprint(`Total investment in servers: $${format_cost(totalCost)}`)
+	ns.tprint(`Total investment in servers: $${ns.formatNumber(totalCost, 2)}`)
 }

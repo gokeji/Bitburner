@@ -106,7 +106,7 @@ function get_distributed_attack_info(ns, targetServer) {
 	const numDigits = maxThreads.toString().length
 
 	// Calculate scaling factor
-	const scaleFactor = 10 ** (numDigits - 2)
+	const scaleFactor = 10 ** Math.max(numDigits - 2, 0)
 
 	// Scale and format the thread counts
 	for (const action in activeThreadCounts) {

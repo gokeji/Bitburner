@@ -7,7 +7,7 @@ import { SEC_THRESHOLD, MONEY_PERCENTAGE, MONEY_MINIMUM, MONEY_MAX_PERCENTAGE } 
 
 // Local configuration constants
 const SLEEP_TIME = 0.2          // Minutes between cycles
-const HOME_RESERVED_RAM = 16   // Reserve RAM on home for other scripts
+const HOME_RESERVED_RAM = 8   // Reserve RAM on home for other scripts
 const MAX_HACK_THREADS = 130
 
 // Script mappings for direct action execution
