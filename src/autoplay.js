@@ -1,3 +1,5 @@
+// import { NS } from "@ns";
+
 const HOST_NAME = "home";
 
 /** @param {NS} ns */
@@ -74,28 +76,48 @@ export function startIpvgoIfNotRunning(ns) {
 }
 
 function startUpgradeServersIfNotRunning(ns) {
-	// Check if "kamu/upgrade-servers.js" is running on "home"
-	let upgradeServersRunning = isScriptRunning(ns, 'kamu/upgrade-servers-new.js', HOST_NAME);
+	// Check if "scripts/upgrade-servers.js" is running on "home"
+	let upgradeServersRunning = isScriptRunning(ns, 'scripts/upgrade-servers.js', HOST_NAME);
 
 	// If not running, execute the script
 	if (!upgradeServersRunning) {
-		ns.exec('kamu/upgrade-servers-new.js', HOST_NAME);
-		ns.tprint("Started kamu/upgrade-servers-new.js");
+		ns.exec('scripts/upgrade-servers.js', HOST_NAME);
+		ns.tprint("Started scripts/upgrade-servers.js");
 	} else {
-		ns.tprint("kamu/upgrade-servers-new.js is already running");
+		ns.tprint("scripts/upgrade-servers.js is already running");
 	}
 }
 
 function startStockTraderIfNotRunning(ns) {
-	// Check if "kamu/stock-trader.js" is running on "home"
-	let stockTraderRunning = isScriptRunning(ns, 'kamu/stock-trader.js', HOST_NAME);
 
-	// If not running, execute the script
-	if (!stockTraderRunning) {
-		ns.exec('kamu/stock-trader.js', HOST_NAME);
-		ns.tprint("Started kamu/stock-trader.js");
+	const has4SDataTixApi = ns.tix.has4SDataTixApi();
+
+	if (has4SDataTixApi) {
+		ns.tprint("4SDataTix API is available - starting stock trader");
+		// Check if "kamu/stock-trader.js" is running on "home"
+		let stockTraderRunning = isScriptRunning(ns, 'kamu/stock-trader.js', HOST_NAME);
+
+		// If not running, execute the script
+		if (!stockTraderRunning) {
+			ns.kill('kamu/early-stock-trader.js');
+			ns.exec('kamu/stock-trader.js', HOST_NAME);
+			ns.tprint("Started kamu/stock-trader.js");
+		} else {
+			ns.tprint("kamu/stock-trader.js is already running");
+		}
 	} else {
-		ns.tprint("kamu/stock-trader.js is already running");
+		ns.tprint("4SDataTix API is not available - starting early stock trader");
+		// Check if "kamu/stock-trader.js" is running on "home"
+		let stockTraderRunning = isScriptRunning(ns, 'kamu/early-stock-trader.js', HOST_NAME);
+
+		// If not running, execute the script
+		if (!stockTraderRunning) {
+			ns.kill('kamu/stock-trader.js');
+			ns.exec('kamu/early-stock-trader.js', HOST_NAME);
+			ns.tprint("Started kamu/early-stock-trader.js");
+		} else {
+			ns.tprint("kamu/early-stock-trader.js is already running");
+		}
 	}
 }
 
