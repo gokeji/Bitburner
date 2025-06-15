@@ -45,7 +45,7 @@ function getAllStockData(ns) {
         let forecast = 0;
         let volatility = 0;
 
-        if (ns.getPlayer().has4SDataTixApi) {
+        if (ns.stock.has4SDataTIXAPI()) {
             forecast = ns.tix.getForecast(sym);
             volatility = ns.tix.getVolatility(sym);
         } else {

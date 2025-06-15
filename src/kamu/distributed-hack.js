@@ -20,6 +20,9 @@ const timeDiff = 200;
 // time between burst attacks. Needs to be bigger than 2 * time diff (in ms)
 const timeBetweenAttacks = 500;
 
+// Reserve this much RAM on home server (in GB)
+const homeReservedRam = 20;
+
 // Ignore servers
 const ignoreServers = ["b-24"];
 
@@ -122,7 +125,7 @@ export async function main(ns) {
                         if (ns.getServerRequiredHackingLevel(server) <= ns.getHackingLevel()) {
                             const homeMaxRam = ns.getServerMaxRam("home");
                             const homeUsedRam = ns.getServerUsedRam("home")
-                            const homeFreeRam = homeMaxRam - homeUsedRam;
+                            const homeFreeRam = Math.max(0, homeMaxRam - homeUsedRam - homeReservedRam);
                             if (homeFreeRam >= backdoorScriptRam) {
                                 const backdoorSuccess = ns.exec(backdoorScript, "home", 1, server);
                                 ns.print("INFO backdoor on " + server + " - " + backdoorSuccess);
@@ -192,7 +195,7 @@ export async function main(ns) {
         // Hook for solve contracts script here if enough RAM is free.
         const homeMaxRam = ns.getServerMaxRam("home");
         const homeUsedRam = ns.getServerUsedRam("home")
-        const homeFreeRam = homeMaxRam - homeUsedRam;
+        const homeFreeRam = Math.max(0, homeMaxRam - homeUsedRam - homeReservedRam);
         if (homeFreeRam > solveContractsScriptRam) {
             //ns.print("INFO checking for contracts to solve");
             ns.exec(solveContractsScript, "home");
@@ -201,7 +204,7 @@ export async function main(ns) {
         if (moneyXpShare && hackMoneyRatio >= 0.99) {
             const maxRam = ns.getServerMaxRam("home");
             const usedRam = ns.getServerUsedRam("home")
-            var freeRam = maxRam - usedRam;
+            var freeRam = Math.max(0, maxRam - usedRam - homeReservedRam);
             var shareThreads = Math.floor(freeRam / shareScriptRam);
             if (shareThreads > 0) {
                 ns.print("INFO share threads " + shareThreads);
@@ -689,6 +692,12 @@ function getFreeRam(ns, servers) {
         const maxRam = ns.getServerMaxRam(server);
         const usedRam = ns.getServerUsedRam(server)
         var freeRam = maxRam - usedRam;
+
+        // Reserve RAM on home server
+        if (server === "home") {
+            freeRam = Math.max(0, freeRam - homeReservedRam);
+        }
+
         // round down to full hack slots
         freeRam = Math.floor(freeRam / slaveScriptRam) * slaveScriptRam
         overallMaxRam += maxRam;

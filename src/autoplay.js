@@ -94,7 +94,7 @@ function startUpgradeServersIfNotRunning(ns) {
 
 function startStockTraderIfNotRunning(ns) {
 
-	const has4SDataTixApi = ns.getPlayer().has4SDataTixApi;
+	const has4SDataTixApi = ns.stock.has4SDataTIXAPI();
 
 	if (has4SDataTixApi) {
 		ns.tprint("4SDataTix API is available - starting stock trader");
