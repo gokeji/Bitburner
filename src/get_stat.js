@@ -271,7 +271,7 @@ export async function main(ns) {
 	ns.disableLog('ALL')
 
 	// Kill all other scripts called get_stats.js
-	ns.ps(ns.getHostname()).filter(p => p.filename === "get_stat_new.js").forEach(p => {
+	ns.ps(ns.getHostname()).filter(p => p.filename === "get_stats.js").forEach(p => {
 		if (p.pid !== ns.pid) {
 			ns.ui.closeTail(p.pid)
 			ns.kill(p.pid)

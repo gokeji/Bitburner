@@ -20,7 +20,7 @@ export async function main(ns) {
 	startTorManagerIfNotRunning(ns);
 	startProgramManagerIfNotRunning(ns);
 
-	// startUpgradeHnetIfNeeded(ns);
+	startUpgradeHnetIfNeeded(ns);
 
 	startUpgradeServersIfNotRunning(ns);
 

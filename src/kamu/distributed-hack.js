@@ -159,7 +159,7 @@ export async function main(ns) {
         var attacksLaunched = manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks);
 
 
-        // Send profitsm data to port 4 for get_stat_new.js
+        // Send profitsm data to port 4 for get_stats.js
         var profitPortHandle = ns.getPortHandle(4);
         profitPortHandle.clear(); // Clear old data
         for (let [server, profit] of profitsm.entries()) {
