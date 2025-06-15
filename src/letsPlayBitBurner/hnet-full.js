@@ -30,6 +30,22 @@ export async function main(ns) {
 
 		let currentNodeStats = [];
 
+		let nodeValue = getProd(10, 1, 1) * player.hnet.multipliers.production;
+		let nodeCost = ns.hacknet.getPurchaseNodeCost() * player.hnet.multipliers.purchaseCost;
+
+		// Calculate payback time for new node
+		let nodePaybackTime = nodeCost / nodeValue;
+		let nodePaybackHours = nodePaybackTime / 3600;
+
+		currentNodeStats.push({
+			value: nodeValue,
+			cost: nodeCost,
+			ratio: nodeValue/nodeCost,
+			paybackTime: nodePaybackTime,
+			paybackHours: nodePaybackHours,
+			type: "node"
+		});
+
 		if (prioritizeNetburnersRequirement) {
 			// Purchase 8 nodes if we have the money, otherwise wait
 			while (ns.hacknet.numNodes() < 8) {
@@ -44,16 +60,25 @@ export async function main(ns) {
 		for (let idx = 0; idx < ns.hacknet.numNodes(); idx++) {
 			let {level, ram, cores, production} = ns.hacknet.getNodeStats(idx);
 
-			let levelCost = ns.hacknet.getLevelUpgradeCost(idx, 1);
-			let ramCost = ns.hacknet.getRamUpgradeCost(idx, 1);
-			let coreCost = ns.hacknet.getCoreUpgradeCost(idx, 1);
+			// Debug everything
+			ns.print("--------------------------------")
+			ns.print("Node stats:")
+			ns.print(`Level: ${level}, Ram: ${ram}, Cores: ${cores}, Production: ${production}`)
+			ns.print("--------------------------------")
 
-			// Don't use production from node stats since it's a different calculation than the one used in the script
-			let currentProduction = getProd(level, ram, cores);
+			ns.print("--------------------------------")
 
-			let levelValue = getProd(level + 1, ram, cores) * player.hnet.multipliers.production - currentProduction;
-			let ramValue = getProd(level, ram + 1, cores) * player.hnet.multipliers.production - currentProduction;
-			let coreValue = getProd(level, ram, cores + 1) * player.hnet.multipliers.production - currentProduction;
+			let levelCost = ns.hacknet.getLevelUpgradeCost(idx, 1) * player.hnet.multipliers.levelCost;
+			let ramCost = ns.hacknet.getRamUpgradeCost(idx, 1) * player.hnet.multipliers.ramCost;
+			let coreCost = ns.hacknet.getCoreUpgradeCost(idx, 1) * player.hnet.multipliers.coreCost;
+			ns.print(`Level Cost: ${levelCost}, Ram Cost: ${ramCost}, Core Cost: ${coreCost}`)
+			ns.print(`Player Multipliers:\nlevelCost: ${player.hnet.multipliers.levelCost}\nramCost: ${player.hnet.multipliers.ramCost}\ncoreCost: ${player.hnet.multipliers.coreCost}\npurchaseCost: ${player.hnet.multipliers.purchaseCost}\nproduction: ${player.hnet.multipliers.production}`)
+
+
+			let levelValue = getProd(level + 1, ram, cores) * player.hnet.multipliers.production - production;
+			let ramValue = getProd(level, ram + 1, cores) * player.hnet.multipliers.production - production;
+			let coreValue = getProd(level, ram, cores + 1) * player.hnet.multipliers.production - production;
+			ns.print(`Level Value: ${levelValue}, Ram Value: ${ramValue}, Core Value: ${coreValue}`)
 
 			// Calculate payback times in seconds
 			let levelPaybackTime = levelCost / levelValue;
@@ -89,6 +114,7 @@ export async function main(ns) {
 					index: idx,
 					type: "core"
 				})
+				return;
 		}
 
 		currentNodeStats.sort((a,b) => a.paybackTime - b.paybackTime)
