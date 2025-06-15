@@ -2,7 +2,7 @@
 // import { NS } from "@ns";
 
 // Some bitnodes have exponentially more expensive RAM, so we don't want to always max out everything
-const MAX_AUTOUPDATE_RAM = 4096; // 4TB
+const MAX_AUTOUPDATE_RAM = 2 ** 20; // 1PB
 
 // Upgrade RAM to next tier if at least 50% of existing servers are at the current tier
 // A more aggressive upgrade factor would be 0.3 then it will try to jump to next level if 30% of existing servers are at the current tier
@@ -23,7 +23,7 @@ function getRamTierToBuy(ns) {
   const currentMaxRam = currentServers.reduce((max, server) => Math.max(max, ns.getServerMaxRam(server)), 0);
 
   // Set ram tier to match current max
-  let targetRam = Math.min(maxAllowedRam, currentMaxRam);
+  let targetRam = Math.min(maxAllowedRam, currentMaxRam / 2);
 
   const currentMoney = ns.getServerMoneyAvailable("home");
 
@@ -64,8 +64,11 @@ export async function main(ns) {
   const maxAllowedServers = ns.getPurchasedServerLimit();
   const maxAllowedRam = getMaxRamAllowed(ns);
 
+  let ramTierToBuy = getRamTierToBuy(ns);
+  let ramTierForMessaging = 0;
+
   while (true) {
-    const ramTierToBuy = getRamTierToBuy(ns);
+    ramTierToBuy = getRamTierToBuy(ns);
 
     const purchasedServers = ns.getPurchasedServers();
 
@@ -78,6 +81,10 @@ export async function main(ns) {
 
     // If we cannot afford it, sleep and wait for more money
     if (ns.getPurchasedServerCost(ramTierToBuy) > ns.getServerMoneyAvailable("home")) {
+      if (ramTierForMessaging !== ramTierToBuy) {
+        ramTierForMessaging = ramTierToBuy;
+        ns.print(`Waiting to buy: ${ramTierForMessaging} GB for ${ns.formatNumber(ns.getPurchasedServerCost(ramTierForMessaging), 2)}`);
+      }
       await ns.sleep(10000);
       continue;
     }
