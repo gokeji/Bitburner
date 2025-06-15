@@ -1,3 +1,5 @@
+// import { NS } from "@ns";
+
 /** @param {NS} ns **/
 export async function main(ns) {
   // Disable default logging for cleaner output
@@ -32,7 +34,7 @@ export async function main(ns) {
         continue;
     }
     count++;
-    ns.tprint(`${pad(count, 3)}: ${pad(server, 20)} RAM: ${pad(`${ns.getServer(server).maxRam}GB`, 6)} CPU: ${pad(`${ns.getServer(server).cpuCores} Cores`, 9)}  ROOT: ${pad(ns.hasRootAccess(server), 5)}  PORTS: ${pad(ns.getServerNumPortsRequired(server), 2)}/${pad(ns.getServerNumPortsRequired(server), 2)} ${pad(ns.getServerMaxMoney(server), 10)}`);
+    ns.tprint(`${pad(count, 3)}: ${pad(server, 20)} RAM: ${pad(`${ns.getServer(server).maxRam}GB`, 6)} CPU: ${pad(`${ns.getServer(server).cpuCores} Cores`, 9)}  ROOT: ${pad(ns.hasRootAccess(server), 5)}  PORTS: ${pad(ns.getServer(server).openPortCount, 2)}/${pad(ns.getServerNumPortsRequired(server), 2)} ${pad(ns.getServerMaxMoney(server), 10)}`);
   }
 
   // Check each server for .cct files

@@ -2,6 +2,8 @@
 export async function main(ns) {
     let result;
 
+    const opponents = ns.args || ["Netburners", "Slum Snakes", "The Black Hand", "Tetrads", "Daedalus", "Illuminati"];
+
     // Flags to control the phases
     let phase1Completed = false;
     let phase2Completed = false;
@@ -232,12 +234,11 @@ export async function main(ns) {
     } while (result?.type !== "gameOver");
 
     // Determine which opponent to reset the board against
-const opponents = ["Netburners", "Slum Snakes", "The Black Hand", "Tetrads", "Daedalus", "Illuminati"];
-const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
+    const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
 
-// Reset the board state with the randomly chosen opponent
-ns.go.resetBoardState(randomOpponent, 13);
+    // Reset the board state with the randomly chosen opponent
+    ns.go.resetBoardState(randomOpponent, 13);
 
-// Start the new game
-ns.exec('master/ipvgo.js', "home");
+    // Start the new game
+    ns.exec('techLord/master/ipvgo.js', "home", 1, ...opponents);
 }

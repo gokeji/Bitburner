@@ -4,6 +4,7 @@
  /*
 Lists the RAM and cores for all servers you own (home + purchased servers).
 RAM: 1.75GB
+Supports chart mode with --chart or -c flag for dynamic updating display.
  */
 
 const calculateServerCost = (ns, ram) => {
@@ -95,49 +96,58 @@ function get_table_header() {
 	return `${pad_str("Server", 20)}|${pad_str("Type", 10)}|${pad_str("Max RAM", 10)}|${pad_str("Cores", 6)}|${pad_str("Cost", 12)}`
 }
 
-export async function main(ns) {
-	ns.disableLog('ALL')
-
-	var ownedServers = get_owned_servers(ns)
-
-	// Sort servers: home first, then purchased servers alphabetically
-	ownedServers.sort((a, b) => {
+function displayData(ns, displayFn) {
+	const ownedServers = get_owned_servers(ns).sort((a, b) => {
 		if (a === "home") return -1
 		if (b === "home") return 1
 		return a.localeCompare(b)
 	})
 
-	const charsWidth = 64 // Increased width to accommodate cost column
+	const charsWidth = 64
+	let totalMaxRam = 0, totalCores = 0, totalCost = 0
 
-	// Add header
-	ns.tprint(`Server RAM & Cores List - ${new Date().toLocaleTimeString()}`)
-	ns.tprint('='.repeat(charsWidth))
-	ns.tprint(get_table_header())
-	ns.tprint('-'.repeat(charsWidth))
+	displayFn(`Server RAM & Cores List - ${new Date().toLocaleTimeString()}`)
+	displayFn('='.repeat(charsWidth))
+	displayFn(get_table_header())
+	displayFn('-'.repeat(charsWidth))
 
-	// Calculate totals
-	var totalMaxRam = 0
-	var totalCores = 0
-	var totalCost = 0
-
-	// Display server data
 	for (const server of ownedServers) {
-		const serverInfo = get_server_ram_info(ns, server)
-		ns.tprint(serverInfo)
-
-		// Add to totals
+		displayFn(get_server_ram_info(ns, server))
 		totalMaxRam += ns.getServerMaxRam(server)
 		totalCores += ns.getServer(server).cpuCores
-		if (server !== "home") {
-			totalCost += calculateServerCost(ns, ns.getServerMaxRam(server))
-		}
+		if (server !== "home") totalCost += calculateServerCost(ns, ns.getServerMaxRam(server))
 	}
 
-	// Add footer with summary
-	ns.tprint('-'.repeat(charsWidth))
-	ns.tprint(`${pad_str("TOTALS", 20)}|${pad_str("", 10)}|${pad_str(ns.formatRam(totalMaxRam, 0), 10)}|${pad_str(totalCores.toString(), 6)}|${pad_str("$" + ns.formatNumber(totalCost, 2), 12)}`)
-	ns.tprint('='.repeat(charsWidth))
-	ns.tprint(`Total owned servers: ${ownedServers.length}`)
-	ns.tprint(`Home servers: 1, Purchased servers: ${ownedServers.length - 1}`)
-	ns.tprint(`Total investment in servers: $${ns.formatNumber(totalCost, 2)}`)
+	displayFn('-'.repeat(charsWidth))
+	displayFn(`${pad_str("TOTALS", 20)}|${pad_str("", 10)}|${pad_str(ns.formatRam(totalMaxRam, 0), 10)}|${pad_str(totalCores.toString(), 6)}|${pad_str("$" + ns.formatNumber(totalCost, 2), 12)}`)
+	displayFn('='.repeat(charsWidth))
+	displayFn(`Total owned servers: ${ownedServers.length}`)
+	displayFn(`Home servers: 1, Purchased servers: ${ownedServers.length - 1}`)
+	displayFn(`Total investment in servers: $${ns.formatNumber(totalCost, 2)}`)
+}
+
+export async function main(ns) {
+	ns.disableLog('ALL')
+
+	// Kill other instances
+	ns.ps(ns.getHostname()).filter(p => p.filename === "scripts/ram_list.js" && p.pid !== ns.pid).forEach(p => {
+		ns.ui.closeTail(p.pid)
+		ns.kill(p.pid)
+	})
+
+	const isChartMode = ns.args.includes('--chart') || ns.args.includes('-c')
+
+	if (isChartMode) {
+		ns.ui.openTail()
+		ns.ui.resizeTail(640, 400)
+		ns.ui.moveTail(320, 0)
+
+		while (true) {
+			ns.clearLog()
+			displayData(ns, ns.print)
+			await ns.sleep(1000)
+		}
+	} else {
+		displayData(ns, ns.tprint)
+	}
 }

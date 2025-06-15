@@ -46,7 +46,8 @@ export function main(ns) {
             const data = ns.codingcontract.getData(contract, server);
             const result = solve(type, data, server, contract, ns);
             const logType = result.success ? "SUCCESS:" : "WARN:";
-            return `${logType} ${server} - ${contract} - ${type} - ${result.result}`;
+            const time = new Date().toLocaleTimeString();
+            return `${logType} ${time} ${server} - ${contract} - ${type} - ${result.result}`;
         });
         return onServer;
     });

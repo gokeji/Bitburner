@@ -10,7 +10,7 @@ export async function main(ns) {
             for (let server of networkPath) {
                 ns.singularity.connect(server)
                 if (server == target) {
-                    let backdoorSuccess = await ns.installBackdoor();
+                    let backdoorSuccess = await ns.singularity.installBackdoor();
                     ns.tprint("Installed backdoor on " + server + " - " + backdoorSuccess);
                     ns.singularity.connect("home");
                     return backdoorSuccess;

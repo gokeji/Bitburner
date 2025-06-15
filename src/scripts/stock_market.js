@@ -1,32 +1,32 @@
 // file: stock_market.js
 // Comprehensive stock market report showing market cap, forecasts, and stock details
 
+import { NS } from "@ns";
+
 const commission = 100000;
 
 export async function main(ns) {
     ns.disableLog("ALL");
 
-    // Check if we have access to required APIs
-    if (!ns.stock.hasTIXAPIAccess()) {
-        ns.tprint("ERROR: TIX API access required for this script");
-        return;
-    }
-
-    ns.tprint("=== STOCK MARKET REPORT ===");
+    const onlyPrintPlayerPositions = ns.args.includes("--player");
 
     const stocks = getAllStockData(ns);
 
-    // Calculate market statistics
-    const marketStats = calculateMarketStats(stocks);
+    if (!onlyPrintPlayerPositions) {
+        ns.tprint("=== STOCK MARKET REPORT ===");
 
-    // Print market overview
-    printMarketOverview(ns, marketStats);
+        // Calculate market statistics
+        const marketStats = calculateMarketStats(stocks);
 
-    // Print forecast summary
-    printForecastSummary(ns, stocks);
+        // Print market overview
+        printMarketOverview(ns, marketStats);
 
-    // Print detailed stock information
-    printDetailedStockInfo(ns, stocks);
+        // Print forecast summary
+        printForecastSummary(ns, stocks);
+
+        // Print detailed stock information
+        printDetailedStockInfo(ns, stocks);
+    }
 
     // Print player positions if any
     printPlayerPositions(ns, stocks);
@@ -41,9 +41,17 @@ function getAllStockData(ns) {
         const maxShares = ns.stock.getMaxShares(sym);
         const askPrice = ns.stock.getAskPrice(sym);
         const bidPrice = ns.stock.getBidPrice(sym);
-        const forecast = ns.stock.getForecast(sym);
-        const volatility = ns.stock.getVolatility(sym);
         const organization = ns.stock.getOrganization(sym);
+        let forecast = 0;
+        let volatility = 0;
+
+        if (ns.getPlayer().has4SDataTixApi) {
+            forecast = ns.tix.getForecast(sym);
+            volatility = ns.tix.getVolatility(sym);
+        } else {
+            forecast = null;
+            volatility = null;
+        }
 
         const stock = {
             sym: sym,

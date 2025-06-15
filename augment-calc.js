@@ -10,33 +10,12 @@ let neurofluxToPurchase = 1;
 const COST_MULTIPLIER = 1.9;
 
 let initialAugments = [
-    // CyberSec
-    { name: 'NeuroFlux Governor - Level 1', cost: 0.75, faction: 'CyberSec', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Neurotrainer I', cost: 4, faction: 'CyberSec', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Synaptic Enhancement Implant', cost: 7.5, faction: 'CyberSec', available: true, prereqs: [], hackingBoost: true },
-    { name: 'BitWire', cost: 10, faction: 'CyberSec', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Cranial Signal Processors - Gen I', cost: 70, faction: 'CyberSec', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Cranial Signal Processors - Gen II', cost: 125, faction: 'CyberSec', available: true, prereqs: ['Cranial Signal Processors - Gen I'], hackingBoost: true },
+    // Tian Di Hui
+    { name: 'Social Negotiation Assistant (S.N.A)', cost: 30, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
+    { name: 'ADR-V1 Pheromone Gene', cost: 17.5, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
 
-    // Slum Snakes
-    { name: 'LuminCloaking-V1 Skin Implant', cost: 5, faction: 'Slum Snakes', available: true, prereqs: [], hackingBoost: false },
-
-    // Sector-12
-    { name: 'CashRoot Starter Kit', cost: 125, faction: 'Sector-12', available: true, prereqs: [], hackingBoost: false },
-
-    // Aevum
-    { name: 'Neurotrainer I', cost: 4, faction: 'Aevum', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Synaptic Enhancement Implant', cost: 7.5, faction: 'Aevum', available: true, prereqs: [], hackingBoost: true },
-
-    // NiteSec
-    { name: 'NeuroFlux Governor - Level 1', cost: 0.75, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
-    { name: 'BitWire', cost: 10, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Artificial Synaptic Potentiation', cost: 80, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Neurotrainer II', cost: 45, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Cranial Signal Processors - Gen I', cost: 70, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Embedded Netburner Module', cost: 250, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Cranial Signal Processors - Gen II', cost: 125, faction: 'NiteSec', available: true, prereqs: ['Cranial Signal Processors - Gen I'], hackingBoost: true },
-    { name: 'Neural-Retention Enhancement', cost: 250, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
+    // Black Hand
+    { name: 'NeuroFlux Governor - Level 6', cost: 1.444, faction: 'Black Hand', available: true, prereqs: [], hackingBoost: true },
 ];
 
 function addNeoruFluxGovernors(augments, count) {
