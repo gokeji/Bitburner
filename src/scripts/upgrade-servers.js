@@ -92,10 +92,12 @@ export async function main(ns) {
     // If below max servers, purchase a new server
     if (ns.getPurchasedServers().length < ns.getPurchasedServerLimit()) {
 
-      ns.purchaseServer(getNameForNewServer(ns), ramTierToBuy);
+      const serverName = getNameForNewServer(ns);
+      ns.purchaseServer(serverName, ramTierToBuy);
 
-      const purchaseMessage = `Purchased server ${getNameForNewServer(ns)} with ${ramTierToBuy} GB RAM for ${ns.formatNumber(ns.getPurchasedServerCost(ramTierToBuy), 2)}`;
+      const purchaseMessage = `Purchased server ${serverName} with ${ramTierToBuy} GB RAM for ${ns.formatNumber(ns.getPurchasedServerCost(ramTierToBuy), 2)}`;
       ns.print(purchaseMessage);
+      ns.tprint(purchaseMessage);
       ns.toast(purchaseMessage, "success");
     } else {
       // If we are at max servers, find the smallest server and upgrade it to current tier
@@ -107,6 +109,7 @@ export async function main(ns) {
       ns.purchaseServer(smallestServer, ramTierToBuy);
       const upgradeMessage = `Upgraded server ${smallestServer} from ${smallestServerRam} GB to ${ramTierToBuy} GB RAM for ${ns.formatNumber(ns.getPurchasedServerCost(ramTierToBuy), 2)}`;
       ns.print(upgradeMessage);
+      ns.tprint(upgradeMessage);
       ns.toast(upgradeMessage, "success");
     }
 
