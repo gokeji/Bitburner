@@ -312,7 +312,13 @@ export async function main(ns) {
 			const separator = '='.repeat(charsWidth)
 			const dashSeparator = '-'.repeat(charsWidth)
 			const tableHeader = get_table_header()
-			const footer = `Total servers: ${servers.length}`
+
+			const allUsableServers = get_servers(ns, true)
+				.filter((server) => {
+					// RAM greater than 0 and has root access
+					return ns.getServerMaxRam(server) > 0 && ns.hasRootAccess(server)
+				})
+			const footer = `Target servers: ${servers.length} | Total usable servers: ${allUsableServers.length} | Total RAM: ${ns.formatRam(allUsableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0), 2)} | Total CPU cores: ${allUsableServers.reduce((acc, server) => acc + ns.getServer(server).cpuCores, 0)}`
 
 			// Clear and display all content at once to reduce flashing
 			ns.clearLog()

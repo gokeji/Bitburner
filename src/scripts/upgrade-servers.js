@@ -29,7 +29,7 @@ function getRamTierToBuy(ns) {
 
   // If ram tier exceeds upgrade threshold, double it
   const serversAtCurrentTier = purchasedServers.filter(server => ns.getServerMaxRam(server) == targetRam);
-  const currentUpgradeProgress = serversAtCurrentTier / maxAllowedServers;
+  const currentUpgradeProgress = serversAtCurrentTier.length / maxAllowedServers;
   if (currentUpgradeProgress > UPGRADE_THRESHOLD) {
     targetRam *=2
   }
