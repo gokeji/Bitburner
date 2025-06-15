@@ -1,12 +1,15 @@
-import BasePlayer from "../letsPlayBitBurner/if.player";
 import { getSafeBitNodeMultipliers } from "./bitnode-multipliers.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-	let player = new BasePlayer(ns, "player");
-	let runtime = ns.args[0];
-	let maxPaybackHours = ns.args[1] || 1; // Stop upgrading if payback time > 24 hours
-	let prioritizeNetburnersRequirement = ns.args[2]; // If true, prioritize buying 8 nodes
+	let player = {
+		money: ns.getPlayer().money,
+		hnet: {
+			multipliers: ns.getHacknetMultipliers()
+		}
+	}
+	let maxPaybackHours = ns.args[0] || 0.2; // Stop upgrading if payback time > 12 minutes
+	let prioritizeNetburnersRequirement = ns.args[1] === "true"; // If true, prioritize buying 8 nodes
 
 	const currentBitnode = ns.getResetInfo().currentNode;
 
@@ -14,21 +17,11 @@ export async function main(ns) {
 	let bitNodeMultipliers = getSafeBitNodeMultipliers(ns, currentBitnode); // Default to BitNode 4 if unavailable
 	let bitnodeHacknetNodeMoneyMultiplier = bitNodeMultipliers.HacknetNodeMoney;
 
-	if (runtime) {
-		runtime *= 1000
-	} else {
-		runtime = 100000000
-	}
-
 	const getProd = (level, ram, cores) => (level * 1.5) * Math.pow(1.035, ram - 1) * ((cores + 5) / 6);
 
-	let start_time = new Date().valueOf(); // 16347472346
+	ns.tprint(`Starting hacknet manager. Max payback time: ${maxPaybackHours} hours.`)
 
-	let time = new Date().valueOf();
-	ns.tprint(`Starting hacknet manager. Max payback time: ${maxPaybackHours} hours. Runtime: ${runtime}ms`)
-	while (time < start_time + runtime) {
-		time = new Date().valueOf();
-
+	while (true) {
 		let bitnodeHacknetNodeProductionMultiplier = bitnodeHacknetNodeMoneyMultiplier * player.hnet.multipliers.production;
 
 		let currentNodeStats = [];
