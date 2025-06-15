@@ -16,6 +16,10 @@ export async function main(ns) {
 	// Start all required scripts if not running
 	startDistributedHackIfNotRunning(ns);
 
+	// Start TOR and program managers
+	startTorManagerIfNotRunning(ns);
+	startProgramManagerIfNotRunning(ns);
+
 	// startUpgradeHnetIfNeeded(ns);
 
 	startUpgradeServersIfNotRunning(ns);
@@ -147,6 +151,48 @@ function startShareAllRamIfNotRunning(ns) {
 function printAllFactionServerPaths(ns) {
 	// Call 'scripts/find_server.js' with --faction
 	ns.exec('scripts/find_server.js', HOST_NAME, 1, "--faction");
+}
+
+function startTorManagerIfNotRunning(ns) {
+	// Check if TOR is already available
+	let hasTor = () => ns.scan("home").includes("darkweb");
+	if (hasTor()) {
+		ns.tprint("TOR router already available");
+		return;
+	}
+
+	// Check if "scripts/tor-manager.js" is running on "home"
+	let torManagerRunning = isScriptRunning(ns, 'scripts/tor-manager.js', HOST_NAME);
+
+	// If not running, execute the script
+	if (!torManagerRunning) {
+		ns.exec('scripts/tor-manager.js', HOST_NAME, 1, "-c");
+		ns.tprint("Started scripts/tor-manager.js");
+	} else {
+		ns.tprint("scripts/tor-manager.js is already running");
+	}
+}
+
+function startProgramManagerIfNotRunning(ns) {
+	// Check if all programs are already available
+	const programNames = ["BruteSSH.exe", "FTPCrack.exe", "relaySMTP.exe", "HTTPWorm.exe", "SQLInject.exe"];
+	const allProgramsAvailable = programNames.every(prog => ns.fileExists(prog, "home"));
+
+	if (allProgramsAvailable) {
+		ns.tprint("All port opener programs already available");
+		return;
+	}
+
+	// Check if "scripts/program-manager.js" is running on "home"
+	let programManagerRunning = isScriptRunning(ns, 'scripts/program-manager.js', HOST_NAME);
+
+	// If not running, execute the script
+	if (!programManagerRunning) {
+		ns.exec('scripts/program-manager.js', HOST_NAME, 1, "-c");
+		ns.tprint("Started scripts/program-manager.js");
+	} else {
+		ns.tprint("scripts/program-manager.js is already running");
+	}
 }
 
 function isScriptRunning(ns, scriptName, hostname) {

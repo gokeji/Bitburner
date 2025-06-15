@@ -705,42 +705,8 @@ function getFreeRam(ns, servers) {
     return { serverRams, overallFreeRam, overallMaxRam };
 }
 
-// automatically purchase TOR router and port opener programs if singularity functions are available
-async function ensureTorAndPrograms(ns) {
-    if (!singularityFunctionsAvailable) {
-        return;
-    }
-
-    // Check and buy TOR router first (required for darkweb purchases)
-    let hasTor = () => ns.scan("home").includes("darkweb");
-    if (!hasTor()) {
-        if (ns.singularity.purchaseTor()) {
-            ns.print(`INFO Purchased the Tor router for $200,000`);
-            ns.tprint(`INFO Purchased the Tor router for $200,000`);
-        }
-    }
-
-    // Only try to buy programs if we have TOR
-    if (hasTor()) {
-        const programNames = ["BruteSSH.exe", "FTPCrack.exe", "relaySMTP.exe", "HTTPWorm.exe", "SQLInject.exe"];
-
-        for (const prog of programNames) {
-            if (!ns.fileExists(prog, "home")) {
-                if (ns.singularity.purchaseProgram(prog)) {
-                    const cost = ns.singularity.getDarkwebProgramCost(prog)
-                    ns.print(`INFO Purchased ${prog} for $${cost}`);
-                    ns.tprint(`INFO Purchased ${prog} for $${cost}`);
-                }
-            }
-        }
-    }
-}
-
 // scan all servers from home and nuke them if we can
 async function scanAndNuke(ns) {
-    // Ensure we have TOR and programs before scanning
-    await ensureTorAndPrograms(ns);
-
     let servers = new Set(["home"]);
     scanAll(ns, "home", servers);
     var accessibleServers = new Set();
