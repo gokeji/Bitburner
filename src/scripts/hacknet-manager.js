@@ -1,5 +1,5 @@
-import BasePlayer from "./if.player";
-import { getSafeBitNodeMultipliers } from "../scripts/bitnode-multipliers.js";
+import BasePlayer from "../letsPlayBitBurner/if.player";
+import { getSafeBitNodeMultipliers } from "./bitnode-multipliers.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {

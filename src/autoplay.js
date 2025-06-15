@@ -127,11 +127,11 @@ function startStockTraderIfNotRunning(ns) {
 
 function startUpgradeHnetIfNeeded(ns) {
 	// Check if "kamu/upgrade-hnet.js" is running on "home"
-	const upgradeHnetRunning = isScriptRunning(ns, 'letsPlayBitBurner/hnet-full.js', HOST_NAME);
+	const upgradeHnetRunning = isScriptRunning(ns, 'scripts/hacknet-manager.js', HOST_NAME);
 
 	// If not running, execute the script
 	if (!upgradeHnetRunning) {
-		ns.exec('letsPlayBitBurner/hnet-full.js', HOST_NAME, 1, 0, 0.2);
+		ns.exec('scripts/hacknet-manager.js', HOST_NAME, 1, 0, 0.2);
 	}
 }
 
