@@ -1,4 +1,6 @@
 import BasePlayer from "./if.player";
+import { getSafeBitNodeMultipliers } from "../scripts/bitnode-multipliers.js";
+
 /** @param {NS} ns **/
 export async function main(ns) {
 	let player = new BasePlayer(ns, "player");
@@ -6,15 +8,11 @@ export async function main(ns) {
 	let maxPaybackHours = ns.args[1] || 1; // Stop upgrading if payback time > 24 hours
 	let prioritizeNetburnersRequirement = ns.args[2]; // If true, prioritize buying 8 nodes
 
-	let BITNODE_HACKNET_NODE_MONEY_MULTIPLIER = 0.05; // Change to your own value, unless you have Source File 5
+	const currentBitnode = ns.getResetInfo().currentNode;
 
-	let bitnodeHacknetNodeMoneyMultiplier = BITNODE_HACKNET_NODE_MONEY_MULTIPLIER;
-
-	try {
-		bitnodeHacknetNodeMoneyMultiplier = ns.getBitNodeMultipliers().HacknetNodeMoney;
-	} catch {
-		ns.print(`Error getting bitnode multipliers, using default value of ${BITNODE_HACKNET_NODE_MONEY_MULTIPLIER}`)
-	}
+	// Get BitNode multipliers with fallback support
+	let bitNodeMultipliers = getSafeBitNodeMultipliers(ns, currentBitnode); // Default to BitNode 4 if unavailable
+	let bitnodeHacknetNodeMoneyMultiplier = bitNodeMultipliers.HacknetNodeMoney;
 
 	if (runtime) {
 		runtime *= 1000
@@ -115,14 +113,14 @@ export async function main(ns) {
 
 		// Debug all of the upgrade types before returning
 		for (let upgrade of currentNodeStats) {
-			ns.print(`Node ${upgrade.index} ${upgrade.type.padEnd(5)}: production: ${ns.formatNumber(upgrade.value, 2).padStart(8)}, cost: ${ns.formatNumber(upgrade.cost, 2).padStart(10)}, ratio: ${upgrade.ratio.toFixed(6).padStart(10)}, payback: ${(upgrade.paybackTime / 3600).toFixed(2).padStart(6)}h`)
+			ns.print(`Node ${upgrade.index} ${upgrade.type.padEnd(5)}: production: ${ns.formatNumber(upgrade.value).padStart(8)}, cost: ${ns.formatNumber(upgrade.cost).padStart(10)}, ratio: ${upgrade.ratio.toFixed(6).padStart(10)}, payback: ${(upgrade.paybackTime / 3600).toFixed(2).padStart(6)}h`)
 		}
 
 		// Log the best upgrade with payback time info
 		let nodeInfo = bestUpgrade.type === "node" ? "" : ` on node ${bestUpgrade.index}`;
 		let productionInfo = bestUpgrade.type === "node" ?
-			`Production: $${ns.formatNumber(bestUpgrade.value, 2)}/sec` :
-			`Additional $/sec: ${ns.formatNumber(bestUpgrade.value, 2)}`;
+			`Production: $${ns.formatNumber(bestUpgrade.value)}/sec` :
+			`Additional $/sec: ${ns.formatNumber(bestUpgrade.value)}`;
 
 		ns.print(`Best upgrade: ${bestUpgrade.type.toUpperCase()}${nodeInfo}, ` +
 			`Cost: $${ns.formatNumber(bestUpgrade.cost, 2)}, ` +
