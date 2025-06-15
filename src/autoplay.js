@@ -136,8 +136,8 @@ function startUpgradeHnetIfNeeded(ns) {
 }
 
 function launchStatsMonitoring(ns) {
-	// Launch "get_stats_new.js -c"
-	ns.exec('get_stat_new.js', HOST_NAME, 1, "--chart");
+	// Launch "get_stats.js -c"
+	ns.exec('get_stats.js', HOST_NAME, 1, "--chart");
 }
 
 function startShareAllRamIfNotRunning(ns) {
