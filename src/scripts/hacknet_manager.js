@@ -1,4 +1,4 @@
-import { getSafeBitNodeMultipliers } from "./bitnode-multipliers.js";
+import { getSafeBitNodeMultipliers } from "./bitnode_multipliers.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
