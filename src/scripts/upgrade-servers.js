@@ -19,11 +19,11 @@ function getRamTierToBuy(ns) {
   const maxAllowedRam = getMaxRamAllowed(ns);
 
   const purchasedServers = ns.getPurchasedServers();
-  const currentServers = ["home", ...purchasedServers];
-  const currentMaxRam = currentServers.reduce((max, server) => Math.max(max, ns.getServerMaxRam(server)), 0);
+  const homeServerRam = ns.getServerMaxRam("home");
+  const purchasedServersMaxRam = purchasedServers.reduce((max, server) => Math.max(max, ns.getServerMaxRam(server)), 0);
 
   // Set ram tier to match current max
-  let targetRam = Math.min(maxAllowedRam, currentMaxRam / 2);
+  let targetRam = Math.min(maxAllowedRam, Math.max(purchasedServersMaxRam, homeServerRam / 2));
 
   const currentMoney = ns.getServerMoneyAvailable("home");
 
@@ -64,7 +64,7 @@ export async function main(ns) {
   const maxAllowedServers = ns.getPurchasedServerLimit();
   const maxAllowedRam = getMaxRamAllowed(ns);
 
-  let ramTierToBuy = getRamTierToBuy(ns);
+  let ramTierToBuy = 0;
   let ramTierForMessaging = 0;
 
   while (true) {
