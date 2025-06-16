@@ -3,13 +3,12 @@ import { getSafeBitNodeMultipliers } from "./bitnode_multipliers.js";
 /** @param {NS} ns **/
 export async function main(ns) {
 	let player = {
-		money: ns.getPlayer().money,
 		hnet: {
 			multipliers: ns.getHacknetMultipliers()
 		}
 	}
 	let maxPaybackHours = ns.args[0] || 0.2; // Stop upgrading if payback time > 12 minutes
-	let prioritizeNetburnersRequirement = ns.args[1] === "true"; // If true, prioritize buying 8 nodes
+	let prioritizeNetburnersRequirement = ns.args.includes("--netburners"); // If true, prioritize buying 8 nodes
 
 	const currentBitnode = ns.getResetInfo().currentNode;
 
@@ -19,7 +18,7 @@ export async function main(ns) {
 
 	const getProd = (level, ram, cores) => (level * 1.5) * Math.pow(1.035, ram - 1) * ((cores + 5) / 6);
 
-	ns.tprint(`Starting hacknet manager. Max payback time: ${maxPaybackHours} hours.`)
+	ns.tprint(`Starting hacknet manager. Max payback time: ${maxPaybackHours} hours. Prioritize Netburners (Buy 8 nodes): ${prioritizeNetburnersRequirement}`)
 
 	while (true) {
 		let bitnodeHacknetNodeProductionMultiplier = bitnodeHacknetNodeMoneyMultiplier * player.hnet.multipliers.production;
@@ -46,7 +45,7 @@ export async function main(ns) {
 		if (prioritizeNetburnersRequirement) {
 			// Purchase 8 nodes if we have the money, otherwise wait
 			while (ns.hacknet.numNodes() < 8) {
-				if (player.money < ns.hacknet.getPurchaseNodeCost()) {
+				if (ns.getServerMoneyAvailable("home") < ns.hacknet.getPurchaseNodeCost()) {
 					await ns.sleep(10000)
 				} else {
 					ns.hacknet.purchaseNode()
@@ -131,7 +130,7 @@ export async function main(ns) {
 			break;
 		}
 
-		while (player.money < bestUpgrade.cost) {
+		while (ns.getServerMoneyAvailable("home") < bestUpgrade.cost) {
 			await ns.sleep(10000)
 		}
 

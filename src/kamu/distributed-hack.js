@@ -26,6 +26,9 @@ const homeReservedRam = 20;
 // Ignore servers
 const ignoreServers = ["b-24"];
 
+// XP weaken threshold (how much free ram percentage is left to begin running xp weaken)
+const xpWeakenThreshold = 0.2;
+
 // Potential issue with burst attack timing:
 // Hacking skill might increase after launching them while hack / grow wait before they start.
 // Execution time is calculated when launching the attack but can decrease with higher hacking skill.
@@ -220,7 +223,7 @@ export async function main(ns) {
         }
 
         // if lots of RAM to spare and money is not an issue, spam weak attacks for hacking XP gain
-        if (ramUsage < 0.8 && hackMoneyRatio >= 0.99) {
+        if (ramUsage < (1 - xpWeakenThreshold) && hackMoneyRatio >= 0.99) {
             xpWeaken(ns, freeRams, servers, targets);
             ramUsage = (freeRams.overallMaxRam - freeRams.overallFreeRam) / freeRams.overallMaxRam;
         }

@@ -1,5 +1,7 @@
 /** @param {NS} ns */
 export async function main(ns) {
+    const autoJoinFactions = ["Daedalus", "Netburners", "Slum Snakes", "The Black Hand", "NiteSec", "Tetrads", "CyberSec", "Tian Di Hui", "The Syndicate", "BitRunners"];
+
     // Function to process faction invitations
     function processFactionInvitations() {
         try {
@@ -16,9 +18,9 @@ export async function main(ns) {
             // Process each invitation
             for (const faction of invitations) {
                 try {
-                    const enemies = ns.singularity.getFactionEnemies(faction);
+                    // const enemies = ns.singularity.getFactionEnemies(faction);
 
-                    if (enemies.length === 0) {
+                    if (autoJoinFactions.includes(faction)) {
                         // No enemies, safe to join
                         const success = ns.singularity.joinFaction(faction);
                         if (success) {
@@ -30,20 +32,20 @@ export async function main(ns) {
                             ns.tprint(`❌ Failed to join ${faction}`);
                             ns.toast(`❌ Failed to join ${faction}`, "error");
                         }
-                        if (faction === "Daedalus") {
-                            const success = ns.singularity.workForFaction(faction, "hacking");
-                            if (success) {
-                                ns.print(`✅ Working for ${faction}!`);
-                                ns.tprint(`✅ Working for ${faction}!`);
-                                ns.toast(`✅ Working for ${faction}!`, "success");
-                            } else {
-                                ns.print(`❌ Failed to work for ${faction}`);
-                                ns.tprint(`❌ Failed to work for ${faction}`);
-                                ns.toast(`❌ Failed to work for ${faction}`, "error");
-                            }
-                        }
+                        // if (faction === "Daedalus") {
+                        //     const success = ns.singularity.workForFaction(faction, "hacking");
+                        //     if (success) {
+                        //         ns.print(`✅ Working for ${faction}!`);
+                        //         ns.tprint(`✅ Working for ${faction}!`);
+                        //         ns.toast(`✅ Working for ${faction}!`, "success");
+                        //     } else {
+                        //         ns.print(`❌ Failed to work for ${faction}`);
+                        //         ns.tprint(`❌ Failed to work for ${faction}`);
+                        //         ns.toast(`❌ Failed to work for ${faction}`, "error");
+                        //     }
+                        // }
                     } else {
-                        ns.print(`❌ Skipping ${faction} - has enemies: ${enemies.join(", ")}`);
+                        ns.print(`❌ Skipping ${faction}`);
                     }
                 } catch (error) {
                     ns.print(`❌ Error processing ${faction}: ${error.message}`);

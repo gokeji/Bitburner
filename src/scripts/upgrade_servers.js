@@ -76,6 +76,8 @@ export async function main(ns) {
   // If not provided, we will use -1 which means no limit
   const MAX_CURRENT_RAM_TOTAL_PURCHASE_VALUE = ns.args[0] || -1;
 
+  ns.print(`Starting upgrade servers script with max current ram total purchase value: ${MAX_CURRENT_RAM_TOTAL_PURCHASE_VALUE}`);
+
   const maxAllowedServers = ns.getPurchasedServerLimit();
   const maxAllowedRam = getMaxRamAllowed(ns);
 

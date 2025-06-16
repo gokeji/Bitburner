@@ -19,7 +19,8 @@ export async function main(ns) {
   }
 
   function pad(str, length) {
-    return str + " ".repeat(Math.max(length - str.length, 0));
+    const s = String(str);
+    return s + " ".repeat(Math.max(length - s.length, 0));
   }
 
   ns.tprint("=== Scanning all servers ===");
@@ -27,14 +28,30 @@ export async function main(ns) {
   // Start scanning from home
   let servers = new Set(["home"]);
   scanAllServers(ns, "home", servers);
+
+  // Convert to array and filter out purchased servers if needed
+  let serverArray = Array.from(servers).filter(server => {
+    return showPurchased || !ns.getServer(server).purchasedByPlayer;
+  });
+
+  // Sort by hacking level ascending
+  serverArray.sort((a, b) => {
+    return ns.getServerRequiredHackingLevel(a) - ns.getServerRequiredHackingLevel(b);
+  });
+
   let count = 0;
 
-  for (let server of servers) {
-    if (!showPurchased && ns.getServer(server).purchasedByPlayer) {
-        continue;
-    }
+  for (let server of serverArray) {
     count++;
-    ns.tprint(`${pad(count, 3)}: ${pad(server, 20)} RAM: ${pad(`${ns.getServer(server).maxRam}GB`, 6)} CPU: ${pad(`${ns.getServer(server).cpuCores} Cores`, 9)}  ROOT: ${pad(ns.hasRootAccess(server), 5)}  PORTS: ${pad(ns.getServer(server).openPortCount, 2)}/${pad(ns.getServerNumPortsRequired(server), 2)} ${pad(ns.getServerMaxMoney(server), 10)}`);
+    const hackLevel = ns.getServerRequiredHackingLevel(server);
+    const maxRam = ns.getServer(server).maxRam;
+    const cpuCores = ns.getServer(server).cpuCores;
+    const hasRoot = ns.hasRootAccess(server);
+    const openPorts = ns.getServer(server).openPortCount;
+    const reqPorts = ns.getServerNumPortsRequired(server);
+    const maxMoney = ns.getServerMaxMoney(server);
+
+    ns.tprint(`${pad(count, 3)}: ${pad(server, 20)} HACK: ${pad(hackLevel, 5)} RAM: ${pad(`${maxRam}GB`, 8)} CPU: ${pad(`${cpuCores} Cores`, 8)} ROOT: ${pad(hasRoot, 5)} PORTS: ${pad(`${openPorts}/${reqPorts}`, 5)} ${pad(maxMoney.toLocaleString(), 12)}`);
   }
 
   // Check each server for .cct files

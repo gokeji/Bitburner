@@ -4,6 +4,8 @@ const HOST_NAME = "home";
 
 /** @param {NS} ns */
 export async function main(ns) {
+	const shouldShare = ns.args.includes("--share");
+
 	// Kill all other scripts called autoplay.js
 	ns.ps(HOST_NAME).filter(p => p.filename === "autoplay.js").forEach(p => {
 		if (p.pid !== ns.pid) {
@@ -44,7 +46,9 @@ export async function main(ns) {
 		// Start stock trader and also share ram after we purchase server b-24
 		if (ns.serverExists("b-24")) {
 			startStockTraderIfNotRunning(ns);
-			startShareAllRamIfNotRunning(ns);
+			if (shouldShare) {
+				startShareAllRamIfNotRunning(ns);
+			}
 
 			startedStockTrader = true;
 			sharedRam = true;
@@ -100,8 +104,8 @@ function startUpgradeServersIfNotRunning(ns) {
 
 	// If not running, execute the script
 	if (!upgradeServersRunning) {
-		// const pid = ns.exec('scripts/upgrade_servers.js', HOST_NAME, 1, 1200000000000); // 1.2 trillion max server value
-		const pid = ns.exec('scripts/upgrade_servers.js', HOST_NAME); // No limit
+		const pid = ns.exec('scripts/upgrade_servers.js', HOST_NAME, 1, 120000000000); // 120 B max server value
+		// const pid = ns.exec('scripts/upgrade_servers.js', HOST_NAME); // No limit
 		ns.ui.openTail(pid, HOST_NAME);
 		ns.tprint("Started scripts/upgrade_servers.js");
 	} else {
@@ -111,7 +115,13 @@ function startUpgradeServersIfNotRunning(ns) {
 
 function startStockTraderIfNotRunning(ns) {
 
+	const canTradeStocks = ns.stock.hasTIXAPIAccess();
 	const has4SDataTixApi = ns.stock.has4SDataTIXAPI();
+
+	if (!canTradeStocks) {
+		ns.tprint("Cannot trade stocks, skipping stock trader");
+		return;
+	}
 
 	if (has4SDataTixApi) {
 		ns.tprint("4SDataTix API is available - starting stock trader");
@@ -146,11 +156,11 @@ function startStockTraderIfNotRunning(ns) {
 
 function startUpgradeHnetIfNeeded(ns) {
 	// Check if "kamu/upgrade-hnet.js" is running on "home"
-	const upgradeHnetRunning = isScriptRunning(ns, 'scripts/hacknet-manager.js', HOST_NAME);
+	const upgradeHnetRunning = isScriptRunning(ns, 'scripts/hacknet_manager.js', HOST_NAME);
 
 	// If not running, execute the script
 	if (!upgradeHnetRunning) {
-		ns.exec('scripts/hacknet-manager.js', HOST_NAME, 1, 0, 0.2);
+		ns.exec('scripts/hacknet_manager.js', HOST_NAME, 1, 0, 0.1);
 	}
 }
 
