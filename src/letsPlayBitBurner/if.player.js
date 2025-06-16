@@ -1,10 +1,6 @@
 /** @param {NS} ns **/
-import { handleDB } from "./lib.db";
-import { Cacheable } from "./lib.utils";
-
-export default class BasePlayer extends Cacheable {
+export default class BasePlayer {
     constructor(ns, id) {
-        super();
         this.ns = ns;
         this._id = id;
     }
@@ -208,20 +204,5 @@ export default class BasePlayer extends Cacheable {
         sql: this.ns.ls("home").some(file => file === "SQLInject.exe"),
         formulas: this.ns.ls("home").some(file => file === "Formulas.exe"),
     }}
-
-    async updateCache(repeat=true, kv=new Map()) {
-        do {
-            const db = await handleDB();
-            let old = await db["get"]("player", this.id) || {}
-            let getters = this.listGetters(this)
-            getters.forEach(g => {
-                old[g] = this[g];
-            })
-            kv.forEach((v,k) => old[k] = v)
-
-            await db["put"]("player", old)
-            if (repeat) { await this.ns.asleep(Math.random()*10000) + 55000}
-        } while (repeat)
-    }
 
 }
