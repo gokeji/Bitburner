@@ -26,6 +26,8 @@ export async function main(ns) {
 
 	startIpvgoIfNotRunning(ns);
 
+	startAutoJoinFactionsIfNotRunning(ns);
+
 	if (showFactionServerPaths) {
 		printAllFactionServerPaths(ns);
 	}
@@ -76,6 +78,19 @@ export function startIpvgoIfNotRunning(ns) {
 		ns.exec('techLord/master/auto-play-ipvgo.js', "home");
 	} else {
 		ns.tprint("techLord/master/ipvgo.js is already running");
+	}
+}
+
+function startAutoJoinFactionsIfNotRunning(ns) {
+	// Check if "scripts/auto_join_factions.js" is running on "home"
+	let autoJoinFactionsRunning = isScriptRunning(ns, 'scripts/auto_join_factions.js', HOST_NAME);
+
+	// If not running, execute the script
+	if (!autoJoinFactionsRunning) {
+		ns.exec('scripts/auto_join_factions.js', HOST_NAME);
+		ns.tprint("Started scripts/auto_join_factions.js");
+	} else {
+		ns.tprint("scripts/auto_join_factions.js is already running");
 	}
 }
 
