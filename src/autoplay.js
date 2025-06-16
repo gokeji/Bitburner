@@ -100,7 +100,8 @@ function startUpgradeServersIfNotRunning(ns) {
 
 	// If not running, execute the script
 	if (!upgradeServersRunning) {
-		const pid = ns.exec('scripts/upgrade_servers.js', HOST_NAME, 1, 1200000000000); // 1.2 trillion max server value
+		// const pid = ns.exec('scripts/upgrade_servers.js', HOST_NAME, 1, 1200000000000); // 1.2 trillion max server value
+		const pid = ns.exec('scripts/upgrade_servers.js', HOST_NAME); // No limit
 		ns.ui.openTail(pid, HOST_NAME);
 		ns.tprint("Started scripts/upgrade_servers.js");
 	} else {
@@ -120,8 +121,9 @@ function startStockTraderIfNotRunning(ns) {
 		// If not running, execute the script
 		if (!stockTraderRunning) {
 			ns.kill('kamu/early-stock-trader.js');
-			ns.exec('kamu/stock-trader.js', HOST_NAME);
+			const pid = ns.exec('kamu/stock-trader.js', HOST_NAME);
 			ns.tprint("Started kamu/stock-trader.js");
+			ns.ui.openTail(pid, HOST_NAME);
 		} else {
 			ns.tprint("kamu/stock-trader.js is already running");
 		}
@@ -133,8 +135,9 @@ function startStockTraderIfNotRunning(ns) {
 		// If not running, execute the script
 		if (!stockTraderRunning) {
 			ns.kill('kamu/stock-trader.js');
-			ns.exec('kamu/early-stock-trader.js', HOST_NAME);
+			const pid = ns.exec('kamu/early-stock-trader.js', HOST_NAME);
 			ns.tprint("Started kamu/early-stock-trader.js");
+			ns.ui.openTail(pid, HOST_NAME);
 		} else {
 			ns.tprint("kamu/early-stock-trader.js is already running");
 		}
