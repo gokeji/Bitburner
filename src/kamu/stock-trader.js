@@ -25,6 +25,7 @@ function tendStocks(ns) {
     var longStocks = new Set();
     var shortStocks = new Set();
     var overallValue = 0;
+    var totalProfit = 0;
 
     for (const stock of stocks) {
         if (stock.longShares > 0) {
@@ -32,6 +33,7 @@ function tendStocks(ns) {
                 longStocks.add(stock.sym);
                 ns.print(`INFO ${stock.summary} LONG ${ns.nFormat(stock.cost + stock.profit, "0.0a")} ${ns.nFormat(100 * stock.profit / stock.cost, "0.00")}%`);
                 overallValue += (stock.cost + stock.profit);
+                totalProfit += stock.profit;
             }
             else {
                 const salePrice = ns.stock.sellStock(stock.sym, stock.longShares);
@@ -48,6 +50,7 @@ function tendStocks(ns) {
                 shortStocks.add(stock.sym);
                 ns.print(`INFO ${stock.summary} SHORT ${ns.nFormat(stock.cost + stock.profit, "0.0a")} ${ns.nFormat(100 * stock.profit / stock.cost, "0.00")}%`);
                 overallValue += (stock.cost + stock.profit);
+                totalProfit += stock.profit;
             }
             else {
                 const salePrice = ns.stock.sellShort(stock.sym, stock.shortShares);
@@ -86,6 +89,7 @@ function tendStocks(ns) {
         }
     }
     ns.print("Stock value: " + ns.nFormat(overallValue, "$0.0a"));
+    ns.print("Total P&L: " + (totalProfit >= 0 ? '+' : '') + ns.nFormat(totalProfit, "$0.0a"));
 
     // send stock market manipulation orders to hack manager
     var growStockPort = ns.getPortHandle(1); // port 1 is grow

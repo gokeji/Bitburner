@@ -10,12 +10,34 @@ let neurofluxToPurchase = 1;
 const COST_MULTIPLIER = 1.9;
 
 let initialAugments = [
-    // Tian Di Hui
-    { name: 'Social Negotiation Assistant (S.N.A)', cost: 30, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
-    { name: 'ADR-V1 Pheromone Gene', cost: 17.5, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: false },
+
+    // BitRunners
+    { name: 'NeuroFlux Governor - Level 36', cost: 73.575, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Enhanced Myelin Sheathing', cost: 1375, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'DataJack', cost: 450, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Cranial Signal Processors - Gen IV', cost: 1100, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Embedded Netburner Module Core Implant', cost: 2500, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Neural Accelerator', cost: 1750, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Cranial Signal Processors - Gen V', cost: 2250, faction: 'BitRunners', available: true, prereqs: ['Cranial Signal Processors - Gen IV'], hackingBoost: true },
+    { name: 'Artificial Bio-neural Network Implant', cost: 3000, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'BitRunners Neurolink', cost: 4375, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Embedded Netburner Module Core V2 Upgrade', cost: 4500, faction: 'BitRunners', available: true, prereqs: ['Embedded Netburner Module Core Implant'], hackingBoost: true },
 
     // Black Hand
-    { name: 'NeuroFlux Governor - Level 6', cost: 1.444, faction: 'Black Hand', available: true, prereqs: [], hackingBoost: true },
+    { name: 'NeuroFlux Governor - Level 36', cost: 73.575, faction: 'Black Hand', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Enhanced Myelin Sheathing', cost: 1375, faction: 'Black Hand', available: true, prereqs: [], hackingBoost: true },
+    { name: 'The Black Hand', cost: 550, faction: 'Black Hand', available: true, prereqs: [], hackingBoost: true },
+    { name: 'DataJack', cost: 450, faction: 'Black Hand', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Cranial Signal Processors - Gen IV', cost: 1100, faction: 'Black Hand', available: true, prereqs: [], hackingBoost: true },
+    { name: 'Embedded Netburner Module Core Implant', cost: 2500, faction: 'Black Hand', available: true, prereqs: ['DataJack'], hackingBoost: true },
+
+    // NiteSec
+    { name: 'CRTX42-AA Gene Modification', cost: 225, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
+    { name: 'NeuroFlux Governor - Level 36', cost: 73.575, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
+    { name: 'DataJack', cost: 450, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
+
+    // Tian Di Hui
+    { name: 'Neuroreceptor Management Implant', cost: 550, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: true },
 ];
 
 function addNeoruFluxGovernors(augments, count) {

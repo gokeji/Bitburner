@@ -1,3 +1,5 @@
+import { NS } from "@ns";
+
 /**
  * @param {NS} ns
  **/
@@ -66,7 +68,7 @@ function get_server_ram_info(ns, server) {
 	var cores = ns.getServer(server).cpuCores
 
 	// Format RAM values
-	var maxRamFormatted = ns.formatRam(maxRam, 0)
+	var maxRamFormatted = ns.formatRam(maxRam)
 
 	// Calculate and format cost
 	var cost = server === "home" ? 0 : calculateServerCost(ns, maxRam)
@@ -119,7 +121,7 @@ function displayData(ns, displayFn) {
 	}
 
 	displayFn('-'.repeat(charsWidth))
-	displayFn(`${pad_str("TOTALS", 20)}|${pad_str("", 10)}|${pad_str(ns.formatRam(totalMaxRam, 0), 10)}|${pad_str(totalCores.toString(), 6)}|${pad_str("$" + ns.formatNumber(totalCost, 2), 12)}`)
+	displayFn(`${pad_str("TOTALS", 20)}|${pad_str("", 10)}|${pad_str(ns.formatRam(totalMaxRam), 10)}|${pad_str(totalCores.toString(), 6)}|${pad_str("$" + ns.formatNumber(totalCost, 2), 12)}`)
 	displayFn('='.repeat(charsWidth))
 	displayFn(`Total owned servers: ${ownedServers.length}`)
 	displayFn(`Home servers: 1, Purchased servers: ${ownedServers.length - 1}`)

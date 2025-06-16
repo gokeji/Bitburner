@@ -5,6 +5,21 @@ const fg = require('fast-glob');
 const chokidar = require('chokidar');
 const { src, dist, allowedFiletypes } = require('./config');
 
+/**
+ * Filter out all imports of the form import { NS } from "@ns";
+ * This way you can use the NS object in the script without getting errors in game.
+ */
+function filterBitBurnerImports(content, filePath) {
+  const ext = path.extname(filePath);
+  if (ext === '.js' || ext === '.ts') {
+    // Remove the specific import line that BitBurner doesn't recognize
+    // Handle both commented and uncommented imports with more flexible whitespace matching
+    return content.replace(/^\/\/\s*import\s*\{\s*NS\s*\}\s*from\s*["']@ns["']\s*;?\s*$/gm, '')
+                  .replace(/^import\s*\{\s*NS\s*\}\s*from\s*["']@ns["']\s*;?\s*$/gm, '');
+  }
+  return content;
+}
+
 /** Format dist path for printing */
 function normalize(p) {
   return p.replace(/\\/g, '/');
@@ -25,6 +40,19 @@ async function syncStatic() {
       let eventType;
       if (event.eventType === 'add' || event.eventType === 'init:copy') {
         eventType = 'changed';
+
+        // Filter BitBurner incompatible imports from copied files
+        if (event.targetPath) {
+          try {
+            const content = await fs.promises.readFile(event.targetPath, 'utf8');
+            const filteredContent = filterBitBurnerImports(content, event.targetPath);
+            if (content !== filteredContent) {
+              await fs.promises.writeFile(event.targetPath, filteredContent, 'utf8');
+            }
+          } catch (error) {
+            // Ignore errors for non-text files
+          }
+        }
       } else if (event.eventType === 'unlink') {
         eventType = 'deleted';
       }

@@ -1,7 +1,7 @@
 // file: stock_market.js
 // Comprehensive stock market report showing market cap, forecasts, and stock details
 
-import { NS } from "@ns";
+// import { NS } from "@ns";
 
 const commission = 100000;
 
@@ -12,14 +12,11 @@ export async function main(ns) {
 
     const stocks = getAllStockData(ns);
 
+    // Calculate market statistics
+    const marketStats = calculateMarketStats(stocks);
+
     if (!onlyPrintPlayerPositions) {
         ns.tprint("=== STOCK MARKET REPORT ===");
-
-        // Calculate market statistics
-        const marketStats = calculateMarketStats(stocks);
-
-        // Print market overview
-        printMarketOverview(ns, marketStats);
 
         // Print forecast summary
         printForecastSummary(ns, stocks);
@@ -27,6 +24,9 @@ export async function main(ns) {
         // Print detailed stock information
         printDetailedStockInfo(ns, stocks);
     }
+
+    // Print market overview
+    printMarketOverview(ns, marketStats);
 
     // Print player positions if any
     printPlayerPositions(ns, stocks);
@@ -46,8 +46,8 @@ function getAllStockData(ns) {
         let volatility = 0;
 
         if (ns.stock.has4SDataTIXAPI()) {
-            forecast = ns.tix.getForecast(sym);
-            volatility = ns.tix.getVolatility(sym);
+            forecast = ns.stock.getForecast(sym);
+            volatility = ns.stock.getVolatility(sym);
         } else {
             forecast = null;
             volatility = null;
@@ -84,10 +84,18 @@ function calculateMarketStats(stocks) {
     const avgVolatility = stocks.reduce((sum, stock) => sum + stock.volatility, 0) / stocks.length;
 
     const bullishStocks = stocks.filter(stock => stock.forecast > 0.5).length;
-    const bearishStocks = stocks.filter(stock => stock.forecast < 0.5).length;
-    const neutralStocks = stocks.filter(stock => stock.forecast === 0.5).length;
+    const bearishStocks = stocks.filter(stock => stock.forecast <= 0.5).length;
 
     const highVolatilityStocks = stocks.filter(stock => stock.volatility > avgVolatility).length;
+
+    // Calculate market cap by sentiment
+    const bullishMarketCap = stocks
+        .filter(stock => stock.forecast > 0.5)
+        .reduce((sum, stock) => sum + stock.marketCap, 0);
+
+    const bearishMarketCap = stocks
+        .filter(stock => stock.forecast <= 0.5)
+        .reduce((sum, stock) => sum + stock.marketCap, 0);
 
     return {
         totalMarketCap,
@@ -95,14 +103,16 @@ function calculateMarketStats(stocks) {
         avgVolatility,
         bullishStocks,
         bearishStocks,
-        neutralStocks,
         highVolatilityStocks,
+        bullishMarketCap,
+        bearishMarketCap,
         totalStocks: stocks.length
     };
 }
 
 function printMarketOverview(ns, stats) {
-    ns.tprint("\n=== MARKET OVERVIEW ===");
+    ns.tprint("");
+    ns.tprint("=== MARKET OVERVIEW ===");
     ns.tprint(`Total Market Cap: ${ns.nFormat(stats.totalMarketCap, "$0.0a")}`);
     ns.tprint(`Total Stocks: ${stats.totalStocks}`);
     ns.tprint(`Average Forecast: ${(stats.avgForecast * 100).toFixed(1)}%`);
@@ -111,12 +121,19 @@ function printMarketOverview(ns, stats) {
     ns.tprint("Market Sentiment:");
     ns.tprint(`  Bullish (>50%): ${stats.bullishStocks} stocks`);
     ns.tprint(`  Bearish (<50%): ${stats.bearishStocks} stocks`);
-    ns.tprint(`  Neutral (=50%): ${stats.neutralStocks} stocks`);
     ns.tprint(`  High Volatility: ${stats.highVolatilityStocks} stocks`);
+    ns.tprint("");
+    ns.tprint("Market Cap by Sentiment:");
+    const bullishPercent = (stats.bullishMarketCap / stats.totalMarketCap * 100).toFixed(1);
+    const bearishPercent = (stats.bearishMarketCap / stats.totalMarketCap * 100).toFixed(1);
+
+    ns.tprint(`  Bullish: ${ns.nFormat(stats.bullishMarketCap, "$0.0a")} (${bullishPercent}%)`);
+    ns.tprint(`  Bearish: ${ns.nFormat(stats.bearishMarketCap, "$0.0a")} (${bearishPercent}%)`);
 }
 
 function printForecastSummary(ns, stocks) {
-    ns.tprint("\n=== FORECAST SUMMARY ===");
+    ns.tprint("");
+    ns.tprint("=== FORECAST SUMMARY ===");
 
     // Sort by forecast (descending)
     const sortedByForecast = [...stocks].sort((a, b) => b.forecast - a.forecast);
@@ -127,7 +144,8 @@ function printForecastSummary(ns, stocks) {
         ns.tprint(`  ${stock.sym}: ${(stock.forecast * 100).toFixed(1)}% (${stock.organization})`);
     }
 
-    ns.tprint("\nMost Bearish Stocks:");
+    ns.tprint("");
+    ns.tprint("Most Bearish Stocks:");
     for (let i = sortedByForecast.length - 1; i >= Math.max(0, sortedByForecast.length - 5); i--) {
         const stock = sortedByForecast[i];
         ns.tprint(`  ${stock.sym}: ${(stock.forecast * 100).toFixed(1)}% (${stock.organization})`);
@@ -135,7 +153,8 @@ function printForecastSummary(ns, stocks) {
 }
 
 function printDetailedStockInfo(ns, stocks) {
-    ns.tprint("\n=== DETAILED STOCK INFORMATION ===");
+    ns.tprint("");
+    ns.tprint("=== DETAILED STOCK INFORMATION ===");
     ns.tprint("Symbol | Organization | Price | Market Cap | Forecast | Volatility | Max Shares");
     ns.tprint("-".repeat(90));
 
@@ -156,12 +175,14 @@ function printPlayerPositions(ns, stocks) {
     const positionsHeld = stocks.filter(stock => stock.longShares > 0 || stock.shortShares > 0);
 
     if (positionsHeld.length === 0) {
-        ns.tprint("\n=== PLAYER POSITIONS ===");
+        ns.tprint("");
+        ns.tprint("=== PLAYER POSITIONS ===");
         ns.tprint("No stock positions currently held.");
         return;
     }
 
-    ns.tprint("\n=== PLAYER POSITIONS ===");
+    ns.tprint("");
+    ns.tprint("=== PLAYER POSITIONS ===");
 
     let totalValue = 0;
     let totalProfit = 0;
@@ -198,7 +219,8 @@ function printPlayerPositions(ns, stocks) {
         }
     }
 
-    ns.tprint("\n=== PORTFOLIO SUMMARY ===");
+    ns.tprint("");
+    ns.tprint("=== PORTFOLIO SUMMARY ===");
     ns.tprint(`Total Portfolio Value: ${ns.nFormat(totalValue, "$0.0a")}`);
     ns.tprint(`Total P&L: ${totalProfit >= 0 ? '+' : ''}${ns.nFormat(totalProfit, "$0.0a")}`);
 }

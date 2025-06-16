@@ -3,7 +3,7 @@
 export async function main(ns) {
   const targetServer = ns.args[0] || "home";
 
-  let ipvgoRunning = ns.isRunning('techLord/master/ipvgo.js', targetServer);
+  let ipvgoRunning = isScriptRunning(ns, 'techLord/master/ipvgo.js', targetServer);
   // let ipvgoRunning = ns.go.getCurrentPlayer() !== "None"; // Cannot figure out how to continue playing Go from mid game yet
 
   // If not running, execute the script
@@ -15,7 +15,7 @@ export async function main(ns) {
       // "The Black Hand", // hacking money
       // "Tetrads", // strength, defense, dexterity, and agility levels
       "Daedalus", // reputation gain
-      "Illuminati", // faster hack(), grow(), and weaken()
+      // "Illuminati", // faster hack(), grow(), and weaken()
     ];
     const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
 
@@ -27,4 +27,9 @@ export async function main(ns) {
     ns.exec('techLord/master/ipvgo.js', targetServer, 1, ...opponents);
     ns.print(`Started techLord/master/ipvgo.js against ${randomOpponent}`);
   }
+}
+
+function isScriptRunning(ns, scriptName, hostname) {
+	const runningScripts = ns.ps(hostname).map(process => process.filename);
+	return runningScripts.includes(scriptName);
 }
