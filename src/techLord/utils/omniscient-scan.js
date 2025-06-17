@@ -1,34 +1,39 @@
 /** @param {NS} ns */
 export async function main(ns) {
-    const allListFile = "all-list.txt";        // The master list of all servers
-    const detectedListFile = "detected-list.txt";  // The file to store detailed server info
+    const allListFile = "all-list.txt"; // The master list of all servers
+    const detectedListFile = "detected-list.txt"; // The file to store detailed server info
 
     // Simple function to get all reachable servers (from mcp.js approach)
     function get_all_servers(ns) {
-        const servers = ["home"]
-        const result = []
-        let i = 0
+        const servers = ["home"];
+        const result = [];
+        let i = 0;
 
         while (i < servers.length) {
-            const server = servers[i]
-            const connections = ns.scan(server)
+            const server = servers[i];
+            const connections = ns.scan(server);
 
             for (const connection of connections) {
                 if (!servers.includes(connection)) {
-                    servers.push(connection)
-                    result.push(connection)
+                    servers.push(connection);
+                    result.push(connection);
                 }
             }
-            i++
+            i++;
         }
-        return result
+        return result;
     }
 
     // Utility to read file and return an array of lines, properly trimmed of whitespace
     async function readList(fileName) {
         try {
             const fileContent = await ns.read(fileName);
-            return fileContent ? fileContent.split("\n").map(line => line.trim()).filter(s => s) : [];
+            return fileContent
+                ? fileContent
+                      .split("\n")
+                      .map((line) => line.trim())
+                      .filter((s) => s)
+                : [];
         } catch (err) {
             ns.tprint(`Error reading file ${fileName}: ${err}`);
             return [];
@@ -54,7 +59,7 @@ export async function main(ns) {
 
     // Write all servers to all-list.txt (one per line)
     for (const server of allServers) {
-        if (server === 'home') continue; // Skip home server
+        if (server === "home") continue; // Skip home server
 
         await ns.write(allListFile, server + "\n", "a");
         newServersFound++;
@@ -62,7 +67,7 @@ export async function main(ns) {
 
     // Also create detailed info in detected-list.txt
     for (const server of allServers) {
-        if (server === 'home') continue;
+        if (server === "home") continue;
 
         try {
             // Get server information
@@ -75,7 +80,7 @@ export async function main(ns) {
             const connections = ns.scan(server);
             if (connections.length > 0) {
                 // Try to find a meaningful adjacent server (not just "home")
-                adjacentServer = connections.find(s => s !== "home") || connections[0];
+                adjacentServer = connections.find((s) => s !== "home") || connections[0];
             }
 
             const serverInfo = `SW Name: ${server} , Req. Hack: ${reqHack} , Ports: ${openPorts} , Max Money: ${maxMoney} , Adjacent: ${adjacentServer}`;

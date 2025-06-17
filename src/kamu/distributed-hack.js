@@ -52,7 +52,7 @@ const files = [weakenScriptName, growScriptName, hackScriptName];
 
 // Backdoor script hooked in (requires singluarity functions SF4.1)
 const singularityFunctionsAvailable = true;
-const backdoorScript = "/kamu/backdoor.js"
+const backdoorScript = "/kamu/backdoor.js";
 const backdoorScriptRam = 5.8;
 
 // Solve Contract Script hooked in
@@ -77,7 +77,18 @@ export async function main(ns) {
     ns.disableLog("ALL");
 
     // automatically backdoor these servers. Requires singularity functions.
-    var backdoorServers = new Set(["CSEC", "I.I.I.I", "avmnite-02h", "run4theh111z", "clarkinc", "nwo", "omnitek", "fulcrumtech", "fulcrumassets", "w0r1d_d43m0n"]);
+    var backdoorServers = new Set([
+        "CSEC",
+        "I.I.I.I",
+        "avmnite-02h",
+        "run4theh111z",
+        "clarkinc",
+        "nwo",
+        "omnitek",
+        "fulcrumtech",
+        "fulcrumassets",
+        "w0r1d_d43m0n",
+    ]);
 
     var servers;
     var targets;
@@ -88,26 +99,23 @@ export async function main(ns) {
     var homeRam = ns.getServerMaxRam("home");
     if (homeRam >= 65536) {
         hackMoneyRatio = 0.99;
-        ns.tprint("Increase hackMoneyRatio to " + hackMoneyRatio)
-    }
-    else if (homeRam >= 16384) {
+        ns.tprint("Increase hackMoneyRatio to " + hackMoneyRatio);
+    } else if (homeRam >= 16384) {
         hackMoneyRatio = 0.9;
-        ns.tprint("Increase hackMoneyRatio to " + hackMoneyRatio)
-    }
-    else if (homeRam > 8192) {
+        ns.tprint("Increase hackMoneyRatio to " + hackMoneyRatio);
+    } else if (homeRam > 8192) {
         hackMoneyRatio = 0.5;
-        ns.tprint("Increase hackMoneyRatio to " + hackMoneyRatio)
-    }
-    else if (homeRam > 2048) {
+        ns.tprint("Increase hackMoneyRatio to " + hackMoneyRatio);
+    } else if (homeRam > 2048) {
         hackMoneyRatio = 0.2;
-        ns.tprint("Increase hackMoneyRatio to " + hackMoneyRatio)
+        ns.tprint("Increase hackMoneyRatio to " + hackMoneyRatio);
     }
     ns.print("INFO initial hack money ratio: " + hackMoneyRatio);
 
     var growStocks = new Set();
     var hackStocks = new Set();
 
-    var moneyXpShare = false
+    var moneyXpShare = false;
     var shareThreadIndex = 0;
 
     while (true) {
@@ -139,7 +147,7 @@ export async function main(ns) {
                             }
 
                             const homeMaxRam = ns.getServerMaxRam("home");
-                            const homeUsedRam = ns.getServerUsedRam("home")
+                            const homeUsedRam = ns.getServerUsedRam("home");
                             const homeFreeRam = Math.max(0, homeMaxRam - homeUsedRam - homeReservedRam);
                             if (homeFreeRam >= backdoorScriptRam) {
                                 const backdoorSuccess = ns.exec(backdoorScript, "home", 1, server);
@@ -180,14 +188,12 @@ export async function main(ns) {
         // Main logic sits here, determine whether or not and how many threads we should call weaken, grow and hack
         var attacksLaunched = manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks);
 
-
         // Send profitsm data to port 4 for get_stats.js
         var profitPortHandle = ns.getPortHandle(4);
         profitPortHandle.clear(); // Clear old data
         for (let [server, profit] of profitsm.entries()) {
-            profitPortHandle.write(JSON.stringify({server: server, profit: profit}));
+            profitPortHandle.write(JSON.stringify({ server: server, profit: profit }));
         }
-
 
         if (attacksLaunched > 0) {
             // Adjust hackMoneyRatio
@@ -200,8 +206,7 @@ export async function main(ns) {
                     hackMoneyRatio = 0.99;
                 }
                 ns.print("INFO increase hack money ratio to: " + hackMoneyRatio.toFixed(2));
-            }
-            else if (partialAttacks > 4 && ramUsage > 0.9 && hackMoneyRatio > 0.01) {
+            } else if (partialAttacks > 4 && ramUsage > 0.9 && hackMoneyRatio > 0.01) {
                 hackMoneyRatio -= hackMoneyRatio / 10;
                 if (hackMoneyRatio < 0.01) {
                     hackMoneyRatio = 0.01;
@@ -213,7 +218,7 @@ export async function main(ns) {
 
         // Hook for solve contracts script here if enough RAM is free.
         const homeMaxRam = ns.getServerMaxRam("home");
-        const homeUsedRam = ns.getServerUsedRam("home")
+        const homeUsedRam = ns.getServerUsedRam("home");
         const homeFreeRam = Math.max(0, homeMaxRam - homeUsedRam - homeReservedRam);
         if (homeFreeRam > solveContractsScriptRam) {
             //ns.print("INFO checking for contracts to solve");
@@ -222,7 +227,7 @@ export async function main(ns) {
 
         if (moneyXpShare && hackMoneyRatio >= 0.99) {
             const maxRam = ns.getServerMaxRam("home");
-            const usedRam = ns.getServerUsedRam("home")
+            const usedRam = ns.getServerUsedRam("home");
             var freeRam = Math.max(0, maxRam - usedRam - homeReservedRam);
             var shareThreads = Math.floor(freeRam / shareScriptRam);
             if (shareThreads > 0) {
@@ -230,8 +235,7 @@ export async function main(ns) {
                 ns.exec(shareScriptName, "home", shareThreads, shareThreadIndex);
                 if (shareThreadIndex > 9) {
                     shareThreadIndex = 0;
-                }
-                else {
+                } else {
                     shareThreadIndex++;
                 }
                 freeRams.overallFreeRam -= shareThreads * shareScriptRam;
@@ -239,7 +243,7 @@ export async function main(ns) {
         }
 
         // if lots of RAM to spare and money is not an issue, spam weak attacks for hacking XP gain
-        if (ramUsage < (1 - xpWeakenThreshold) && hackMoneyRatio >= 0.99) {
+        if (ramUsage < 1 - xpWeakenThreshold && hackMoneyRatio >= 0.99) {
             xpWeaken(ns, freeRams, servers, targets);
             ramUsage = (freeRams.overallMaxRam - freeRams.overallFreeRam) / freeRams.overallMaxRam;
         }
@@ -270,7 +274,7 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
         var growThreads = 0;
         var hackThreads = 0;
 
-        var secDiff = sec - minSec
+        var secDiff = sec - minSec;
 
         if (secDiff < 0.5) {
             // server is near min security. Go ahead with grow or hack.
@@ -286,7 +290,6 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
 
             // hack if near max money (no substantial growth needed)
             if (initialGrowRatio < 1.1) {
-
                 hackThreads = Math.floor(ns.hackAnalyzeThreads(target, hackMoneyRatio * money));
 
                 //ns.print("Hack threads: " + hackThreads);
@@ -298,8 +301,7 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
                 hackReGrowRatio = 1 / (1 - hackMoneyRatio);
 
                 addedHackSecurity = hackThreads * hackThreadSecurityIncrease;
-            }
-            else {
+            } else {
                 //ns.print("WARN initial grow ratio: " + initialGrowRatio + " on target " + target);
             }
 
@@ -313,16 +315,15 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
             // Considering 0 cores on all serers.
             // The last parameter 0 can be removed if optimizing for running slave threads on home server with > 0 cores only
             // else, grow threads onother servers than home will not grow sufficiently and break perfect attack chains
-            growThreads = Math.ceil((ns.growthAnalyze(target, overallGrowRatio, 1)));
+            growThreads = Math.ceil(ns.growthAnalyze(target, overallGrowRatio, 1));
 
             addedGrowSecurity = growThreads * growThreadSecurityIncrease;
-        }
-        else {
+        } else {
             //ns.print("INFO Initial security difference: " + secDiff);
         }
         weakThreads = Math.ceil((secDiff + addedGrowSecurity + addedHackSecurity) * 20);
 
-        var overallRamNeed = ((weakThreads + growThreads + hackThreads) * slaveScriptRam);
+        var overallRamNeed = (weakThreads + growThreads + hackThreads) * slaveScriptRam;
 
         //ns.tprint("partialWeakGrow: " + partialWeakGrow + " target: " + target);
 
@@ -375,7 +376,7 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
                     addedHackSecurity = hackThreads * hackThreadSecurityIncrease;
                     hackReGrowRatio = 1 / (1 - reducedHackMoneyRatio);
                     overallGrowRatio = initialGrowRatio * hackReGrowRatio;
-                    growThreads = Math.floor((ns.growthAnalyze(target, overallGrowRatio, 1)));
+                    growThreads = Math.floor(ns.growthAnalyze(target, overallGrowRatio, 1));
                     addedGrowSecurity = growThreads * growThreadSecurityIncrease;
 
                     weakThreads = Math.floor((secDiff + addedGrowSecurity + addedHackSecurity) * 20);
@@ -390,9 +391,8 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
                         partialWeakGrow = null;
                     }
                     //ns.print("INFO " + maxPercentage.toFixed(1) + " WGH " + target + " " + weakThreads + " | " + growThreads + " | " + hackThreads);
-
-                }
-                else { //hackthreads == 0
+                } else {
+                    //hackthreads == 0
                     growThreads = Math.floor(growThreads * maxPercentage);
 
                     addedGrowSecurity = growThreads * growThreadSecurityIncrease;
@@ -406,24 +406,21 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
                     partialWeakGrow = target;
                     //ns.print("INFO " + maxPercentage.toFixed(1) + "  GW " + target + " " + weakThreads + " | " + growThreads + " | " + hackThreads);
                 }
-            }
-            else {
+            } else {
                 // no good partial attack strategy found for this target.
                 //ns.print("INFO low RAM - no partial attack on " + target + " hack " + hackThreads);
                 //ns.print("INFO partialWeakGrow: " + partialWeakGrow);
                 continue;
             }
-
-        }
-        else if (hackThreads == 0) {
+        } else if (hackThreads == 0) {
             // regular attack
             //ns.print("INFO 1    GW " + target + " " + weakThreads + " | " + growThreads + " | " + hackThreads);
             if (partialWeakGrow == target) {
                 // if we ran a partial weak/grow before and could do a full one now, reset partial attack
                 partialWeakGrow = null;
             }
-        }
-        else { // enough RAM for at least full attack with hack
+        } else {
+            // enough RAM for at least full attack with hack
             if (partialWeakGrow == target) {
                 // if we ran a partial weak/grow before and could do a full one now, reset partial attack
                 partialWeakGrow = null;
@@ -444,21 +441,24 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
                     break;
                 }
                 // check if we have enough RAM for one more attack
-                moreRamNeed = ((weakThreads * (parallelAttacks + 1) + growThreads * (parallelAttacks + 1) +
-                    hackThreads * (parallelAttacks + 1)) * slaveScriptRam);
+                moreRamNeed =
+                    (weakThreads * (parallelAttacks + 1) +
+                        growThreads * (parallelAttacks + 1) +
+                        hackThreads * (parallelAttacks + 1)) *
+                    slaveScriptRam;
                 if (moreRamNeed >= freeRams.overallFreeRam) {
                     // we do not have enough RAM for more attacks
                     break;
-                }
-                else if (parallelAttacks >= maxParallelAttacks) {
+                } else if (parallelAttacks >= maxParallelAttacks) {
                     // check if max parallel attacks have been limited by global variable
                     break;
-                }
-                else if (parallelAttacks >= maxAttacksDuringHack) {
+                } else if (parallelAttacks >= maxAttacksDuringHack) {
                     // check if max parallel attacks have been limited
                     break;
-                }
-                else if ((freeRams.overallFreeRam / freeRams.overallMaxRam < 0.1 || partialAttacks > 2) && (partialWeakGrow != null || freeRams.overallMaxRam < 512)) {
+                } else if (
+                    (freeRams.overallFreeRam / freeRams.overallMaxRam < 0.1 || partialAttacks > 2) &&
+                    (partialWeakGrow != null || freeRams.overallMaxRam < 512)
+                ) {
                     // if we are low on RAM, go for single attacks for better efficiency
                     break;
                 }
@@ -468,10 +468,17 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
         }
 
         // re-calculate overall RAM need after scaling full attacs down or up
-        overallRamNeed = ((weakThreads + growThreads + hackThreads) * slaveScriptRam) * parallelAttacks;
+        overallRamNeed = (weakThreads + growThreads + hackThreads) * slaveScriptRam * parallelAttacks;
         if (overallRamNeed > freeRams.overallFreeRam) {
             // Typically, there should be enough RAM for the planned attack. Warn if not.
-            ns.print("WARN RAM calculation issue for target: " + target + " need / free: " + overallRamNeed + " / " + freeRams.overallFreeRam);
+            ns.print(
+                "WARN RAM calculation issue for target: " +
+                    target +
+                    " need / free: " +
+                    overallRamNeed +
+                    " / " +
+                    freeRams.overallFreeRam,
+            );
         }
         freeRams.overallFreeRam -= overallRamNeed;
 
@@ -486,7 +493,7 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
         // weak is always has 0 sleep difference within one attack
         if (parallelAttacks > 1) {
             // grow should finish timediff ms before weaken finishes
-            growSleep = (weakTime - growTime) - timeDiff;
+            growSleep = weakTime - growTime - timeDiff;
             if (growSleep < 0) {
                 // make sure that we do not get negative sleep value in case of crazy low execution times
                 // in this case, tweak time between attacks and time diff
@@ -494,7 +501,7 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
                 growSleep = 0;
                 parallelAttacks = 1;
             }
-            hackSleep = (weakTime - hackTime) - 2 * timeDiff;
+            hackSleep = weakTime - hackTime - 2 * timeDiff;
             if (hackSleep < 0) {
                 // make sure that we do not get negative sleep value in case of crazy low execution times
                 // in this case, tweak time between attacks and time diff
@@ -512,15 +519,40 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
         // var profit = money * maxPercentage * ns.hackAnalyzeChance(target) / (hackThreads + growThreads + weakThreads);
         // Could use hackAnalyzeChance for better value rating - costs ram however
 
-        var profit = money * maxPercentage / (hackThreads + growThreads + weakThreads);
-        var profitM = profit * 60 / weakTime;
+        var profit = (money * maxPercentage) / (hackThreads + growThreads + weakThreads);
+        var profitM = (profit * 60) / weakTime;
         profitsm.set(target, profitM);
 
         if (parallelAttacks <= 1) {
-            ns.print("INFO " + maxPercentage.toFixed(1) + " WGH " + target + " " + weakThreads + " | " + growThreads + " | " + hackThreads + " | $/t/s " + profitM.toFixed(2));
-        }
-        else {
-            ns.print("INFO " + parallelAttacks + "   WGH " + target + " " + weakThreads + " | " + growThreads + " | " + hackThreads + " | $/t/s " + profitM.toFixed(2));
+            ns.print(
+                "INFO " +
+                    maxPercentage.toFixed(1) +
+                    " WGH " +
+                    target +
+                    " " +
+                    weakThreads +
+                    " | " +
+                    growThreads +
+                    " | " +
+                    hackThreads +
+                    " | $/t/s " +
+                    profitM.toFixed(2),
+            );
+        } else {
+            ns.print(
+                "INFO " +
+                    parallelAttacks +
+                    "   WGH " +
+                    target +
+                    " " +
+                    weakThreads +
+                    " | " +
+                    growThreads +
+                    " | " +
+                    hackThreads +
+                    " | $/t/s " +
+                    profitM.toFixed(2),
+            );
         }
 
         var growStock = growStocks.has(target);
@@ -535,18 +567,22 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
 
         for (var i = 0; i < parallelAttacks; i++) {
             if (hackThreads > 0) {
-                if (!findPlaceToRun(ns, hackScriptName, hackThreads, freeRams.serverRams, target, hackSleep, hackStock)) {
-                    ns.print("WARN Did not find a place to run hack " + target + " needs " + overallRamNeed)
+                if (
+                    !findPlaceToRun(ns, hackScriptName, hackThreads, freeRams.serverRams, target, hackSleep, hackStock)
+                ) {
+                    ns.print("WARN Did not find a place to run hack " + target + " needs " + overallRamNeed);
                 }
             }
             if (weakThreads > 0) {
                 if (!findPlaceToRun(ns, weakenScriptName, weakThreads, freeRams.serverRams, target, weakSleep)) {
-                    ns.print("WARN Did not find a place to run weaken " + target + " needs " + overallRamNeed)
+                    ns.print("WARN Did not find a place to run weaken " + target + " needs " + overallRamNeed);
                 }
             }
             if (growThreads > 0) {
-                if (!findPlaceToRun(ns, growScriptName, growThreads, freeRams.serverRams, target, growSleep, growStock)) {
-                    ns.print("WARN Did not find a place to run grow " + target + " needs " + overallRamNeed)
+                if (
+                    !findPlaceToRun(ns, growScriptName, growThreads, freeRams.serverRams, target, growSleep, growStock)
+                ) {
+                    ns.print("WARN Did not find a place to run grow " + target + " needs " + overallRamNeed);
                 }
             }
 
@@ -555,20 +591,20 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
             hackSleep += timeBetweenAttacks;
             attacksLaunched++;
         }
-
     }
     return attacksLaunched;
 }
 
 function xpWeaken(ns, freeRams, servers, targets) {
-
     // let weken threads for XP farming sleep for this amount of ms
     // Needed to discriminate from regular weaken threads (with sleep 0)
     // other weaken threads should never sleep for 1 ms
     const xpWeakSleep = 1;
 
     const playerHackingLevel = ns.getHackingLevel();
-    targets.sort((a, b) => weakenXPgainCompare(ns, playerHackingLevel, a) - weakenXPgainCompare(ns, playerHackingLevel, b))
+    targets.sort(
+        (a, b) => weakenXPgainCompare(ns, playerHackingLevel, a) - weakenXPgainCompare(ns, playerHackingLevel, b),
+    );
 
     for (let target of targets) {
         if (xpAttackOngoing(ns, servers, target, xpWeakSleep) == false) {
@@ -579,8 +615,7 @@ function xpWeaken(ns, freeRams, servers, targets) {
             if (weakThreads > 0) {
                 ns.print("WARN XP weaken attack on " + target + " with " + weakThreads);
                 if (!findPlaceToRun(ns, weakenScriptName, weakThreads, freeRams.serverRams, target, xpWeakSleep)) {
-                    ns.print("WARN Did not find a place to run XP weaken " + target)
-
+                    ns.print("WARN Did not find a place to run XP weaken " + target);
                 }
                 return;
             }
@@ -590,7 +625,7 @@ function xpWeaken(ns, freeRams, servers, targets) {
 
 function weakenXPgainCompare(ns, playerHackingLevel, target) {
     // not actual XP, but the factor to calculate it
-    const xpPerWeaken = ((playerHackingLevel - ns.getServerRequiredHackingLevel(target)) / playerHackingLevel);
+    const xpPerWeaken = (playerHackingLevel - ns.getServerRequiredHackingLevel(target)) / playerHackingLevel;
     const xpPerTime = xpPerWeaken / ns.getWeakenTime(target);
     return xpPerTime;
 }
@@ -608,23 +643,20 @@ function findPlaceToRun(ns, script, threads, freeRams, target, sleepTime, manipu
             freeRams.shift();
 
             // else if the ram on the host is not enough to run all threads, just run as much as it can
-        }
-        else if (ram < slaveScriptRam * threads) {
+        } else if (ram < slaveScriptRam * threads) {
             const threadForThisHost = Math.floor(ram / slaveScriptRam);
             if (manipulateStock) {
                 ns.exec(script, host, threadForThisHost, target, sleepTime, manipulateStock);
-            }
-            else {
+            } else {
                 ns.exec(script, host, threadForThisHost, target, sleepTime);
             }
             threads -= threadForThisHost;
             freeRams.shift();
-        }
-        else { // enough RAM on this host to run all threads
+        } else {
+            // enough RAM on this host to run all threads
             if (manipulateStock) {
-                ns.exec(script, host, threads, target, sleepTime, manipulateStock)
-            }
-            else {
+                ns.exec(script, host, threads, target, sleepTime, manipulateStock);
+            } else {
                 ns.exec(script, host, threads, target, sleepTime);
             }
             freeRams[0].freeRam -= slaveScriptRam * threads;
@@ -678,19 +710,23 @@ function xpAttackOngoing(ns, servers, target, weakSleep) {
 
 // filter and sort the list for hackable servers
 function getHackable(ns, servers) {
-
-    var sortedServers = [...servers.values()].filter(server => ns.getServerMaxMoney(server) > 100000
-        && ns.getServerRequiredHackingLevel(server) <= ns.getHackingLevel()
-        && ns.getServerGrowth(server) > 1 && server != "n00dles").sort((a, b) =>
-            profitsm["get"](b) - profitsm["get"](a))
-            // unnatural usage of "get" to avoid stanek.get RAM calculation bug
+    var sortedServers = [...servers.values()]
+        .filter(
+            (server) =>
+                ns.getServerMaxMoney(server) > 100000 &&
+                ns.getServerRequiredHackingLevel(server) <= ns.getHackingLevel() &&
+                ns.getServerGrowth(server) > 1 &&
+                server != "n00dles",
+        )
+        .sort((a, b) => profitsm["get"](b) - profitsm["get"](a));
+    // unnatural usage of "get" to avoid stanek.get RAM calculation bug
 
     if (partialWeakGrow != null) {
         // prioritize a server which we have not initialized yet
         sortedServers.unshift(partialWeakGrow);
     }
 
-    return sortedServers
+    return sortedServers;
 
     //.sort((a, b) => 5 * ns.getServerMinSecurityLevel(a) - 5 * ns.getServerMinSecurityLevel(b)
     //    + ns.getServerGrowth(b) - ns.getServerGrowth(a))
@@ -709,7 +745,7 @@ function getFreeRam(ns, servers) {
 
     for (let server of servers) {
         const maxRam = ns.getServerMaxRam(server);
-        const usedRam = ns.getServerUsedRam(server)
+        const usedRam = ns.getServerUsedRam(server);
         var freeRam = maxRam - usedRam;
 
         // Reserve RAM on home server
@@ -718,7 +754,7 @@ function getFreeRam(ns, servers) {
         }
 
         // round down to full hack slots
-        freeRam = Math.floor(freeRam / slaveScriptRam) * slaveScriptRam
+        freeRam = Math.floor(freeRam / slaveScriptRam) * slaveScriptRam;
         overallMaxRam += maxRam;
         if (freeRam >= slaveScriptRam) {
             serverRams.push({ host: server, freeRam: freeRam });
@@ -739,11 +775,13 @@ async function scanAndNuke(ns) {
     scanAll(ns, "home", servers);
     var accessibleServers = new Set();
     for (let server of servers) {
-        if (server.startsWith("hacknet-node")) { continue; } // for BitNode 9 to permit hacking on the Hacknet Servers
+        if (server.startsWith("hacknet-node")) {
+            continue;
+        } // for BitNode 9 to permit hacking on the Hacknet Servers
         if (ignoreServers.includes(server)) continue; // Custom ignore servers
 
         if (await ns.hasRootAccess(server)) {
-            accessibleServers.add(server)
+            accessibleServers.add(server);
         } else {
             var portOpened = 0;
             if (await ns.fileExists("BruteSSH.exe")) {
@@ -766,7 +804,7 @@ async function scanAndNuke(ns) {
                 await ns.sqlinject(server);
                 portOpened++;
             }
-            if (await ns.getServerNumPortsRequired(server) <= portOpened) {
+            if ((await ns.getServerNumPortsRequired(server)) <= portOpened) {
                 await ns.nuke(server);
                 // Verify nuke was successful before adding to accessible servers
                 if (await ns.hasRootAccess(server)) {
@@ -798,8 +836,8 @@ export function getStockPortContent(ns, portNumber, content) {
         // "EMPTY" means that the list shall be set to empty
         portHandle.clear();
         return new Set();
-    }
-    else { // list shall be updated
+    } else {
+        // list shall be updated
         content = new Set();
         while (!portHandle.empty()) {
             content.add(portHandle.read());

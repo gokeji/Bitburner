@@ -16,19 +16,19 @@ export async function main(ns) {
     const sec = ns.getServerSecurityLevel(server);
     ns.tprint(`
 ${server}:
-    RAM        : ${usedRam} / ${ram} (${usedRam / ram * 100}%)
-    $          : ${ns.nFormat(money, "$0.000a")} / ${ns.nFormat(maxMoney, "$0.000a")} (${(money / maxMoney * 100).toFixed(2)}%)
+    RAM        : ${usedRam} / ${ram} (${(usedRam / ram) * 100}%)
+    $          : ${ns.nFormat(money, "$0.000a")} / ${ns.nFormat(maxMoney, "$0.000a")} (${((money / maxMoney) * 100).toFixed(2)}%)
     security   : ${minSec.toFixed(2)} / ${sec.toFixed(2)}
     growth     : ${ns.getServerGrowth(server)}
     hack time  : ${ns.tFormat(ns.getHackTime(server))}
     grow time  : ${ns.tFormat(ns.getGrowTime(server))}
     weaken time: ${ns.tFormat(ns.getWeakenTime(server))}
-    grow x2    : ${(ns.growthAnalyze(server, 2)).toFixed(2)} threads
-    grow x3    : ${(ns.growthAnalyze(server, 3)).toFixed(2)} threads
-    grow x4    : ${(ns.growthAnalyze(server, 4)).toFixed(2)} threads
-    hack 10%   : ${(.10 / ns.hackAnalyze(server)).toFixed(2)} threads
-    hack 25%   : ${(.25 / ns.hackAnalyze(server)).toFixed(2)} threads
-    hack 50%   : ${(.50 / ns.hackAnalyze(server)).toFixed(2)} threads
+    grow x2    : ${ns.growthAnalyze(server, 2).toFixed(2)} threads
+    grow x3    : ${ns.growthAnalyze(server, 3).toFixed(2)} threads
+    grow x4    : ${ns.growthAnalyze(server, 4).toFixed(2)} threads
+    hack 10%   : ${(0.1 / ns.hackAnalyze(server)).toFixed(2)} threads
+    hack 25%   : ${(0.25 / ns.hackAnalyze(server)).toFixed(2)} threads
+    hack 50%   : ${(0.5 / ns.hackAnalyze(server)).toFixed(2)} threads
     hackChance : ${(ns.hackAnalyzeChance(server) * 100).toFixed(2)}%
 `);
 }

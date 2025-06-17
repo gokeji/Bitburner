@@ -8,38 +8,38 @@ export async function main(ns) {
 
     const serverStockMap = {
         // Add your stock symbol to server name mappings here
-        "FNS": "foodnstuff",
-        "JGN": "joesguns",
-        "SGC": "sigma-cosmetics",
-        "OMGA": "omega-net",
-        "CTK": "computek",
-        "NTLK": "netlink",
-        "CTYS": "catalyst",
-        "RHOC": "rho-construction",
-        "APHE": "alpha-ent",
-        "SYSC": "syscore",
-        "LXO": "lexo-corp",
-        "SLRS": "solaris",
-        "NVMD":"nova-med",
-        "GPH": "global-pharm",
-        "AERO": "aerocorp",
-        "UNV": "univ-energy",
-        "ICRS": "icarus",
-        "OMN": "omnia",
-        "DCOMM": "defcomm",
-        "TITN": "titan-labs",
-        "MDYN": "microdyne",
-        "VITA": "vitalife",
-        "STM": "stormtech",
-        "HLS": "helios",
-        "OMTK": "omnitek",
-        "KGI": "kuai-gong",
-        "FSIG": "4sigma",
-        "FLCM": "fulcrumtech",
-        "MGCP": "megacorp",
-        "BLD": "blade",
-        "ECP": "ecorp",
-        "CLRK": "clarkinc",
+        FNS: "foodnstuff",
+        JGN: "joesguns",
+        SGC: "sigma-cosmetics",
+        OMGA: "omega-net",
+        CTK: "computek",
+        NTLK: "netlink",
+        CTYS: "catalyst",
+        RHOC: "rho-construction",
+        APHE: "alpha-ent",
+        SYSC: "syscore",
+        LXO: "lexo-corp",
+        SLRS: "solaris",
+        NVMD: "nova-med",
+        GPH: "global-pharm",
+        AERO: "aerocorp",
+        UNV: "univ-energy",
+        ICRS: "icarus",
+        OMN: "omnia",
+        DCOMM: "defcomm",
+        TITN: "titan-labs",
+        MDYN: "microdyne",
+        VITA: "vitalife",
+        STM: "stormtech",
+        HLS: "helios",
+        OMTK: "omnitek",
+        KGI: "kuai-gong",
+        FSIG: "4sigma",
+        FLCM: "fulcrumtech",
+        MGCP: "megacorp",
+        BLD: "blade",
+        ECP: "ecorp",
+        CLRK: "clarkinc",
         // Add other mappings as needed
     };
 
@@ -86,50 +86,46 @@ export async function main(ns) {
         }
 
         if (sellPrice > realMidThreshold) {
-          realMidSwitch = true;
+            realMidSwitch = true;
         }
 
         if (sellPrice > seventyPercentThreshold) {
-          seventyPercentSwitch = true;
+            seventyPercentSwitch = true;
         }
 
         if (sellPrice > realSeventyPercentThreshold) {
-          realSeventyPercentSwitch = true;
+            realSeventyPercentSwitch = true;
         }
 
         // Check the selling conditions
         if (boughtShares > 0) {
             let receiptNote = " (Optimal Profit)";
 
-            if ( (sellSwitch && sellPrice <= stopLossThreshold) ||
+            if (
+                (sellSwitch && sellPrice <= stopLossThreshold) ||
                 (midThreshold && sellPrice <= midPriceThreshold) ||
                 (realMidSwitch && sellPrice <= realMidThreshold) ||
                 (seventyPercentSwitch && sellPrice <= seventyPercentThreshold) ||
                 (realSeventyPercentSwitch && sellPrice <= realSeventyPercentThreshold) ||
-                (sellPrice >= sellThreshold &&
-                forecast <= 0.5) ) {
-
+                (sellPrice >= sellThreshold && forecast <= 0.5)
+            ) {
                 if (sellSwitch && sellPrice <= stopLossThreshold) {
                     receiptNote = " (Loss Mitigation)";
-                }
-                else if (midThreshold && sellPrice <= midPriceThreshold) {
-                  receiptNote = " (45%-Point Mitigation)";
-                }
-                else if (realMidSwitch && sellPrice <= realMidThreshold) {
-                  receiptNote = " (Mid-Point Mitigation)";
-                }
-                else if (seventyPercentSwitch && sellPrice <= seventyPercentThreshold) {
-                  receiptNote = " (67%-Point Mitigation)";
-                }
-                else if (realSeventyPercentSwitch && sellPrice <= realSeventyPercentThreshold) {
-                  receiptNote = " (75%-Point Mitigation)";
+                } else if (midThreshold && sellPrice <= midPriceThreshold) {
+                    receiptNote = " (45%-Point Mitigation)";
+                } else if (realMidSwitch && sellPrice <= realMidThreshold) {
+                    receiptNote = " (Mid-Point Mitigation)";
+                } else if (seventyPercentSwitch && sellPrice <= seventyPercentThreshold) {
+                    receiptNote = " (67%-Point Mitigation)";
+                } else if (realSeventyPercentSwitch && sellPrice <= realSeventyPercentThreshold) {
+                    receiptNote = " (75%-Point Mitigation)";
                 }
 
                 const soldShares = ns.stock.sellStock(stockSymbol, boughtShares);
                 //"sellStock" returns the "price per share" and not the number of shares
                 //sold.
                 //So, soldShares = price per share
- 
+
                 if (soldShares > 0) {
                     const transactionRevenue = boughtShares * sellPrice;
                     const transactionTime = new Date().toLocaleString();
@@ -141,9 +137,7 @@ export async function main(ns) {
                 } else {
                     ns.print(`Failed to sell shares of ${stockSymbol}.`);
                 }
-            }
-
-            else {
+            } else {
                 ns.print(`Conditions not met for selling ${stockSymbol}. Waiting...`);
             }
         } else {

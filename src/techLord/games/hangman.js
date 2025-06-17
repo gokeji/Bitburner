@@ -1221,7 +1221,7 @@ export async function main(ns) {
         "young",
     ];
 
-const maxTries = 5;
+    const maxTries = 5;
     let remainingTries = maxTries;
 
     // Randomly select a word from the list
@@ -1258,7 +1258,10 @@ const maxTries = 5;
                 ns.tprint("You've already guessed that letter incorrectly. Try a different one.");
             } else if (word.includes(guessedChar)) {
                 guessedLetters.push(guessedChar);
-                hiddenWord = word.split("").map(letter => guessedLetters.includes(letter) ? letter : "_").join(" ");
+                hiddenWord = word
+                    .split("")
+                    .map((letter) => (guessedLetters.includes(letter) ? letter : "_"))
+                    .join(" ");
                 ns.tprint(`Correct!`);
             } else {
                 wrongLetters.push(guessedChar);
@@ -1281,20 +1284,26 @@ const maxTries = 5;
 
             if (!hiddenWord.includes("_")) {
                 ns.tprint(`Congratulations! You've guessed the word: ${word}`);
-                
-                const allServers = ns.read('all-list.txt').split('\n').map(s => s.trim()).filter(s => s !== '');
-                const stockServers = ns.read('stock-list.txt').split('\n').map(s => s.trim()).filter(s => s !== '');
-                const validServers = allServers.filter(s => 
-                    ns.hasRootAccess(s) && 
-                    !stockServers.includes(s) &&
-                    ns.getServerMaxMoney(s) > 0
+
+                const allServers = ns
+                    .read("all-list.txt")
+                    .split("\n")
+                    .map((s) => s.trim())
+                    .filter((s) => s !== "");
+                const stockServers = ns
+                    .read("stock-list.txt")
+                    .split("\n")
+                    .map((s) => s.trim())
+                    .filter((s) => s !== "");
+                const validServers = allServers.filter(
+                    (s) => ns.hasRootAccess(s) && !stockServers.includes(s) && ns.getServerMaxMoney(s) > 0,
                 );
 
                 if (validServers.length > 0) {
                     const randomServer = validServers[Math.floor(Math.random() * validServers.length)];
                     const threads = word.length;
                     ns.tprint(`Executing 'client/masterHack.js' on ${randomServer} with ${threads} threads.`);
-                    ns.exec('client/masterHack.js', 'home', threads, randomServer);
+                    ns.exec("client/masterHack.js", "home", threads, randomServer);
                 } else {
                     ns.tprint("No valid servers found to hack.");
                 }

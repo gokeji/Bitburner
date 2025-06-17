@@ -1,6 +1,17 @@
 /** @param {NS} ns */
 export async function main(ns) {
-    const autoJoinFactions = ["Daedalus", "Netburners", "Slum Snakes", "The Black Hand", "NiteSec", "Tetrads", "CyberSec", "Tian Di Hui", "The Syndicate", "BitRunners"];
+    const autoJoinFactions = [
+        "Daedalus",
+        "Netburners",
+        "Slum Snakes",
+        "The Black Hand",
+        "NiteSec",
+        "Tetrads",
+        "CyberSec",
+        "Tian Di Hui",
+        "The Syndicate",
+        "BitRunners",
+    ];
 
     // Function to process faction invitations
     function processFactionInvitations() {

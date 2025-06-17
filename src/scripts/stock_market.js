@@ -12,7 +12,7 @@ const commission = 100000;
  */
 export function calculatePortfolioValue(ns) {
     const stocks = getAllStockData(ns);
-    const positionsHeld = stocks.filter(stock => stock.longShares > 0 || stock.shortShares > 0);
+    const positionsHeld = stocks.filter((stock) => stock.longShares > 0 || stock.shortShares > 0);
 
     let totalValue = 0;
     let totalProfit = 0;
@@ -29,11 +29,11 @@ export function calculatePortfolioValue(ns) {
 
             positions.push({
                 symbol: stock.sym,
-                type: 'LONG',
+                type: "LONG",
                 shares: stock.longShares,
                 currentValue: currentValue,
                 profit: profit,
-                forecast: stock.forecast
+                forecast: stock.forecast,
             });
         }
 
@@ -47,11 +47,11 @@ export function calculatePortfolioValue(ns) {
 
             positions.push({
                 symbol: stock.sym,
-                type: 'SHORT',
+                type: "SHORT",
                 shares: stock.shortShares,
                 currentValue: currentValue,
                 profit: profit,
-                forecast: stock.forecast
+                forecast: stock.forecast,
             });
         }
     }
@@ -60,7 +60,7 @@ export function calculatePortfolioValue(ns) {
         totalValue: totalValue,
         totalProfit: totalProfit,
         positions: positions,
-        hasPositions: positions.length > 0
+        hasPositions: positions.length > 0,
     };
 }
 
@@ -142,18 +142,18 @@ function calculateMarketStats(stocks) {
     const avgForecast = stocks.reduce((sum, stock) => sum + stock.forecast, 0) / stocks.length;
     const avgVolatility = stocks.reduce((sum, stock) => sum + stock.volatility, 0) / stocks.length;
 
-    const bullishStocks = stocks.filter(stock => stock.forecast > 0.5).length;
-    const bearishStocks = stocks.filter(stock => stock.forecast <= 0.5).length;
+    const bullishStocks = stocks.filter((stock) => stock.forecast > 0.5).length;
+    const bearishStocks = stocks.filter((stock) => stock.forecast <= 0.5).length;
 
-    const highVolatilityStocks = stocks.filter(stock => stock.volatility > avgVolatility).length;
+    const highVolatilityStocks = stocks.filter((stock) => stock.volatility > avgVolatility).length;
 
     // Calculate market cap by sentiment
     const bullishMarketCap = stocks
-        .filter(stock => stock.forecast > 0.5)
+        .filter((stock) => stock.forecast > 0.5)
         .reduce((sum, stock) => sum + stock.marketCap, 0);
 
     const bearishMarketCap = stocks
-        .filter(stock => stock.forecast <= 0.5)
+        .filter((stock) => stock.forecast <= 0.5)
         .reduce((sum, stock) => sum + stock.marketCap, 0);
 
     return {
@@ -165,7 +165,7 @@ function calculateMarketStats(stocks) {
         highVolatilityStocks,
         bullishMarketCap,
         bearishMarketCap,
-        totalStocks: stocks.length
+        totalStocks: stocks.length,
     };
 }
 
@@ -183,8 +183,8 @@ function printMarketOverview(ns, stats) {
     ns.tprint(`  High Volatility: ${stats.highVolatilityStocks} stocks`);
     ns.tprint("");
     ns.tprint("Market Cap by Sentiment:");
-    const bullishPercent = (stats.bullishMarketCap / stats.totalMarketCap * 100).toFixed(1);
-    const bearishPercent = (stats.bearishMarketCap / stats.totalMarketCap * 100).toFixed(1);
+    const bullishPercent = ((stats.bullishMarketCap / stats.totalMarketCap) * 100).toFixed(1);
+    const bearishPercent = ((stats.bearishMarketCap / stats.totalMarketCap) * 100).toFixed(1);
 
     ns.tprint(`  Bullish: ${ns.nFormat(stats.bullishMarketCap, "$0.0a")} (${bullishPercent}%)`);
     ns.tprint(`  Bearish: ${ns.nFormat(stats.bearishMarketCap, "$0.0a")} (${bearishPercent}%)`);
@@ -221,12 +221,14 @@ function printDetailedStockInfo(ns, stocks) {
         const forecastStr = `${(stock.forecast * 100).toFixed(1)}%`;
         const volatilityStr = `${(stock.volatility * 100).toFixed(2)}%`;
 
-        ns.tprint(`${stock.sym.padEnd(6)} | ${stock.organization.padEnd(12)} | ` +
-                 `${ns.nFormat(stock.price, "$0.00").padStart(8)} | ` +
-                 `${ns.nFormat(stock.marketCap, "$0.0a").padStart(10)} | ` +
-                 `${forecastStr.padStart(7)} | ` +
-                 `${volatilityStr.padStart(8)} | ` +
-                 `${ns.nFormat(stock.maxShares, "0.0a")}`);
+        ns.tprint(
+            `${stock.sym.padEnd(6)} | ${stock.organization.padEnd(12)} | ` +
+                `${ns.nFormat(stock.price, "$0.00").padStart(8)} | ` +
+                `${ns.nFormat(stock.marketCap, "$0.0a").padStart(10)} | ` +
+                `${forecastStr.padStart(7)} | ` +
+                `${volatilityStr.padStart(8)} | ` +
+                `${ns.nFormat(stock.maxShares, "0.0a")}`,
+        );
     }
 }
 
@@ -244,15 +246,18 @@ function printPlayerPositions(ns, stocks) {
     ns.tprint("=== PLAYER POSITIONS ===");
 
     for (const position of portfolio.positions) {
-        const profitStr = position.profit >= 0 ? `+${ns.nFormat(position.profit, "$0.0a")}` : ns.nFormat(position.profit, "$0.0a");
-        ns.tprint(`${position.type} ${position.symbol}: ${ns.nFormat(position.shares, "0,0")} shares | ` +
-                 `Value: ${ns.nFormat(position.currentValue, "$0.0a")} | ` +
-                 `P&L: ${profitStr} | ` +
-                 `Forecast: ${(position.forecast * 100).toFixed(1)}%`);
+        const profitStr =
+            position.profit >= 0 ? `+${ns.nFormat(position.profit, "$0.0a")}` : ns.nFormat(position.profit, "$0.0a");
+        ns.tprint(
+            `${position.type} ${position.symbol}: ${ns.nFormat(position.shares, "0,0")} shares | ` +
+                `Value: ${ns.nFormat(position.currentValue, "$0.0a")} | ` +
+                `P&L: ${profitStr} | ` +
+                `Forecast: ${(position.forecast * 100).toFixed(1)}%`,
+        );
     }
 
     ns.tprint("");
     ns.tprint("=== PORTFOLIO SUMMARY ===");
     ns.tprint(`Total Portfolio Value: ${ns.nFormat(portfolio.totalValue, "$0.0a")}`);
-    ns.tprint(`Total P&L: ${portfolio.totalProfit >= 0 ? '+' : ''}${ns.nFormat(portfolio.totalProfit, "$0.0a")}`);
+    ns.tprint(`Total P&L: ${portfolio.totalProfit >= 0 ? "+" : ""}${ns.nFormat(portfolio.totalProfit, "$0.0a")}`);
 }

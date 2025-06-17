@@ -24,23 +24,23 @@ The answer should be given as a string of UDLR characters, indicating the moves 
 */
 
 export async function main(ns) {
+    let map = [
+        [0, 1, 1, 0, 1, 0, 1, 0, 0],
+        [0, 0, 0, 0, 0, 1, 1, 1, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 1, 0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 1, 0, 0, 0, 0],
+        [1, 0, 0, 0, 0, 0, 0, 1, 0],
+        [1, 1, 0, 1, 0, 0, 0, 0, 0],
+    ];
 
-  let map = 
-  [[0,1,1,0,1,0,1,0,0],
-   [0,0,0,0,0,1,1,1,0],
-   [0,0,0,0,0,0,0,0,0],
-   [0,0,0,1,0,0,0,0,1],
-   [0,0,0,0,1,0,0,0,0],
-   [1,0,0,0,0,0,0,1,0],
-   [1,1,0,1,0,0,0,0,0]];
-
-   /*
+    /*
 
 This script pads a grid (map) with 1's on the right and bottom sides, then prints the padded map.
 
 */
 
- // Dimensions of the original map
+    // Dimensions of the original map
     const rows = map.length;
     const cols = map[0].length;
 
@@ -57,40 +57,36 @@ This script pads a grid (map) with 1's on the right and bottom sides, then print
     // Print the padded map
     ns.tprint("Padded Map:");
     for (let row of paddedMap) {
-        ns.tprint(row.join(' '));
+        ns.tprint(row.join(" "));
     }
 
-  /* 
+    /* 
   The padding was needed, because originally 
   "map[xPos+1][yPos]!=1" was still trying to access map[7][yPos],
    at xPos=6 for example, and that would cause errors.
   */
 
-  //The rest
+    //The rest
 
-   let xPos=0;
-   let yPos=0;
-   let direction = "";
+    let xPos = 0;
+    let yPos = 0;
+    let direction = "";
 
-   while (xPos != 6 || yPos != 8){
-    if ((xPos<=yPos)&&(paddedMap[xPos+1][yPos]!=1)&&(xPos<6)){
-      xPos+=1;
-      direction+="D";
+    while (xPos != 6 || yPos != 8) {
+        if (xPos <= yPos && paddedMap[xPos + 1][yPos] != 1 && xPos < 6) {
+            xPos += 1;
+            direction += "D";
+        } else if (yPos < xPos && paddedMap[xPos][yPos + 1] != 1 && yPos < 8) {
+            yPos += 1;
+            direction += "R";
+        } else if (paddedMap[xPos + 1][yPos] != 1 && xPos < 6) {
+            xPos += 1;
+            direction += "D";
+        } else if (paddedMap[xPos][yPos + 1] != 1 && yPos < 8) {
+            yPos += 1;
+            direction += "R";
+        }
     }
-    else if ((yPos<xPos)&&(paddedMap[xPos][yPos+1]!=1)&&(yPos<8)){
-      yPos+=1;
-      direction+="R";
-    }
-    else if((paddedMap[xPos+1][yPos]!=1)&&(xPos<6)){
-      xPos+=1;
-      direction+="D";
-    }
-    else if((paddedMap[xPos][yPos+1]!=1)&&(yPos<8)){
-      yPos+=1;
-      direction+="R";
-    }
-   }
 
-   ns.tprint(direction);
-
+    ns.tprint(direction);
 }

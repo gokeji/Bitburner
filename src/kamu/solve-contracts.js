@@ -39,7 +39,7 @@
  * @param {import(".").NS} ns - The nestcript instance passed to main entry point
  */
 export function main(ns) {
-    ns.disableLog("ALL")
+    ns.disableLog("ALL");
     const contracts = getAllServers(ns).flatMap((server) => {
         const onServer = ns.ls(server, ".cct").map((contract) => {
             const type = ns.codingcontract.getContractType(contract, server);
@@ -58,17 +58,17 @@ export function main(ns) {
 
 // return list of all servers, not belonging to player
 function getAllServers(ns) {
-    let pendingScan = ["home"]
-    const list = new Set(pendingScan)
+    let pendingScan = ["home"];
+    const list = new Set(pendingScan);
     while (pendingScan.length) {
-        const hostname = pendingScan.shift()
+        const hostname = pendingScan.shift();
         if (!ns.getServer(hostname).purchasedByPlayer) {
-            list.add(hostname)
+            list.add(hostname);
         }
-        pendingScan.push(...ns.scan(hostname))
-        pendingScan = pendingScan.filter(host => !list.has(host))
+        pendingScan.push(...ns.scan(hostname));
+        pendingScan = pendingScan.filter((host) => !list.has(host));
     }
-    return [...list]
+    return [...list];
 }
 
 function solve(type, data, server, contract, ns) {
@@ -164,20 +164,20 @@ function solve(type, data, server, contract, ns) {
             break;
         default:
             // ns.tprintf("ERROR: Contract type '%s' has no solving function.", type);
-            solution = "FUCKMEINTHEGOATASS!"
+            solution = "FUCKMEINTHEGOATASS!";
             break;
     }
     if (solution == "FUCKMEINTHEGOATASS!") {
         return {
             success: false,
             solution: "",
-            result: ""
+            result: "",
         };
     } else {
         return {
             success: true,
             solution: solution,
-            result: ns.codingcontract.attempt(solution, contract, server, [true])
+            result: ns.codingcontract.attempt(solution, contract, server, [true]),
         };
     }
 }
@@ -204,16 +204,36 @@ function maxProfit(arrayData) {
     let highestProfit = JSON.parse(tempArr);
 
     for (i = 0; i < maxTrades; i++) {
-        for (j = 0; j < stockPrices.length; j++) { // Buy / Start
-            for (k = j; k < stockPrices.length; k++) { // Sell / End
+        for (j = 0; j < stockPrices.length; j++) {
+            // Buy / Start
+            for (k = j; k < stockPrices.length; k++) {
+                // Sell / End
                 if (i > 0 && j > 0 && k > 0) {
-                    highestProfit[i][k] = Math.max(highestProfit[i][k], highestProfit[i - 1][k], highestProfit[i][k - 1], highestProfit[i - 1][j - 1] + stockPrices[k] - stockPrices[j]);
+                    highestProfit[i][k] = Math.max(
+                        highestProfit[i][k],
+                        highestProfit[i - 1][k],
+                        highestProfit[i][k - 1],
+                        highestProfit[i - 1][j - 1] + stockPrices[k] - stockPrices[j],
+                    );
                 } else if (i > 0 && j > 0) {
-                    highestProfit[i][k] = Math.max(highestProfit[i][k], highestProfit[i - 1][k], highestProfit[i - 1][j - 1] + stockPrices[k] - stockPrices[j]);
+                    highestProfit[i][k] = Math.max(
+                        highestProfit[i][k],
+                        highestProfit[i - 1][k],
+                        highestProfit[i - 1][j - 1] + stockPrices[k] - stockPrices[j],
+                    );
                 } else if (i > 0 && k > 0) {
-                    highestProfit[i][k] = Math.max(highestProfit[i][k], highestProfit[i - 1][k], highestProfit[i][k - 1], stockPrices[k] - stockPrices[j]);
+                    highestProfit[i][k] = Math.max(
+                        highestProfit[i][k],
+                        highestProfit[i - 1][k],
+                        highestProfit[i][k - 1],
+                        stockPrices[k] - stockPrices[j],
+                    );
                 } else if (j > 0 && k > 0) {
-                    highestProfit[i][k] = Math.max(highestProfit[i][k], highestProfit[i][k - 1], stockPrices[k] - stockPrices[j]);
+                    highestProfit[i][k] = Math.max(
+                        highestProfit[i][k],
+                        highestProfit[i][k - 1],
+                        stockPrices[k] - stockPrices[j],
+                    );
                 } else {
                     highestProfit[i][k] = Math.max(highestProfit[i][k], stockPrices[k] - stockPrices[j]);
                 }
@@ -240,7 +260,6 @@ function solveTriangleSum(arrayData, ns) {
             } else {
                 nextArray.push(Math.min(previousArray[j], previousArray[j - 1]) + triangle[i][j]);
             }
-
         }
 
         previousArray = nextArray;
@@ -255,7 +274,7 @@ function uniquePathsI(grid) {
     const rightMoves = grid[0] - 1;
     const downMoves = grid[1] - 1;
 
-    return Math.round(factorialDivision(rightMoves + downMoves, rightMoves) / (factorial(downMoves)));
+    return Math.round(factorialDivision(rightMoves + downMoves, rightMoves) / factorial(downMoves));
 }
 
 function factorial(n) {
@@ -263,21 +282,21 @@ function factorial(n) {
 }
 
 function factorialDivision(n, d) {
-    if (n == 0 || n == 1 || n == d)
-        return 1;
+    if (n == 0 || n == 1 || n == d) return 1;
     return factorialDivision(n - 1, d) * n;
 }
 
 function uniquePathsII(grid) {
-    if (grid[0][0]) return 0
-    let m = grid.length, n = grid[0].length
-    let dp = Array.from({ length: m }, el => new Uint32Array(n))
-    dp[0][0] = 1
+    if (grid[0][0]) return 0;
+    let m = grid.length,
+        n = grid[0].length;
+    let dp = Array.from({ length: m }, (el) => new Uint32Array(n));
+    dp[0][0] = 1;
     for (let i = 0; i < m; i++)
         for (let j = 0; j < n; j++)
-            if (grid[i][j] || (!i && !j)) continue
-            else dp[i][j] = (i ? dp[i - 1][j] : 0) + (j ? dp[i][j - 1] : 0)
-    return dp[m - 1][n - 1]
+            if (grid[i][j] || (!i && !j)) continue;
+            else dp[i][j] = (i ? dp[i - 1][j] : 0) + (j ? dp[i][j - 1] : 0);
+    return dp[m - 1][n - 1];
 }
 
 //GENERATE IP ADDRESSES
@@ -404,8 +423,7 @@ function getExprUtil(res, curExp, input, target, pos, curVal, last) {
         //then only add to final solution
         // if question is : all possible o/p then just
         //push_back without condition
-        if (curVal == target)
-            res.push(curExp);
+        if (curVal == target) res.push(curExp);
         return;
     }
 
@@ -413,8 +431,7 @@ function getExprUtil(res, curExp, input, target, pos, curVal, last) {
     for (let i = pos; i < input.length; i++) {
         // ignoring case which start with 0 as they
         // are useless for evaluation
-        if (i != pos && input[pos] == '0')
-            break;
+        if (i != pos && input[pos] == "0") break;
 
         // take part of input from pos to i
         let part = input.substr(pos, i + 1 - pos);
@@ -424,20 +441,12 @@ function getExprUtil(res, curExp, input, target, pos, curVal, last) {
 
         // if pos is 0 then just send numeric value
         // for next recursion
-        if (pos == 0)
-            getExprUtil(res, curExp + part, input,
-                target, i + 1, cur, cur);
-
-
+        if (pos == 0) getExprUtil(res, curExp + part, input, target, i + 1, cur, cur);
         // try all given binary operator for evaluation
         else {
-            getExprUtil(res, curExp + "+" + part, input,
-                target, i + 1, curVal + cur, cur);
-            getExprUtil(res, curExp + "-" + part, input,
-                target, i + 1, curVal - cur, -cur);
-            getExprUtil(res, curExp + "*" + part, input,
-                target, i + 1, curVal - last + last * cur,
-                last * cur);
+            getExprUtil(res, curExp + "+" + part, input, target, i + 1, curVal + cur, cur);
+            getExprUtil(res, curExp + "-" + part, input, target, i + 1, curVal - cur, -cur);
+            getExprUtil(res, curExp + "*" + part, input, target, i + 1, curVal - last + last * cur, last * cur);
         }
     }
 }
@@ -449,7 +458,6 @@ function solveArrayJumpingGame(a, i) {
     if (i >= l) return 0; // past end of array
     if (i == l - 1) {
         return 1; // The end has been reached.
-
     }
     var k = a[i];
     for (let j = 1; j <= k; ++j) {
@@ -459,7 +467,6 @@ function solveArrayJumpingGame(a, i) {
     }
     return 0;
 }
-
 
 function solveArrayJumpingGameII(a, i = 0, jumpCount = 0) {
     // A slightly different take on the problem, but the solution is similar
@@ -506,26 +513,22 @@ function subarrayMaxSum(a) {
 // Sanitize Parentheses in Expression
 
 function isParenthesis(c) {
-    return ((c == '(') || (c == ')'));
+    return c == "(" || c == ")";
 }
 
 function isValidString(str) {
     let cnt = 0;
     for (let i = 0; i < str.length; i++) {
-        if (str[i] == '(')
-            cnt++;
-        else if (str[i] == ')')
-            cnt--;
-        if (cnt < 0)
-            return false;
+        if (str[i] == "(") cnt++;
+        else if (str[i] == ")") cnt--;
+        if (cnt < 0) return false;
     }
-    return (cnt == 0);
+    return cnt == 0;
 }
 
 function sanitizeParentheses(str) {
     var res = [];
-    if (str.length == 0)
-        return res;
+    if (str.length == 0) return res;
 
     let visit = new Set();
 
@@ -538,14 +541,12 @@ function sanitizeParentheses(str) {
     while (q.length != 0) {
         str = q.shift();
         if (isValidString(str)) {
-            res.push(str)
+            res.push(str);
             level = true;
         }
-        if (level)
-            continue;
+        if (level) continue;
         for (let i = 0; i < str.length; i++) {
-            if (!isParenthesis(str[i]))
-                continue;
+            if (!isParenthesis(str[i])) continue;
 
             temp = str.substring(0, i) + str.substring(i + 1);
             if (!visit.has(temp)) {
@@ -572,7 +573,7 @@ function totalWaysToSum(data) {
             }
         }
     }
-    return (dp[data] - 1);
+    return dp[data] - 1;
 }
 
 function totalWaysToSumII(data) {
@@ -597,11 +598,10 @@ function HammingEncode(value) {
             ? lengthOfDBits == 0
                 ? 0
                 : lengthOfDBits + 1
-            :
-            Math.ceil(Math.log2(lengthOfDBits * 2)) <=
+            : Math.ceil(Math.log2(lengthOfDBits * 2)) <=
                 Math.ceil(Math.log2(1 + lengthOfDBits + Math.ceil(Math.log2(lengthOfDBits))))
-                ? Math.ceil(Math.log2(lengthOfDBits) + 1)
-                : Math.ceil(Math.log2(lengthOfDBits));
+              ? Math.ceil(Math.log2(lengthOfDBits) + 1)
+              : Math.ceil(Math.log2(lengthOfDBits));
     }
     const data = parseInt(value).toString(2).split("");
     const sumParity = HammingSumOfParity(data.length);
@@ -611,11 +611,9 @@ function HammingEncode(value) {
         build.push("x", ...data.splice(0, Math.pow(2, i) - 1));
     }
     for (const index of build.reduce(function (a, e, i) {
-        if (e == "x")
-            a.push(i);
+        if (e == "x") a.push(i);
         return a;
     }, [])) {
-
         const tempcount = index + 1;
         const temparray = [];
         const tempdata = [...build];
@@ -656,11 +654,9 @@ function HammingDecode(data) {
     build.unshift(overallParity);
     if (fixIndex > 0 && testArray[0] == false) {
         build[fixIndex] = build[fixIndex] == "0" ? "1" : "0";
-    }
-    else if (testArray[0] == false) {
+    } else if (testArray[0] == false) {
         overallParity = overallParity == "0" ? "1" : "0";
-    }
-    else if (testArray[0] == true && testArray.some((truth) => truth == false)) {
+    } else if (testArray[0] == true && testArray.some((truth) => truth == false)) {
         return 0;
     }
     for (let i = sumParity; i >= 0; i--) {
@@ -691,13 +687,11 @@ class BinHeap {
         this.heapifyUp(i);
     }
     peek() {
-        if (this.data.length == 0)
-            return undefined;
+        if (this.data.length == 0) return undefined;
         return this.data[0][1];
     }
     pop() {
-        if (this.data.length == 0)
-            return undefined;
+        if (this.data.length == 0) return undefined;
         const value = this.data[0][1];
         this.data[0] = this.data[this.data.length - 1];
         this.data.length = this.data.length - 1;
@@ -706,20 +700,16 @@ class BinHeap {
     }
     changeWeight(predicate, weight) {
         const i = this.data.findIndex((e) => predicate(e[1]));
-        if (i == -1)
-            return;
+        if (i == -1) return;
         this.data[i][0] = weight;
         const p = Math.floor((i - 1) / 2);
-        if (!this.heapOrderABeforeB(this.data[p][0], this.data[i][0]))
-            this.heapifyUp(i);
-        else
-            this.heapifyDown(i);
+        if (!this.heapOrderABeforeB(this.data[p][0], this.data[i][0])) this.heapifyUp(i);
+        else this.heapifyDown(i);
     }
     heapifyUp(i) {
         while (i > 0) {
             const p = Math.floor((i - 1) / 2);
-            if (this.heapOrderABeforeB(this.data[p][0], this.data[i][0]))
-                break;
+            if (this.heapOrderABeforeB(this.data[p][0], this.data[i][0])) break;
             const tmp = this.data[p];
             this.data[p] = this.data[i];
             this.data[i] = tmp;
@@ -731,12 +721,9 @@ class BinHeap {
             const l = i * 2 + 1;
             const r = i * 2 + 2;
             let toSwap = i;
-            if (l < this.data.length && this.heapOrderABeforeB(this.data[l][0], this.data[toSwap][0]))
-                toSwap = l;
-            if (r < this.data.length && this.heapOrderABeforeB(this.data[r][0], this.data[toSwap][0]))
-                toSwap = r;
-            if (i == toSwap)
-                break;
+            if (l < this.data.length && this.heapOrderABeforeB(this.data[l][0], this.data[toSwap][0])) toSwap = l;
+            if (r < this.data.length && this.heapOrderABeforeB(this.data[r][0], this.data[toSwap][0])) toSwap = r;
+            if (i == toSwap) break;
             const tmp = this.data[toSwap];
             this.data[toSwap] = this.data[i];
             this.data[i] = tmp;
@@ -787,14 +774,10 @@ function shortestPathInGrid(data) {
         return y >= 0 && y < height && x >= 0 && x < width && data[y][x] == 0;
     }
     function* neighbors(y, x) {
-        if (validPosition(y - 1, x))
-            yield [y - 1, x]; // Up
-        if (validPosition(y + 1, x))
-            yield [y + 1, x]; // Down
-        if (validPosition(y, x - 1))
-            yield [y, x - 1]; // Left
-        if (validPosition(y, x + 1))
-            yield [y, x + 1]; // Right
+        if (validPosition(y - 1, x)) yield [y - 1, x]; // Up
+        if (validPosition(y + 1, x)) yield [y + 1, x]; // Down
+        if (validPosition(y, x - 1)) yield [y, x - 1]; // Left
+        if (validPosition(y, x + 1)) yield [y, x + 1]; // Right
     }
     distance[0][0] = 0;
     queue.push([0, 0], 0);
@@ -803,17 +786,14 @@ function shortestPathInGrid(data) {
         for (const [yN, xN] of neighbors(y, x)) {
             const d = distance[y][x] + 1;
             if (d < distance[yN][xN]) {
-                if (distance[yN][xN] == Infinity)
-                    queue.push([yN, xN], d);
-                else
-                    queue.changeWeight(([yQ, xQ]) => yQ == yN && xQ == xN, d);
+                if (distance[yN][xN] == Infinity) queue.push([yN, xN], d);
+                else queue.changeWeight(([yQ, xQ]) => yQ == yN && xQ == xN, d);
                 distance[yN][xN] = d;
                 cameFrom.set(`${yN},${xN}`, [y, x]);
             }
         }
     }
-    if (distance[dstY][dstX] == Infinity)
-        return "";
+    if (distance[dstY][dstX] == Infinity) return "";
     const thePath = [];
     let current = [dstY, dstX];
     while (!(current[0] == 0 && current[1] == 0)) {
@@ -821,7 +801,7 @@ function shortestPathInGrid(data) {
         thePath.unshift(new PathStep(from[0], from[1], current[0], current[1]));
         current = from;
     }
-    return thePath.map(p => p.toString()).join("");
+    return thePath.map((p) => p.toString()).join("");
 }
 
 // Proper 2-Coloring of a Graph
@@ -881,8 +861,7 @@ function compressionIII(data) {
         const current = state[i][j];
         if (current == null || str.length < current.length) {
             state[i][j] = str;
-        }
-        else if (str.length === current.length && Math.random() < 0.5) {
+        } else if (str.length === current.length && Math.random() < 0.5) {
             state[i][j] = str;
         }
     }
@@ -900,8 +879,7 @@ function compressionIII(data) {
             }
             if (length < 9) {
                 set(new_state, 0, length + 1, string);
-            }
-            else {
+            } else {
                 set(new_state, 0, 1, string + "9" + data.substring(i - 9, i) + "0");
             }
             for (let offset = 1; offset <= Math.min(9, i); ++offset) {
@@ -920,8 +898,7 @@ function compressionIII(data) {
                 if (data[i - offset] === c) {
                     if (length < 9) {
                         set(new_state, offset, length + 1, string);
-                    }
-                    else {
+                    } else {
                         set(new_state, offset, 1, string + "9" + offset + "0");
                     }
                 }
@@ -947,8 +924,7 @@ function compressionIII(data) {
         string += len + data.substring(data.length - len, data.length);
         if (result == null || string.length < result.length) {
             result = string;
-        }
-        else if (string.length === result.length && Math.random() < 0.5) {
+        } else if (string.length === result.length && Math.random() < 0.5) {
             result = string;
         }
     }
@@ -961,8 +937,7 @@ function compressionIII(data) {
             string += len + "" + offset;
             if (result == null || string.length < result.length) {
                 result = string;
-            }
-            else if (string.length === result.length && Math.random() < 0.5) {
+            } else if (string.length === result.length && Math.random() < 0.5) {
                 result = string;
             }
         }
@@ -974,7 +949,7 @@ function compressionIII(data) {
 
 function decompressII(data) {
     let plain = "";
-    for (let i = 0; i < data.length;) {
+    for (let i = 0; i < data.length; ) {
         const literal_length = data.charCodeAt(i) - 0x30;
         if (literal_length < 0 || literal_length > 9 || i + 1 + literal_length > data.length) {
             return null;
@@ -987,11 +962,9 @@ function decompressII(data) {
         const backref_length = data.charCodeAt(i) - 0x30;
         if (backref_length < 0 || backref_length > 9) {
             return null;
-        }
-        else if (backref_length === 0) {
+        } else if (backref_length === 0) {
             ++i;
-        }
-        else {
+        } else {
             if (i + 1 >= data.length) {
                 return null;
             }
@@ -1024,7 +997,7 @@ function rleCompress(data) {
             if (length >= 9) {
                 response += `9${char}`;
             } else {
-                response += `${length}${char}`
+                response += `${length}${char}`;
             }
             length -= 9;
         }
@@ -1081,15 +1054,18 @@ function squareRoot(n) {
     }
     // That's it, solved! At least, we've converged an an answer which should be as close as we can get (might be off by 1)
     // We want the answer to the "nearest integer". Check the answer on either side of the one we converged on to see what's closest
-    const bigAbs = (x) => x < 0n ? -x : x; // There's no Math.abs where we're going...
+    const bigAbs = (x) => (x < 0n ? -x : x); // There's no Math.abs where we're going...
     let absDiff = bigAbs(root * root - n); // How far off we from the perfect square root
-    if (absDiff == 0n) return root; // Note that this coding contract doesn't guarantee there's an exact integer square root
-    else if (absDiff > bigAbs((root - 1n) * (root - 1n) - n)) root = root - 1n; // Do we get a better answer by subtracting 1?
+    if (absDiff == 0n)
+        return root; // Note that this coding contract doesn't guarantee there's an exact integer square root
+    else if (absDiff > bigAbs((root - 1n) * (root - 1n) - n))
+        root = root - 1n; // Do we get a better answer by subtracting 1?
     else if (absDiff > bigAbs((root + 1n) * (root + 1n) - n)) root = root + 1n; // Do we get a better answer by adding 1?
     // Validation: We should be able to tell if we got this right without wasting a guess. Adding/Subtracting 1 should now always be worse
     absDiff = bigAbs(root * root - n);
-    if (absDiff > bigAbs((root - 1n) * (root - 1n) - n) ||
-        absDiff > bigAbs((root + 1n) * (root + 1n) - n))
-        throw new Error(`Square Root did not converge. Arrived at answer:\n${root} - which when squared, gives:\n${root * root} instead of\n${n}`);
+    if (absDiff > bigAbs((root - 1n) * (root - 1n) - n) || absDiff > bigAbs((root + 1n) * (root + 1n) - n))
+        throw new Error(
+            `Square Root did not converge. Arrived at answer:\n${root} - which when squared, gives:\n${root * root} instead of\n${n}`,
+        );
     return root.toString();
 }

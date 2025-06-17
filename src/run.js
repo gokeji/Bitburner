@@ -4,8 +4,8 @@ export function autocomplete(data, args) {
     // Use data.scripts to get all scripts on the current server
     // Extract just the filenames for autocomplete
     const scriptFilenames = data.scripts
-        .filter(script => script.endsWith('.js'))
-        .map(script => script.split('/').pop())
+        .filter((script) => script.endsWith(".js"))
+        .map((script) => script.split("/").pop())
         .filter((name, index, arr) => arr.indexOf(name) === index) // Remove duplicates
         .sort();
 
@@ -21,9 +21,11 @@ export async function main(ns) {
 
         // Create script mapping and show available scripts
         const scriptMap = createScriptMap(ns);
-        Object.keys(scriptMap).sort().forEach(scriptName => {
-            ns.tprint(`  ${scriptName} (${scriptMap[scriptName]})`);
-        });
+        Object.keys(scriptMap)
+            .sort()
+            .forEach((scriptName) => {
+                ns.tprint(`  ${scriptName} (${scriptMap[scriptName]})`);
+            });
         return;
     }
 
@@ -31,8 +33,8 @@ export async function main(ns) {
     let scriptName = ns.args[0];
 
     // Add .js extension if not present
-    if (!scriptName.endsWith('.js')) {
-        scriptName += '.js';
+    if (!scriptName.endsWith(".js")) {
+        scriptName += ".js";
     }
 
     // Remaining arguments are passed to the script
@@ -44,9 +46,11 @@ export async function main(ns) {
     if (!scriptMap[scriptName]) {
         ns.tprint(`ERROR: Script "${scriptName}" not found.`);
         ns.tprint("Available scripts:");
-        Object.keys(scriptMap).sort().forEach(name => {
-            ns.tprint(`  ${name} (${scriptMap[name]})`);
-        });
+        Object.keys(scriptMap)
+            .sort()
+            .forEach((name) => {
+                ns.tprint(`  ${name} (${scriptMap[name]})`);
+            });
         return;
     }
 
@@ -73,10 +77,10 @@ function createScriptMap(ns) {
 
     try {
         // Get all scripts on the current server
-        const allScripts = ns.ls("home", "/").filter(file => file.endsWith(".js"));
+        const allScripts = ns.ls("home", "/").filter((file) => file.endsWith(".js"));
 
         // Create mapping from filename to full path
-        allScripts.forEach(scriptPath => {
+        allScripts.forEach((scriptPath) => {
             const filename = scriptPath.split("/").pop();
             if (filename) {
                 // If there's a duplicate filename, prefer the one in the scripts folder
@@ -86,7 +90,6 @@ function createScriptMap(ns) {
                 }
             }
         });
-
     } catch (error) {
         ns.tprint(`ERROR: Failed to scan for scripts: ${error.message}`);
     }

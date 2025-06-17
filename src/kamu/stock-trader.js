@@ -31,11 +31,12 @@ function tendStocks(ns) {
         if (stock.longShares > 0) {
             if (stock.forecast > 0.5) {
                 longStocks.add(stock.sym);
-                ns.print(`INFO ${stock.summary} LONG ${ns.nFormat(stock.cost + stock.profit, "0.0a")} ${ns.nFormat(100 * stock.profit / stock.cost, "0.00")}%`);
-                overallValue += (stock.cost + stock.profit);
+                ns.print(
+                    `INFO ${stock.summary} LONG ${ns.nFormat(stock.cost + stock.profit, "0.0a")} ${ns.nFormat((100 * stock.profit) / stock.cost, "0.00")}%`,
+                );
+                overallValue += stock.cost + stock.profit;
                 totalProfit += stock.profit;
-            }
-            else {
+            } else {
                 const salePrice = ns.stock.sellStock(stock.sym, stock.longShares);
                 const saleTotal = salePrice * stock.longShares;
                 const saleCost = stock.longPrice * stock.longShares;
@@ -48,11 +49,12 @@ function tendStocks(ns) {
         if (stock.shortShares > 0) {
             if (stock.forecast < 0.5) {
                 shortStocks.add(stock.sym);
-                ns.print(`INFO ${stock.summary} SHORT ${ns.nFormat(stock.cost + stock.profit, "0.0a")} ${ns.nFormat(100 * stock.profit / stock.cost, "0.00")}%`);
-                overallValue += (stock.cost + stock.profit);
+                ns.print(
+                    `INFO ${stock.summary} SHORT ${ns.nFormat(stock.cost + stock.profit, "0.0a")} ${ns.nFormat((100 * stock.profit) / stock.cost, "0.00")}%`,
+                );
+                overallValue += stock.cost + stock.profit;
                 totalProfit += stock.profit;
-            }
-            else {
+            } else {
                 const salePrice = ns.stock.sellShort(stock.sym, stock.shortShares);
                 const saleTotal = salePrice * stock.shortShares;
                 const saleCost = stock.shortPrice * stock.shortShares;
@@ -76,8 +78,7 @@ function tendStocks(ns) {
                     ns.print(`WARN ${stock.summary} LONG BOUGHT ${ns.nFormat(sharesToBuy, "$0.0a")}`);
                 }
             }
-        }
-        else if (stock.forecast < 0.45 && shortAvailable) {
+        } else if (stock.forecast < 0.45 && shortAvailable) {
             shortStocks.add(stock.sym);
             //ns.print(`INFO ${stock.summary}`);
             if (money > 500 * commission) {
@@ -89,7 +90,7 @@ function tendStocks(ns) {
         }
     }
     ns.print("Stock value: " + ns.nFormat(overallValue, "$0.0a"));
-    ns.print("Total P&L: " + (totalProfit >= 0 ? '+' : '') + ns.nFormat(totalProfit, "$0.0a"));
+    ns.print("Total P&L: " + (totalProfit >= 0 ? "+" : "") + ns.nFormat(totalProfit, "$0.0a"));
 
     // send stock market manipulation orders to hack manager
     var growStockPort = ns.getPortHandle(1); // port 1 is grow
@@ -112,7 +113,6 @@ export function getAllStocks(ns) {
     const stockSymbols = ns.stock.getSymbols();
     const stocks = [];
     for (const sym of stockSymbols) {
-
         const pos = ns.stock.getPosition(sym);
         const stock = {
             sym: sym,
@@ -130,11 +130,11 @@ export function getAllStocks(ns) {
         var longProfit = stock.longShares * (stock.bidPrice - stock.longPrice) - 2 * commission;
         var shortProfit = stock.shortShares * (stock.shortPrice - stock.askPrice) - 2 * commission;
         stock.profit = longProfit + shortProfit;
-        stock.cost = (stock.longShares * stock.longPrice) + (stock.shortShares * stock.shortPrice)
+        stock.cost = stock.longShares * stock.longPrice + stock.shortShares * stock.shortPrice;
 
         // profit potential as chance for profit * effect of profit
         var profitChance = 2 * Math.abs(stock.forecast - 0.5);
-        var profitPotential = profitChance * (stock.volatility);
+        var profitPotential = profitChance * stock.volatility;
         stock.profitPotential = profitPotential;
 
         stock.summary = `${stock.sym}: ${stock.forecast.toFixed(3)} ± ${stock.volatility.toFixed(3)}`;
@@ -145,41 +145,40 @@ export function getAllStocks(ns) {
 
 function getSymServer(sym) {
     const symServer = {
-        "WDS": "",
-        "ECP": "ecorp",
-        "MGCP": "megacorp",
-        "BLD": "blade",
-        "CLRK": "clarkinc",
-        "OMTK": "omnitek",
-        "FSIG": "4sigma",
-        "KGI": "kuai-gong",
-        "DCOMM": "defcomm",
-        "VITA": "vitalife",
-        "ICRS": "icarus",
-        "UNV": "univ-energy",
-        "AERO": "aerocorp",
-        "SLRS": "solaris",
-        "GPH": "global-pharm",
-        "NVMD": "nova-med",
-        "LXO": "lexo-corp",
-        "RHOC": "rho-construction",
-        "APHE": "alpha-ent",
-        "SYSC": "syscore",
-        "CTK": "comptek",
-        "NTLK": "netlink",
-        "OMGA": "omega-net",
-        "JGN": "joesguns",
-        "SGC": "sigma-cosmetics",
-        "CTYS": "catalyst",
-        "MDYN": "microdyne",
-        "TITN": "titan-labs",
-        "FLCM": "fulcrumtech",
-        "STM": "stormtech",
-        "HLS": "helios",
-        "OMN": "omnia",
-        "FNS": "foodnstuff"
-    }
+        WDS: "",
+        ECP: "ecorp",
+        MGCP: "megacorp",
+        BLD: "blade",
+        CLRK: "clarkinc",
+        OMTK: "omnitek",
+        FSIG: "4sigma",
+        KGI: "kuai-gong",
+        DCOMM: "defcomm",
+        VITA: "vitalife",
+        ICRS: "icarus",
+        UNV: "univ-energy",
+        AERO: "aerocorp",
+        SLRS: "solaris",
+        GPH: "global-pharm",
+        NVMD: "nova-med",
+        LXO: "lexo-corp",
+        RHOC: "rho-construction",
+        APHE: "alpha-ent",
+        SYSC: "syscore",
+        CTK: "comptek",
+        NTLK: "netlink",
+        OMGA: "omega-net",
+        JGN: "joesguns",
+        SGC: "sigma-cosmetics",
+        CTYS: "catalyst",
+        MDYN: "microdyne",
+        TITN: "titan-labs",
+        FLCM: "fulcrumtech",
+        STM: "stormtech",
+        HLS: "helios",
+        OMN: "omnia",
+        FNS: "foodnstuff",
+    };
 
     return symServer[sym];
-
 }

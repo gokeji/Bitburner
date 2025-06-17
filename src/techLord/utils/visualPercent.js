@@ -5,7 +5,7 @@ function generateCompressedVisual(ns, server) {
     let maxMoney = ns.getServerMaxMoney(server);
 
     // If max money is 0, skip the server
-    if (maxMoney <= 0) return '';
+    if (maxMoney <= 0) return "";
 
     let currentMoney = ns.getServerMoneyAvailable(server);
     let moneyPercentage = currentMoney / maxMoney;
@@ -15,7 +15,7 @@ function generateCompressedVisual(ns, server) {
     let emptyBars = 20 - filledBars;
 
     // Create the visual representation
-    let visual = '[' + '|'.repeat(filledBars) + '-'.repeat(emptyBars) + ']';
+    let visual = "[" + "|".repeat(filledBars) + "-".repeat(emptyBars) + "]";
 
     // Return formatted string: "server name: [loading bar] percentage%"
     return `${server}: ${visual} ${(moneyPercentage * 100).toFixed(2)}%`;
@@ -23,21 +23,27 @@ function generateCompressedVisual(ns, server) {
 
 export async function main(ns) {
     // Determine which file to use based on the argument
-    let serverListFile = 'actual-all-list.txt';
-    const isStockMode = ns.args.includes('stock') || ns.args.includes('stocks');
-    const isCompressed = ns.args.includes('compressed');
+    let serverListFile = "actual-all-list.txt";
+    const isStockMode = ns.args.includes("stock") || ns.args.includes("stocks");
+    const isCompressed = ns.args.includes("compressed");
 
     if (isStockMode) {
-        serverListFile = 'stock-list.txt';
+        serverListFile = "stock-list.txt";
     }
 
     // Read the list of servers from the selected file
     let data = ns.read(serverListFile);
-    let servers = data.split('\n').map(s => s.trim()).filter(s => s !== '');
+    let servers = data
+        .split("\n")
+        .map((s) => s.trim())
+        .filter((s) => s !== "");
 
     // Read the list of servers from the stock-list.txt file
-    let stockData = ns.read('stock-list.txt');
-    let stockServers = stockData.split('\n').map(s => s.trim()).filter(s => s !== '');
+    let stockData = ns.read("stock-list.txt");
+    let stockServers = stockData
+        .split("\n")
+        .map((s) => s.trim())
+        .filter((s) => s !== "");
 
     // In "compressed" mode, we'll print two servers per line
     if (isCompressed) {
@@ -47,17 +53,17 @@ export async function main(ns) {
         let outputLines = [];
         for (let i = 0; i < servers.length; i += 2) {
             let leftServer = servers[i];
-            let rightServer = servers[i + 1] || ''; // The right column may not always have a server
+            let rightServer = servers[i + 1] || ""; // The right column may not always have a server
 
             // Get visual representation for left server
             let leftVisual = generateCompressedVisual(ns, leftServer);
 
             // Get visual representation for right server (if it exists)
-            let rightVisual = rightServer ? generateCompressedVisual(ns, rightServer) : '';
+            let rightVisual = rightServer ? generateCompressedVisual(ns, rightServer) : "";
 
             // Ensure both visuals are padded to fit the column width
-            leftVisual = leftVisual.padEnd(columnWidth, ' ');
-            rightVisual = rightVisual.padEnd(columnWidth, ' ');
+            leftVisual = leftVisual.padEnd(columnWidth, " ");
+            rightVisual = rightVisual.padEnd(columnWidth, " ");
 
             // Combine both columns with separator
             outputLines.push(leftVisual + separator + rightVisual);
@@ -82,15 +88,15 @@ export async function main(ns) {
                 let emptyBars = 20 - filledBars;
 
                 // Create the visual representation
-                let visual = '[' + '|'.repeat(filledBars) + '-'.repeat(emptyBars) + ']';
+                let visual = "[" + "|".repeat(filledBars) + "-".repeat(emptyBars) + "]";
 
                 // Check if the player has root access to the server
                 let hasRoot = ns.hasRootAccess(server) ? "Root Access: YES" : "Root Access: NO";
 
                 // Check if this server is in the stock-list.txt and if the script was not run in stock mode
-                let stockLabel = '';
+                let stockLabel = "";
                 if (!isStockMode && stockServers.includes(server)) {
-                    stockLabel = ' (stock)';
+                    stockLabel = " (stock)";
                 }
 
                 // Print the server name, visual bar, numerical percentage, root access info, and stock label

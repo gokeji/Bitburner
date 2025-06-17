@@ -13,8 +13,7 @@ Return the ciphertext as an uppercase string. Spaces remain the same.
 */
 
 export async function main(ns) {
-
-    const uppercaseAlphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const uppercaseAlphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
     function ceasar(myString, myInt) {
         let string2 = "";

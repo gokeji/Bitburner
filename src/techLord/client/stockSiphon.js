@@ -1,7 +1,7 @@
 /** @param {NS} ns */
 export async function main(ns) {
     //const weakenScript = 'client/stockWeaken.js';
-    const hackScript = 'client/stockHack.js';
+    const hackScript = "client/stockHack.js";
 
     //const weakenRam = ns.getScriptRam(weakenScript);
     const hackRam = ns.getScriptRam(hackScript);
@@ -24,20 +24,25 @@ export async function main(ns) {
     async function analyzeAndHack(server, currentMoney, maxMoney, stockRAM) {
         if (currentMoney > 0) {
             const hackPercent = ns.hackAnalyze(server);
-            const hackThreadsNeeded = Math.ceil((currentMoney / maxMoney) / hackPercent);
+            const hackThreadsNeeded = Math.ceil(currentMoney / maxMoney / hackPercent);
             const hackThreads = Math.min(hackThreadsNeeded, Math.floor(stockRAM / hackRam));
 
             if (hackThreads > 0 && currentMoney > maxMoney * 0.0001) {
                 ns.run(hackScript, hackThreads, server);
                 await ns.sleep(sleepTime);
-                ns.print(`Server: ${server}, Current Money: ${ns.formatNumber(Number(currentMoney), 3)}, Hack Threads: ${hackThreads}`);
+                ns.print(
+                    `Server: ${server}, Current Money: ${ns.formatNumber(Number(currentMoney), 3)}, Hack Threads: ${hackThreads}`,
+                );
             }
         }
     }
 
     while (true) {
-        const data = ns.read('stock-list.txt');
-        const servers = data.split('\n').map(s => s.trim()).filter(s => s !== '');
+        const data = ns.read("stock-list.txt");
+        const servers = data
+            .split("\n")
+            .map((s) => s.trim())
+            .filter((s) => s !== "");
 
         const stockRAM = parseFloat(ns.readPort(4)); // Read the RAM allocation from port 4
 

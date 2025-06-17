@@ -40,7 +40,7 @@ export async function main(ns) {
                 const levelCostPerGain = levelUpgradeCost / levelIncomeGain;
                 if (levelCostPerGain < bestCostPerGain) {
                     bestCostPerGain = levelCostPerGain;
-                    bestUpgrade = { type: 'level', cost: levelUpgradeCost, node: i };
+                    bestUpgrade = { type: "level", cost: levelUpgradeCost, node: i };
                 }
             }
 
@@ -54,7 +54,7 @@ export async function main(ns) {
                 const ramCostPerGain = ramUpgradeCost / ramIncomeGain;
                 if (ramCostPerGain < bestCostPerGain) {
                     bestCostPerGain = ramCostPerGain;
-                    bestUpgrade = { type: 'ram', cost: ramUpgradeCost, node: i };
+                    bestUpgrade = { type: "ram", cost: ramUpgradeCost, node: i };
                 }
             }
 
@@ -68,7 +68,7 @@ export async function main(ns) {
                 const coreCostPerGain = coreUpgradeCost / coreIncomeGain;
                 if (coreCostPerGain < bestCostPerGain) {
                     bestCostPerGain = coreCostPerGain;
-                    bestUpgrade = { type: 'core', cost: coreUpgradeCost, node: i };
+                    bestUpgrade = { type: "core", cost: coreUpgradeCost, node: i };
                 }
             }
         }
@@ -78,11 +78,11 @@ export async function main(ns) {
             ns.hacknet.purchaseNode();
         } else if (bestUpgrade !== null) {
             // Perform the best upgrade if one was found
-            if (bestUpgrade.type === 'level') {
+            if (bestUpgrade.type === "level") {
                 ns.hacknet.upgradeLevel(bestUpgrade.node, 1);
-            } else if (bestUpgrade.type === 'ram') {
+            } else if (bestUpgrade.type === "ram") {
                 ns.hacknet.upgradeRam(bestUpgrade.node, 1);
-            } else if (bestUpgrade.type === 'core') {
+            } else if (bestUpgrade.type === "core") {
                 ns.hacknet.upgradeCore(bestUpgrade.node, 1);
             }
             await ns.sleep(500);

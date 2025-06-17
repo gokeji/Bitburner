@@ -8,524 +8,510 @@ let NEUROFlUX_TO_PURCHASE = 1; // Only used if no max budget is provided
 
 const initialAugments = [
     {
-      "name": "NeuroFlux Governor",
-      "cost": 4.119308620953353,
-      "faction": "BitRunners",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": true,
-      "available": true
+        name: "NeuroFlux Governor",
+        cost: 4.119308620953353,
+        faction: "BitRunners",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: true,
+        available: true,
     },
     {
-      "name": "Neurotrainer II",
-      "cost": 45,
-      "faction": "BitRunners",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Neurotrainer II",
+        cost: 45,
+        faction: "BitRunners",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Embedded Netburner Module",
-      "cost": 250,
-      "faction": "BitRunners",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Embedded Netburner Module",
+        cost: 250,
+        faction: "BitRunners",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "DataJack",
-      "cost": 450,
-      "faction": "BitRunners",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "DataJack",
+        cost: 450,
+        faction: "BitRunners",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Cranial Signal Processors - Gen III",
-      "cost": 550,
-      "faction": "BitRunners",
-      "prereqs": [
-        "Cranial Signal Processors - Gen II",
-        "Cranial Signal Processors - Gen I"
-      ],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Cranial Signal Processors - Gen III",
+        cost: 550,
+        faction: "BitRunners",
+        prereqs: ["Cranial Signal Processors - Gen II", "Cranial Signal Processors - Gen I"],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Cranial Signal Processors - Gen IV",
-      "cost": 1100,
-      "faction": "BitRunners",
-      "prereqs": [
-        "Cranial Signal Processors - Gen III",
-        "Cranial Signal Processors - Gen II",
-        "Cranial Signal Processors - Gen I"
-      ],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Cranial Signal Processors - Gen IV",
+        cost: 1100,
+        faction: "BitRunners",
+        prereqs: [
+            "Cranial Signal Processors - Gen III",
+            "Cranial Signal Processors - Gen II",
+            "Cranial Signal Processors - Gen I",
+        ],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Enhanced Myelin Sheathing",
-      "cost": 1375,
-      "faction": "BitRunners",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Enhanced Myelin Sheathing",
+        cost: 1375,
+        faction: "BitRunners",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Embedded Netburner Module Core Implant",
-      "cost": 2500,
-      "faction": "BitRunners",
-      "prereqs": [
-        "Embedded Netburner Module"
-      ],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Embedded Netburner Module Core Implant",
+        cost: 2500,
+        faction: "BitRunners",
+        prereqs: ["Embedded Netburner Module"],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "NeuroFlux Governor",
-      "cost": 4.119308620953353,
-      "faction": "Chongqing",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": true,
-      "available": true
+        name: "NeuroFlux Governor",
+        cost: 4.119308620953353,
+        faction: "Chongqing",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: true,
+        available: true,
     },
     {
-      "name": "Nuoptimal Nootropic Injector Implant",
-      "cost": 20,
-      "faction": "Chongqing",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Nuoptimal Nootropic Injector Implant",
+        cost: 20,
+        faction: "Chongqing",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Speech Processor Implant",
-      "cost": 50,
-      "faction": "Chongqing",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Speech Processor Implant",
+        cost: 50,
+        faction: "Chongqing",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "NeuroFlux Governor",
-      "cost": 4.119308620953353,
-      "faction": "CyberSec",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": true,
-      "available": true
+        name: "NeuroFlux Governor",
+        cost: 4.119308620953353,
+        faction: "CyberSec",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: true,
+        available: true,
     },
     {
-      "name": "Cranial Signal Processors - Gen I",
-      "cost": 70,
-      "faction": "CyberSec",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Cranial Signal Processors - Gen I",
+        cost: 70,
+        faction: "CyberSec",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Cranial Signal Processors - Gen II",
-      "cost": 125,
-      "faction": "CyberSec",
-      "prereqs": [
-        "Cranial Signal Processors - Gen I"
-      ],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Cranial Signal Processors - Gen II",
+        cost: 125,
+        faction: "CyberSec",
+        prereqs: ["Cranial Signal Processors - Gen I"],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Wired Reflexes",
-      "cost": 2.5,
-      "faction": "Ishima",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Wired Reflexes",
+        cost: 2.5,
+        faction: "Ishima",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "NeuroFlux Governor",
-      "cost": 4.119308620953353,
-      "faction": "Ishima",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": true,
-      "available": true
+        name: "NeuroFlux Governor",
+        cost: 4.119308620953353,
+        faction: "Ishima",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: true,
+        available: true,
     },
     {
-      "name": "Augmented Targeting I",
-      "cost": 15,
-      "faction": "Ishima",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Augmented Targeting I",
+        cost: 15,
+        faction: "Ishima",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Combat Rib I",
-      "cost": 23.75,
-      "faction": "Ishima",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Combat Rib I",
+        cost: 23.75,
+        faction: "Ishima",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "INFRARET Enhancement",
-      "cost": 30,
-      "faction": "Ishima",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "INFRARET Enhancement",
+        cost: 30,
+        faction: "Ishima",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Speech Processor Implant",
-      "cost": 50,
-      "faction": "Ishima",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Speech Processor Implant",
+        cost: 50,
+        faction: "Ishima",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "NeuroFlux Governor",
-      "cost": 4.119308620953353,
-      "faction": "Netburners",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": true,
-      "available": true
+        name: "NeuroFlux Governor",
+        cost: 4.119308620953353,
+        faction: "Netburners",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: true,
+        available: true,
     },
     {
-      "name": "Hacknet Node NIC Architecture Neural-Upload",
-      "cost": 4.5,
-      "faction": "Netburners",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Hacknet Node NIC Architecture Neural-Upload",
+        cost: 4.5,
+        faction: "Netburners",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Hacknet Node Cache Architecture Neural-Upload",
-      "cost": 5.5,
-      "faction": "Netburners",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Hacknet Node Cache Architecture Neural-Upload",
+        cost: 5.5,
+        faction: "Netburners",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Hacknet Node CPU Architecture Neural-Upload",
-      "cost": 11,
-      "faction": "Netburners",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Hacknet Node CPU Architecture Neural-Upload",
+        cost: 11,
+        faction: "Netburners",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Hacknet Node Kernel Direct-Neural Interface",
-      "cost": 40,
-      "faction": "Netburners",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Hacknet Node Kernel Direct-Neural Interface",
+        cost: 40,
+        faction: "Netburners",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Hacknet Node Core Direct-Neural Interface",
-      "cost": 60,
-      "faction": "Netburners",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Hacknet Node Core Direct-Neural Interface",
+        cost: 60,
+        faction: "Netburners",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "NutriGen Implant",
-      "cost": 2.5,
-      "faction": "New Tokyo",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "NutriGen Implant",
+        cost: 2.5,
+        faction: "New Tokyo",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "NeuroFlux Governor",
-      "cost": 4.119308620953353,
-      "faction": "New Tokyo",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": true,
-      "available": true
+        name: "NeuroFlux Governor",
+        cost: 4.119308620953353,
+        faction: "New Tokyo",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: true,
+        available: true,
     },
     {
-      "name": "Nuoptimal Nootropic Injector Implant",
-      "cost": 20,
-      "faction": "New Tokyo",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Nuoptimal Nootropic Injector Implant",
+        cost: 20,
+        faction: "New Tokyo",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Speech Processor Implant",
-      "cost": 50,
-      "faction": "New Tokyo",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Speech Processor Implant",
+        cost: 50,
+        faction: "New Tokyo",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "NeuroFlux Governor",
-      "cost": 4.119308620953353,
-      "faction": "NiteSec",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": true,
-      "available": true
+        name: "NeuroFlux Governor",
+        cost: 4.119308620953353,
+        faction: "NiteSec",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: true,
+        available: true,
     },
     {
-      "name": "Neurotrainer II",
-      "cost": 45,
-      "faction": "NiteSec",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Neurotrainer II",
+        cost: 45,
+        faction: "NiteSec",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Cranial Signal Processors - Gen I",
-      "cost": 70,
-      "faction": "NiteSec",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Cranial Signal Processors - Gen I",
+        cost: 70,
+        faction: "NiteSec",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Artificial Synaptic Potentiation",
-      "cost": 80,
-      "faction": "NiteSec",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Artificial Synaptic Potentiation",
+        cost: 80,
+        faction: "NiteSec",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Cranial Signal Processors - Gen II",
-      "cost": 125,
-      "faction": "NiteSec",
-      "prereqs": [
-        "Cranial Signal Processors - Gen I"
-      ],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Cranial Signal Processors - Gen II",
+        cost: 125,
+        faction: "NiteSec",
+        prereqs: ["Cranial Signal Processors - Gen I"],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "CRTX42-AA Gene Modification",
-      "cost": 225,
-      "faction": "NiteSec",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "CRTX42-AA Gene Modification",
+        cost: 225,
+        faction: "NiteSec",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Embedded Netburner Module",
-      "cost": 250,
-      "faction": "NiteSec",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Embedded Netburner Module",
+        cost: 250,
+        faction: "NiteSec",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Neural-Retention Enhancement",
-      "cost": 250,
-      "faction": "NiteSec",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Neural-Retention Enhancement",
+        cost: 250,
+        faction: "NiteSec",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Cranial Signal Processors - Gen III",
-      "cost": 550,
-      "faction": "NiteSec",
-      "prereqs": [
-        "Cranial Signal Processors - Gen II",
-        "Cranial Signal Processors - Gen I"
-      ],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Cranial Signal Processors - Gen III",
+        cost: 550,
+        faction: "NiteSec",
+        prereqs: ["Cranial Signal Processors - Gen II", "Cranial Signal Processors - Gen I"],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Wired Reflexes",
-      "cost": 2.5,
-      "faction": "Slum Snakes",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Wired Reflexes",
+        cost: 2.5,
+        faction: "Slum Snakes",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "NeuroFlux Governor",
-      "cost": 4.119308620953353,
-      "faction": "Slum Snakes",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": true,
-      "available": true
+        name: "NeuroFlux Governor",
+        cost: 4.119308620953353,
+        faction: "Slum Snakes",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: true,
+        available: true,
     },
     {
-      "name": "LuminCloaking-V1 Skin Implant",
-      "cost": 5,
-      "faction": "Slum Snakes",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "LuminCloaking-V1 Skin Implant",
+        cost: 5,
+        faction: "Slum Snakes",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Augmented Targeting I",
-      "cost": 15,
-      "faction": "Slum Snakes",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Augmented Targeting I",
+        cost: 15,
+        faction: "Slum Snakes",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Combat Rib I",
-      "cost": 23.75,
-      "faction": "Slum Snakes",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Combat Rib I",
+        cost: 23.75,
+        faction: "Slum Snakes",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "LuminCloaking-V2 Skin Implant",
-      "cost": 30,
-      "faction": "Slum Snakes",
-      "prereqs": [
-        "LuminCloaking-V1 Skin Implant"
-      ],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "LuminCloaking-V2 Skin Implant",
+        cost: 30,
+        faction: "Slum Snakes",
+        prereqs: ["LuminCloaking-V1 Skin Implant"],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "NeuroFlux Governor",
-      "cost": 4.119308620953353,
-      "faction": "The Black Hand",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": true,
-      "available": true
+        name: "NeuroFlux Governor",
+        cost: 4.119308620953353,
+        faction: "The Black Hand",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: true,
+        available: true,
     },
     {
-      "name": "Artificial Synaptic Potentiation",
-      "cost": 80,
-      "faction": "The Black Hand",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": false,
-      "available": true
+        name: "Artificial Synaptic Potentiation",
+        cost: 80,
+        faction: "The Black Hand",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Wired Reflexes",
-      "cost": 2.5,
-      "faction": "Tian Di Hui",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Wired Reflexes",
+        cost: 2.5,
+        faction: "Tian Di Hui",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "NeuroFlux Governor",
-      "cost": 4.119308620953353,
-      "faction": "Tian Di Hui",
-      "prereqs": [],
-      "hackingBoost": true,
-      "repBoost": true,
-      "available": true
+        name: "NeuroFlux Governor",
+        cost: 4.119308620953353,
+        faction: "Tian Di Hui",
+        prereqs: [],
+        hackingBoost: true,
+        repBoost: true,
+        available: true,
     },
     {
-      "name": "Speech Enhancement",
-      "cost": 12.5,
-      "faction": "Tian Di Hui",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Speech Enhancement",
+        cost: 12.5,
+        faction: "Tian Di Hui",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "ADR-V1 Pheromone Gene",
-      "cost": 17.5,
-      "faction": "Tian Di Hui",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": true,
-      "available": true
+        name: "ADR-V1 Pheromone Gene",
+        cost: 17.5,
+        faction: "Tian Di Hui",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: true,
+        available: true,
     },
     {
-      "name": "Nuoptimal Nootropic Injector Implant",
-      "cost": 20,
-      "faction": "Tian Di Hui",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
+        name: "Nuoptimal Nootropic Injector Implant",
+        cost: 20,
+        faction: "Tian Di Hui",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
     },
     {
-      "name": "Social Negotiation Assistant (S.N.A)",
-      "cost": 30,
-      "faction": "Tian Di Hui",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": true,
-      "available": true
+        name: "Social Negotiation Assistant (S.N.A)",
+        cost: 30,
+        faction: "Tian Di Hui",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: true,
+        available: true,
     },
     {
-      "name": "Speech Processor Implant",
-      "cost": 50,
-      "faction": "Tian Di Hui",
-      "prereqs": [],
-      "hackingBoost": false,
-      "repBoost": false,
-      "available": true
-    }
-  ]
+        name: "Speech Processor Implant",
+        cost: 50,
+        faction: "Tian Di Hui",
+        prereqs: [],
+        hackingBoost: false,
+        repBoost: false,
+        available: true,
+    },
+];
 
 function addNeuroFluxGovernors(augments, count) {
     const highestLevelNeuroFlux = augments
-        .filter(aug => aug.name.includes('NeuroFlux Governor'))
+        .filter((aug) => aug.name.includes("NeuroFlux Governor"))
         .sort((a, b) => {
-            const namePartsA = a.name.split(' ');
-            const namePartsB = b.name.split(' ');
+            const namePartsA = a.name.split(" ");
+            const namePartsB = b.name.split(" ");
             return parseInt(namePartsB[namePartsB.length - 1]) - parseInt(namePartsA[namePartsA.length - 1]);
         });
 
     if (highestLevelNeuroFlux.length === 0) return augments;
 
     const highestLevelNeuroFluxGovernor = highestLevelNeuroFlux[0];
-    const nameParts = highestLevelNeuroFluxGovernor.name.split(' ');
+    const nameParts = highestLevelNeuroFluxGovernor.name.split(" ");
     const neurofluxCurrentLevel = parseInt(nameParts[nameParts.length - 1]);
 
     const neuroFluxGovernors = [];
@@ -538,7 +524,7 @@ function addNeuroFluxGovernors(augments, count) {
             available: true,
             prereqs: [`NeuroFlux Governor - Level ${i - 1}`],
             hackingBoost: true,
-            repBoost: true
+            repBoost: true,
         });
     }
     return [...augments, ...neuroFluxGovernors];
@@ -564,16 +550,16 @@ function calculateOptimalOrder(augments, maxBudget = null) {
         if (processedAugments.has(aug.name)) continue;
 
         // Check if this augment is the END of a dependency chain
-        const dependentAugment = deduplicatedAugments.find(a => a.prereqs.includes(aug.name));
+        const dependentAugment = deduplicatedAugments.find((a) => a.prereqs.includes(aug.name));
 
         if (!dependentAugment) {
             // This is either standalone or the final item in a chain
             if (aug.prereqs.length === 0) {
                 // Standalone item
                 priorityItems.push({
-                    type: 'single',
+                    type: "single",
                     augments: [aug],
-                    priorityCost: aug.cost
+                    priorityCost: aug.cost,
                 });
                 processedAugments.add(aug.name);
             } else {
@@ -587,7 +573,7 @@ function calculateOptimalOrder(augments, maxBudget = null) {
                     processedAugments.add(current.name);
 
                     if (current.prereqs.length > 0) {
-                        current = deduplicatedAugments.find(a => a.name === current.prereqs[0]);
+                        current = deduplicatedAugments.find((a) => a.name === current.prereqs[0]);
                     } else {
                         current = null;
                     }
@@ -597,9 +583,9 @@ function calculateOptimalOrder(augments, maxBudget = null) {
                 let lastItemCost = chain[chain.length - 1].cost;
 
                 priorityItems.push({
-                    type: 'chain',
+                    type: "chain",
                     augments: chain,
-                    priorityCost: lastItemCost
+                    priorityCost: lastItemCost,
                 });
             }
         }
@@ -650,7 +636,7 @@ function calculateOptimalOrder(augments, maxBudget = null) {
                 purchaseOrder.push({
                     ...aug,
                     currentCost: actualCost,
-                    purchaseOrder: purchaseIndex + 1
+                    purchaseOrder: purchaseIndex + 1,
                 });
                 totalCost += actualCost;
                 multiplier *= COST_MULTIPLIER;
@@ -675,12 +661,12 @@ function calculateOptimalOrder(augments, maxBudget = null) {
         const actualCost = aug.cost * multiplier;
 
         // Check if this item was purchased
-        const wasPurchased = purchaseOrder.some(purchased => purchased.name === aug.name);
+        const wasPurchased = purchaseOrder.some((purchased) => purchased.name === aug.name);
 
         if (!wasPurchased) {
             unpurchasedAugments.push({
                 ...aug,
-                currentCost: actualCost
+                currentCost: actualCost,
             });
 
             // Track the first unaffordable item (by original priority order)
@@ -688,7 +674,7 @@ function calculateOptimalOrder(augments, maxBudget = null) {
                 nextUnaffordableItem = {
                     ...aug,
                     currentCost: actualCost,
-                    totalCostToAfford: totalCost + actualCost
+                    totalCostToAfford: totalCost + actualCost,
                 };
             }
         }
@@ -741,58 +727,62 @@ export function optimizeAugmentPurchases(initialAugments, maxBudgetInDollars) {
         totalCost: result.totalCost,
         totalCostOfAll: result.totalCostOfAll,
         neurofluxCount: NEUROFlUX_TO_PURCHASE,
-        nextUnaffordableItem: result.nextUnaffordableItem
+        nextUnaffordableItem: result.nextUnaffordableItem,
     };
 }
 
 function formatNumber(num) {
-    if (num >= 1e15) return (num/1e15).toFixed(2) + 'Q';
-    if (num >= 1e12) return (num/1e12).toFixed(2) + 'T';
-    if (num >= 1e9) return (num/1e9).toFixed(2) + 'B';
-    if (num >= 1e6) return (num/1e6).toFixed(2) + 'M';
-    if (num >= 1e3) return (num/1e3).toFixed(2) + 'K';
+    if (num >= 1e15) return (num / 1e15).toFixed(2) + "Q";
+    if (num >= 1e12) return (num / 1e12).toFixed(2) + "T";
+    if (num >= 1e9) return (num / 1e9).toFixed(2) + "B";
+    if (num >= 1e6) return (num / 1e6).toFixed(2) + "M";
+    if (num >= 1e3) return (num / 1e3).toFixed(2) + "K";
     return num.toFixed(2);
 }
 
 // === MAIN PROGRAM ===
 
 // If running standalone, run the main program
-if (typeof process !== 'undefined' && process.argv && import.meta.url === `file://${process.argv[1]}`) {
+if (typeof process !== "undefined" && process.argv && import.meta.url === `file://${process.argv[1]}`) {
     const args = process.argv.slice(2);
     const maxBudget = args.length > 0 ? parseFloat(args[0]) / 1000000 : null;
 
     const result = optimizeAugmentPurchases(initialAugments, maxBudget ? maxBudget * 1000000 : null);
 
     // Calculate and display results
-    console.log('');
-    console.log('=== BITBURNER AUGMENTATION PURCHASE OPTIMIZER ===');
+    console.log("");
+    console.log("=== BITBURNER AUGMENTATION PURCHASE OPTIMIZER ===");
     console.log(`Cost multiplier per purchase: ${COST_MULTIPLIER}x`);
-    console.log('Legend: 🧠 = Improves hacking');
-    console.log('Note: Dependency chains are prioritized by cost of the last item in the chain');
-    console.log('');
+    console.log("Legend: 🧠 = Improves hacking");
+    console.log("Note: Dependency chains are prioritized by cost of the last item in the chain");
+    console.log("");
 
-    console.log('=== OPTIMAL PURCHASE ORDER (WITH DEPENDENCY CHAIN PRIORITY) ===');
+    console.log("=== OPTIMAL PURCHASE ORDER (WITH DEPENDENCY CHAIN PRIORITY) ===");
     for (let i = 0; i < result.purchaseOrder.length; i++) {
         const aug = result.purchaseOrder[i];
-        const hackingMark = aug.hackingBoost ? ' 🧠' : '';
-        const prereqInfo = aug.prereqs.length > 0 ? ` (required: ${aug.prereqs.join(', ')})` : '';
-        console.log(`${i+1}. ${aug.name}${hackingMark} - $${formatNumber(aug.currentCost * 1000000)} [${aug.faction}]${prereqInfo}`);
+        const hackingMark = aug.hackingBoost ? " 🧠" : "";
+        const prereqInfo = aug.prereqs.length > 0 ? ` (required: ${aug.prereqs.join(", ")})` : "";
+        console.log(
+            `${i + 1}. ${aug.name}${hackingMark} - $${formatNumber(aug.currentCost * 1000000)} [${aug.faction}]${prereqInfo}`,
+        );
     }
 
     // Display unpurchased augments if any exist
     if (result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
-        console.log('');
-        console.log('=== AUGMENTS NOT PURCHASED (INSUFFICIENT BUDGET) ===');
+        console.log("");
+        console.log("=== AUGMENTS NOT PURCHASED (INSUFFICIENT BUDGET) ===");
         for (let i = 0; i < result.unpurchasedAugments.length; i++) {
             const aug = result.unpurchasedAugments[i];
-            const hackingMark = aug.hackingBoost ? ' 🧠' : '';
-            const prereqInfo = aug.prereqs.length > 0 ? ` (required: ${aug.prereqs.join(', ')})` : '';
-            console.log(`${i+1}. ${aug.name}${hackingMark} - $${formatNumber(aug.currentCost * 1000000)} [${aug.faction}]${prereqInfo}`);
+            const hackingMark = aug.hackingBoost ? " 🧠" : "";
+            const prereqInfo = aug.prereqs.length > 0 ? ` (required: ${aug.prereqs.join(", ")})` : "";
+            console.log(
+                `${i + 1}. ${aug.name}${hackingMark} - $${formatNumber(aug.currentCost * 1000000)} [${aug.faction}]${prereqInfo}`,
+            );
         }
     }
 
-    console.log('');
-    console.log('=== SUMMARY ===');
+    console.log("");
+    console.log("=== SUMMARY ===");
     console.log(`Total augments to purchase: ${result.purchaseOrder.length}`);
     if (result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
         console.log(`Augments not purchased due to budget: ${result.unpurchasedAugments.length}`);
@@ -805,11 +795,14 @@ if (typeof process !== 'undefined' && process.argv && import.meta.url === `file:
     }
     console.log(`Total cost of all augments: $${formatNumber(result.totalCostOfAll * 1000000)}`);
     if (result.nextUnaffordableItem && maxBudget !== null) {
-        console.log(`Next unaffordable item: ${result.nextUnaffordableItem.name} - $${formatNumber(result.nextUnaffordableItem.currentCost * 1000000)}`);
-        console.log(`Total budget needed for next item: $${formatNumber(result.nextUnaffordableItem.totalCostToAfford * 1000000)}`);
+        console.log(
+            `Next unaffordable item: ${result.nextUnaffordableItem.name} - $${formatNumber(result.nextUnaffordableItem.currentCost * 1000000)}`,
+        );
+        console.log(
+            `Total budget needed for next item: $${formatNumber(result.nextUnaffordableItem.totalCostToAfford * 1000000)}`,
+        );
     }
-    console.log('');
+    console.log("");
     console.log(`NeuroFlux Governors: ${result.neurofluxCount}`);
-    console.log(`Hacking augments: ${result.purchaseOrder.filter(aug => aug.hackingBoost).length}`);
-
+    console.log(`Hacking augments: ${result.purchaseOrder.filter((aug) => aug.hackingBoost).length}`);
 }

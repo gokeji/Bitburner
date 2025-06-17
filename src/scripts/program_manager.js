@@ -8,8 +8,7 @@ export async function main(ns) {
     const interval = 2000;
 
     const keepRunning = ns.args.length > 0 && ns.args[0] == "-c";
-    if (!keepRunning)
-        ns.print(`program-manager will run once. Run with argument "-c" to run continuously.`)
+    if (!keepRunning) ns.print(`program-manager will run once. Run with argument "-c" to run continuously.`);
 
     // Check if TOR is available first
     let hasTor = () => ns.scan("home").includes("darkweb");
@@ -32,7 +31,6 @@ export async function main(ns) {
                 }
             }
         }
-        if (keepRunning && foundMissingProgram)
-            await ns.sleep(interval);
+        if (keepRunning && foundMissingProgram) await ns.sleep(interval);
     } while (keepRunning && foundMissingProgram);
 }

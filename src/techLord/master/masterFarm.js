@@ -1,7 +1,7 @@
 /** @param {NS} ns */
 export async function main(ns) {
-    const weakenScript = 'master/masterWeaken.js';
-    const growScript = 'master/masterGrow.js';
+    const weakenScript = "master/masterWeaken.js";
+    const growScript = "master/masterGrow.js";
 
     const weakenRam = ns.getScriptRam(weakenScript);
     const growRam = ns.getScriptRam(growScript);
@@ -26,22 +26,23 @@ export async function main(ns) {
         const moneyNeeded = maxMoney - currentMoney;
 
         if (currentMoney < maxMoney) {
-          if (server === "n00dles") {
-            ns.run(growScript, 1, server);
-            await ns.sleep(sleepTime);
-          }
-          else {
-            const growthMultiplier = 1 / (1 - growthRate);
-            const requiredMultiplier = maxMoney / currentMoney;
-            const growThreadsNeeded = Math.ceil(Math.log(requiredMultiplier) / Math.log(growthMultiplier));
-            const growThreads = Math.min(growThreadsNeeded, Math.floor(masterRAM / growRam));
-
-            if (growThreads > 0) {
-                ns.run(growScript, growThreads, server);
+            if (server === "n00dles") {
+                ns.run(growScript, 1, server);
                 await ns.sleep(sleepTime);
-                ns.print(`Server: ${server}, Money Needed: ${ns.formatNumber(Number(moneyNeeded), 3)}, Grow Threads: ${growThreads}`);
+            } else {
+                const growthMultiplier = 1 / (1 - growthRate);
+                const requiredMultiplier = maxMoney / currentMoney;
+                const growThreadsNeeded = Math.ceil(Math.log(requiredMultiplier) / Math.log(growthMultiplier));
+                const growThreads = Math.min(growThreadsNeeded, Math.floor(masterRAM / growRam));
+
+                if (growThreads > 0) {
+                    ns.run(growScript, growThreads, server);
+                    await ns.sleep(sleepTime);
+                    ns.print(
+                        `Server: ${server}, Money Needed: ${ns.formatNumber(Number(moneyNeeded), 3)}, Grow Threads: ${growThreads}`,
+                    );
+                }
             }
-          }
         }
     }
 
@@ -51,14 +52,23 @@ export async function main(ns) {
         let isStockMode = ns.args.includes("stock");
 
         if (isStockMode) {
-            let data = ns.read('stock-list.txt');
-            servers = data.split('\n').map(s => s.trim()).filter(s => s !== '');
+            let data = ns.read("stock-list.txt");
+            servers = data
+                .split("\n")
+                .map((s) => s.trim())
+                .filter((s) => s !== "");
         } else {
-            let data = ns.read('all-list.txt');
-            servers = data.split('\n').map(s => s.trim()).filter(s => s !== '');
+            let data = ns.read("all-list.txt");
+            servers = data
+                .split("\n")
+                .map((s) => s.trim())
+                .filter((s) => s !== "");
 
-            let data2 = ns.read('stock-list.txt');
-            stockServers = data2.split('\n').map(s => s.trim()).filter(s => s !== '');
+            let data2 = ns.read("stock-list.txt");
+            stockServers = data2
+                .split("\n")
+                .map((s) => s.trim())
+                .filter((s) => s !== "");
 
             //servers = servers.filter(server => !stockServers.includes(server));
         }
@@ -80,7 +90,7 @@ export async function main(ns) {
                 if (masterRAM > 0) {
                     await analyzeAndWeaken(server, currentSecurity, minSecurity, masterRAM);
                 }
-                
+
                 if (isStockMode) {
                     if (masterRAM > 0) {
                         await analyzeAndGrow(server, currentMoney, maxMoney, masterRAM);

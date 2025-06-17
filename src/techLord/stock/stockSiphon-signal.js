@@ -1,11 +1,14 @@
 /** @param {NS} ns */
 export async function main(ns) {
     // Read the list of servers from 'all-list.txt'
-    let serverListData = ns.read('all-list.txt');
-    let servers = serverListData.split('\n').map(s => s.trim()).filter(s => s !== '');
+    let serverListData = ns.read("all-list.txt");
+    let servers = serverListData
+        .split("\n")
+        .map((s) => s.trim())
+        .filter((s) => s !== "");
 
     // The script to be checked and re-run
-    const scriptName = 'client/stockSiphon.js';
+    const scriptName = "client/stockSiphon.js";
 
     for (let server of servers) {
         if (!ns.serverExists(server)) {
@@ -31,8 +34,11 @@ export async function main(ns) {
         await ns.sleep(1); // Optional sleep to avoid overloading the network
     }
 
-    let data2 = ns.read('myOwnServers.txt');
-    let myServers = data2.split('\n').map(s => s.trim()).filter(s => s !== '');
+    let data2 = ns.read("myOwnServers.txt");
+    let myServers = data2
+        .split("\n")
+        .map((s) => s.trim())
+        .filter((s) => s !== "");
 
     for (let server of myServers) {
         if (!ns.serverExists(server)) {
@@ -57,5 +63,4 @@ export async function main(ns) {
 
         await ns.sleep(1); // Optional sleep to avoid overloading the network
     }
-
 }

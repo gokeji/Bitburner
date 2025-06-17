@@ -1,7 +1,7 @@
 /** @param {NS} ns */
 export async function main(ns) {
     //const weakenScript = 'master/masterWeaken.js';
-    const growScript = 'stock/stockGrow.js';
+    const growScript = "stock/stockGrow.js";
 
     //const weakenRam = ns.getScriptRam(weakenScript);
     const growRam = ns.getScriptRam(growScript);
@@ -34,14 +34,19 @@ export async function main(ns) {
             if (growThreads > 0) {
                 ns.run(growScript, growThreads, server);
                 await ns.sleep(sleepTime);
-                ns.print(`Server: ${server}, Money Needed: ${ns.formatNumber(Number(moneyNeeded), 3)}, Grow Threads: ${growThreads}`);
+                ns.print(
+                    `Server: ${server}, Money Needed: ${ns.formatNumber(Number(moneyNeeded), 3)}, Grow Threads: ${growThreads}`,
+                );
             }
         }
     }
 
     while (true) {
-        const data = ns.read('stock-list.txt');
-        const servers = data.split('\n').map(s => s.trim()).filter(s => s !== '');
+        const data = ns.read("stock-list.txt");
+        const servers = data
+            .split("\n")
+            .map((s) => s.trim())
+            .filter((s) => s !== "");
 
         const stockRAM = parseFloat(ns.readPort(2)); // Read the RAM allocation from port 2
 

@@ -6,12 +6,11 @@ export async function main(ns) {
     const interval = 2000;
 
     var keepRunning = ns.args.length > 0 && ns.args[0] == "-c";
-    if (!keepRunning)
-        ns.print(`tor-manager will run once. Run with argument "-c" to run continuously.`)
+    if (!keepRunning) ns.print(`tor-manager will run once. Run with argument "-c" to run continuously.`);
 
     let hasTor = () => ns.scan("home").includes("darkweb");
     if (hasTor()) {
-        ns.print('Player already has Tor');
+        ns.print("Player already has Tor");
         return;
     }
 
@@ -26,8 +25,6 @@ export async function main(ns) {
             ns.tprint(`INFO Purchased the Tor router for $200,000`);
             break;
         }
-        if (keepRunning)
-            await ns.sleep(interval);
-    }
-    while (keepRunning);
+        if (keepRunning) await ns.sleep(interval);
+    } while (keepRunning);
 }

@@ -1,15 +1,18 @@
 /** @param {NS} ns */
 export async function main(ns) {
     // Read the list of servers from all-list.txt
-    let data = ns.read('actual-all-list.txt');
-    let servers = data.split('\n').map(s => s.trim()).filter(s => s !== '');
+    let data = ns.read("actual-all-list.txt");
+    let servers = data
+        .split("\n")
+        .map((s) => s.trim())
+        .filter((s) => s !== "");
 
     // Define the maximum length for alignment based on the longest string (the horizontal separator)
-    const maxLineLength = '----------------------------------------'.length;
+    const maxLineLength = "----------------------------------------".length;
 
     // Function to pad a string with spaces until it matches maxLineLength
     function padString(str) {
-        return str + ' '.repeat(maxLineLength - str.length);
+        return str + " ".repeat(maxLineLength - str.length);
     }
 
     // Function to gather server information in an array of 10 padded strings
@@ -26,15 +29,15 @@ export async function main(ns) {
         // Return the padded server information
         return [
             padString(`Server: ${server}`),
-            padString(`Root Access: ${hasRoot ? 'Yes' : 'No'}`),
+            padString(`Root Access: ${hasRoot ? "Yes" : "No"}`),
             padString(`Current Money: ${ns.formatNumber(currentMoney, 3)}`),
             padString(`Max Money: ${ns.formatNumber(maxMoney, 3)}`),
             padString(`Current Security Level: ${ns.formatNumber(currentSecurity, 3)}`),
             padString(`Min Security Level: ${minSecurity}`),
             padString(`RAM Usage: ${usedRam.toFixed(2)} / ${maxRam.toFixed(2)} GB`),
-            padString(`Current Money Percentage: ${(100 * currentMoney / maxMoney).toFixed(2)} %`),
+            padString(`Current Money Percentage: ${((100 * currentMoney) / maxMoney).toFixed(2)} %`),
             padString(`Growth Rate: ${growthRate}`),
-            '----------------------------------------'
+            "----------------------------------------",
         ];
     }
 
@@ -51,7 +54,7 @@ export async function main(ns) {
             // Build the combined rows for the current set of 1 to 3 servers
             for (let row = 0; row < 10; row++) {
                 // Join the current row from each server's info, adding the column separator
-                let line = rowBuffer.map(server => server[row]).join(" | ");
+                let line = rowBuffer.map((server) => server[row]).join(" | ");
                 outputRows.push(line);
             }
             rowBuffer = [];

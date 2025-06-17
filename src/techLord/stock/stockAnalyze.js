@@ -11,15 +11,15 @@ export async function main(ns) {
     if (ns.args.length === 2) {
         const duration = parseInt(ns.args[0], 10);
         const unit = ns.args[1];
-        
+
         if (isNaN(duration) || duration <= 0) {
             ns.tprint("ERROR: Invalid duration. Please provide a positive integer.");
             return;
         }
 
-        if (unit === 'm') {
+        if (unit === "m") {
             runTime = duration * 60 * 1000; // Convert minutes to milliseconds
-        } else if (unit === 'h') {
+        } else if (unit === "h") {
             runTime = duration * 60 * 60 * 1000; // Convert hours to milliseconds
         } else {
             ns.tprint("ERROR: Invalid time unit. Use 'm' for minutes or 'h' for hours.");
@@ -51,8 +51,8 @@ export async function main(ns) {
             lowestPrice: Infinity,
             highestPrice: -Infinity,
             medianPriceRaw: 0, // New variable to store raw median price
-            buyPrice: 0,  // To store the buy price
-            sellPrice: 0  // To store the sell price
+            buyPrice: 0, // To store the buy price
+            sellPrice: 0, // To store the sell price
         };
     }
 
@@ -67,7 +67,7 @@ export async function main(ns) {
         for (const symbol of stocks) {
             const rawPrice = ns.stock.getPrice(symbol);
             const forecast = ns.stock.getForecast(symbol); // Get the current forecast
-            const buyPrice = ns.stock.getAskPrice(symbol);  // Get the current buy (ask) price
+            const buyPrice = ns.stock.getAskPrice(symbol); // Get the current buy (ask) price
             const sellPrice = ns.stock.getBidPrice(symbol); // Get the current sell (bid) price
 
             // Store price, forecast, buy price, and sell price as an object
@@ -90,7 +90,7 @@ export async function main(ns) {
 
             // Optional: if there are 5 prices on the current line, start a new line
             if (stockData[symbol].rawPrices.length % 5 === 0) {
-                stockData[symbol].rawPrices.push(['\n', '']); // Optional: you can remove this if not needed
+                stockData[symbol].rawPrices.push(["\n", ""]); // Optional: you can remove this if not needed
             }
         }
 

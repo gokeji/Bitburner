@@ -12,29 +12,95 @@ export async function main(ns) {
     let phase5Completed = false;
 
     const phase3Positions = [
-        ["E", 8], ["E", 9], ["F", 9], ["H", 9], ["J", 9], ["J", 8],
-        ["E", 6], ["E", 5], ["F", 5], ["H", 5], ["J", 5], ["J", 6]
+        ["E", 8],
+        ["E", 9],
+        ["F", 9],
+        ["H", 9],
+        ["J", 9],
+        ["J", 8],
+        ["E", 6],
+        ["E", 5],
+        ["F", 5],
+        ["H", 5],
+        ["J", 5],
+        ["J", 6],
     ];
 
     const phase4Positions = [
-        ["C", 8], ["C", 9], ["D", 9], ["K", 9], ["L", 9], ["L", 8],
-        ["C", 6], ["C", 5], ["D", 5], ["K", 5], ["L", 5], ["L", 6],
-        ["E", 4], ["E", 3], ["F", 3], ["J", 4], ["J", 3], ["H", 3],
-        ["E", 10], ["E", 11], ["F", 11], ["J", 10], ["J", 11], ["H", 11]
+        ["C", 8],
+        ["C", 9],
+        ["D", 9],
+        ["K", 9],
+        ["L", 9],
+        ["L", 8],
+        ["C", 6],
+        ["C", 5],
+        ["D", 5],
+        ["K", 5],
+        ["L", 5],
+        ["L", 6],
+        ["E", 4],
+        ["E", 3],
+        ["F", 3],
+        ["J", 4],
+        ["J", 3],
+        ["H", 3],
+        ["E", 10],
+        ["E", 11],
+        ["F", 11],
+        ["J", 10],
+        ["J", 11],
+        ["H", 11],
     ];
 
     const phase5Positions = [
-        ["B", 6], ["B", 5], ["A", 5], ["B", 8], ["B", 9], ["A", 9],
-        ["F", 2], ["E", 2], ["E", 1], ["H", 2], ["J", 2], ["J", 1],
-        ["F", 12], ["E", 12], ["E", 13], ["H", 12], ["J", 12], ["J", 13],
-        ["M", 8], ["M", 9], ["N", 9], ["M", 6], ["M", 5], ["N", 5]
+        ["B", 6],
+        ["B", 5],
+        ["A", 5],
+        ["B", 8],
+        ["B", 9],
+        ["A", 9],
+        ["F", 2],
+        ["E", 2],
+        ["E", 1],
+        ["H", 2],
+        ["J", 2],
+        ["J", 1],
+        ["F", 12],
+        ["E", 12],
+        ["E", 13],
+        ["H", 12],
+        ["J", 12],
+        ["J", 13],
+        ["M", 8],
+        ["M", 9],
+        ["N", 9],
+        ["M", 6],
+        ["M", 5],
+        ["N", 5],
     ];
 
     const excludedPositions = [
-        ["F", 6], ["D", 6], ["A", 6], ["F", 8], ["D", 8], ["A", 8],
-        ["H", 6], ["K", 6], ["N", 6], ["H", 8], ["K", 8], ["N", 8],
-        ["F", 10], ["F", 13], ["H", 10], ["H", 13], ["F", 4], ["F", 1],
-        ["H", 4], ["H", 1]
+        ["F", 6],
+        ["D", 6],
+        ["A", 6],
+        ["F", 8],
+        ["D", 8],
+        ["A", 8],
+        ["H", 6],
+        ["K", 6],
+        ["N", 6],
+        ["H", 8],
+        ["K", 8],
+        ["N", 8],
+        ["F", 10],
+        ["F", 13],
+        ["H", 10],
+        ["H", 13],
+        ["F", 4],
+        ["F", 1],
+        ["H", 4],
+        ["H", 1],
     ];
 
     // Convert position from letter-number to x-y coordinates
@@ -100,8 +166,14 @@ export async function main(ns) {
     // Function to find and eliminate opponent's blinking clusters
     const getMoveToEliminateBlinkingCluster = (board, validMoves, opponentRouter) => {
         const directions = [
-            [0, 1], [1, 0], [0, -1], [-1, 0], // Horizontal and Vertical
-            [1, 1], [-1, -1], [1, -1], [-1, 1] // Diagonals
+            [0, 1],
+            [1, 0],
+            [0, -1],
+            [-1, 0], // Horizontal and Vertical
+            [1, 1],
+            [-1, -1],
+            [1, -1],
+            [-1, 1], // Diagonals
         ];
 
         for (let y = 0; y < board.length; y++) {
@@ -230,7 +302,6 @@ export async function main(ns) {
         }
 
         await ns.sleep(100); // Slight delay to make the loop less intense
-
     } while (result?.type !== "gameOver");
 
     // Determine which opponent to reset the board against
@@ -240,5 +311,5 @@ export async function main(ns) {
     ns.go.resetBoardState(randomOpponent, 13);
 
     // Start the new game
-    ns.exec('techLord/master/ipvgo.js', "home", 1, ...opponents);
+    ns.exec("techLord/master/ipvgo.js", "home", 1, ...opponents);
 }

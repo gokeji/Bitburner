@@ -3,7 +3,7 @@ export async function main(ns) {
     const rpsMoves = [
         { name: "rock", strongAgainst: "scissors", weakAgainst: "paper" },
         { name: "paper", strongAgainst: "rock", weakAgainst: "scissors" },
-        { name: "scissors", strongAgainst: "paper", weakAgainst: "rock" }
+        { name: "scissors", strongAgainst: "paper", weakAgainst: "rock" },
     ];
 
     let playerScore = 0;
@@ -55,7 +55,7 @@ export async function main(ns) {
                     if (playerMove === computerMove) {
                         ns.tprint("It's a draw! No points awarded.");
                     } else {
-                        const playerObj = rpsMoves.find(move => move.name === playerMove);
+                        const playerObj = rpsMoves.find((move) => move.name === playerMove);
                         if (playerObj.strongAgainst === computerMove) {
                             ns.tprint("You win this round!");
                             playerScore++;
@@ -84,13 +84,22 @@ export async function main(ns) {
         ns.tprint("Congratulations! You've won the game!");
 
         // Execute "client/masterHack.js" on a valid server
-        const allServers = ns.read('all-list.txt').split('\n').map(s => s.trim()).filter(s => s !== '');
-        const stockServers = ns.read('stock-list.txt').split('\n').map(s => s.trim()).filter(s => s !== '');
-        const validServers = allServers.filter(s => 
-            ns.hasRootAccess(s) && 
-            !stockServers.includes(s) &&
-            ns.getServerMaxMoney(s) > 0 &&
-            ns.getServerMoneyAvailable(s) > ns.getServerMaxMoney(s) * 0.5
+        const allServers = ns
+            .read("all-list.txt")
+            .split("\n")
+            .map((s) => s.trim())
+            .filter((s) => s !== "");
+        const stockServers = ns
+            .read("stock-list.txt")
+            .split("\n")
+            .map((s) => s.trim())
+            .filter((s) => s !== "");
+        const validServers = allServers.filter(
+            (s) =>
+                ns.hasRootAccess(s) &&
+                !stockServers.includes(s) &&
+                ns.getServerMaxMoney(s) > 0 &&
+                ns.getServerMoneyAvailable(s) > ns.getServerMaxMoney(s) * 0.5,
         );
 
         if (validServers.length > 0) {

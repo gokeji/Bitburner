@@ -1,22 +1,21 @@
 /** @param {NS} ns */
 export async function main(ns) {
     while (true) {
+        // Check if "master/ipvgo.js" is running on "home"
+        let ipvgoRunning = ns.isRunning("master/ipvgo.js", "home");
 
-      // Check if "master/ipvgo.js" is running on "home"
-    let ipvgoRunning = ns.isRunning('master/ipvgo.js', 'home');
+        // If not running, execute the script
+        if (!ipvgoRunning) {
+            // Determine which opponent to reset the board against
+            const opponents = ["Netburners", "Slum Snakes", "The Black Hand", "Tetrads", "Daedalus", "Illuminati"];
+            const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
 
-    // If not running, execute the script
-    if (!ipvgoRunning) {
-        // Determine which opponent to reset the board against
-const opponents = ["Netburners", "Slum Snakes", "The Black Hand", "Tetrads", "Daedalus", "Illuminati"];
-const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
+            // Reset the board state with the randomly chosen opponent
+            ns.go.resetBoardState(randomOpponent, 13);
 
-// Reset the board state with the randomly chosen opponent
-ns.go.resetBoardState(randomOpponent, 13);
-
-// Start the new game
-ns.exec('master/ipvgo.js', "home");
-    }
+            // Start the new game
+            ns.exec("master/ipvgo.js", "home");
+        }
 
         /*
         const maxRam = ns.getServerMaxRam('home');
@@ -25,8 +24,8 @@ ns.exec('master/ipvgo.js', "home");
         const totalRAM = availableRam - maxRam * 0.02;
         */
 
-        const maxRam = ns.getServerMaxRam('home');
-        const usedRam = ns.getServerUsedRam('home');
+        const maxRam = ns.getServerMaxRam("home");
+        const usedRam = ns.getServerUsedRam("home");
         const initialRam = maxRam - maxRam * 0.02 - 20;
         const totalRAM = initialRam - usedRam;
 
@@ -38,8 +37,8 @@ ns.exec('master/ipvgo.js', "home");
             continue;
         }
 
-        let masterFarmRunning = ns.isRunning('master/masterFarm.js', 'home');
-        let stockNurtureRunning = ns.isRunning('stock/stockNurture.js', 'home');
+        let masterFarmRunning = ns.isRunning("master/masterFarm.js", "home");
+        let stockNurtureRunning = ns.isRunning("stock/stockNurture.js", "home");
         //let stockSiphonRunning = ns.isRunning('stockSiphon.js', 'home');
 
         let masterRAM = 0;
@@ -47,14 +46,22 @@ ns.exec('master/ipvgo.js', "home");
 
         if (masterFarmRunning && stockNurtureRunning) {
             // Count servers with money from all-list.txt and check for root access
-            let allData = ns.read('all-list.txt');
-            let allServers = allData.split('\n').map(s => s.trim()).filter(s => s !== '');
-            let allServerCountWMoney = allServers.filter(s => ns.getServerMaxMoney(s) > 0 && ns.hasRootAccess(s)).length;
+            let allData = ns.read("all-list.txt");
+            let allServers = allData
+                .split("\n")
+                .map((s) => s.trim())
+                .filter((s) => s !== "");
+            let allServerCountWMoney = allServers.filter(
+                (s) => ns.getServerMaxMoney(s) > 0 && ns.hasRootAccess(s),
+            ).length;
 
             // Count all servers in stock-list.txt and check for root access
-            let stockData = ns.read('stock-list.txt');
-            let stockServers = stockData.split('\n').map(s => s.trim()).filter(s => s !== '');
-            let stockServerCount = stockServers.filter(s => ns.hasRootAccess(s)).length;
+            let stockData = ns.read("stock-list.txt");
+            let stockServers = stockData
+                .split("\n")
+                .map((s) => s.trim())
+                .filter((s) => s !== "");
+            let stockServerCount = stockServers.filter((s) => ns.hasRootAccess(s)).length;
 
             if (allServerCountWMoney > 0) {
                 masterRAM = totalRAM * ((allServerCountWMoney - stockServerCount) / allServerCountWMoney);
@@ -64,8 +71,7 @@ ns.exec('master/ipvgo.js', "home");
             masterRAM = totalRAM;
         } else if (stockNurtureRunning) {
             stockRAM = totalRAM;
-        }
-        else{
+        } else {
             ns.print("None of the scripts are running yet.");
         }
 
