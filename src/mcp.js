@@ -38,7 +38,7 @@ const FILES_TO_COPY = [
     "scripts/hack.js",
     "scripts/grow.js",
     "scripts/weaken.js",
-    "scripts/copy_scripts.js",
+    "scripts/copy-scripts.js",
     "scripts/execute.js",
 ];
 

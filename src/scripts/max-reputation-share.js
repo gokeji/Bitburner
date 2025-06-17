@@ -18,5 +18,5 @@ export async function main(ns) {
 }
 
 async function shareAllFreeRam(ns, server) {
-    ns.exec("scripts/share_all_free_ram.js", "home", 1, server);
+    ns.exec("scripts/share-all-free-ram.js", "home", 1, server);
 }

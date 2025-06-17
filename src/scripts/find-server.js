@@ -6,7 +6,7 @@ export async function main(ns) {
     // Get the target server from arguments
     if (ns.args.length === 0) {
         ns.tprint("ERROR: Please provide a server name as an argument");
-        ns.tprint("Usage: run find_server.js <server_name>");
+        ns.tprint("Usage: run find-server.js <server_name>");
         return;
     }
 

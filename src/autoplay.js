@@ -89,30 +89,30 @@ export function startIpvgoIfNotRunning(ns) {
 }
 
 function startAutoJoinFactionsIfNotRunning(ns) {
-    // Check if "scripts/auto_join_factions.js" is running on "home"
-    let autoJoinFactionsRunning = isScriptRunning(ns, "scripts/auto_join_factions.js", HOST_NAME);
+    // Check if "scripts/auto-join-factions.js" is running on "home"
+    let autoJoinFactionsRunning = isScriptRunning(ns, "scripts/auto-join-factions.js", HOST_NAME);
 
     // If not running, execute the script
     if (!autoJoinFactionsRunning) {
-        ns.exec("scripts/auto_join_factions.js", HOST_NAME);
-        ns.tprint("Started scripts/auto_join_factions.js");
+        ns.exec("scripts/auto-join-factions.js", HOST_NAME);
+        ns.tprint("Started scripts/auto-join-factions.js");
     } else {
-        ns.tprint("scripts/auto_join_factions.js is already running");
+        ns.tprint("scripts/auto-join-factions.js is already running");
     }
 }
 
 function startUpgradeServersIfNotRunning(ns) {
     // Check if "scripts/upgrade-servers.js" is running on "home"
-    let upgradeServersRunning = isScriptRunning(ns, "scripts/upgrade_servers.js", HOST_NAME);
+    let upgradeServersRunning = isScriptRunning(ns, "scripts/upgrade-servers.js", HOST_NAME);
 
     // If not running, execute the script
     if (!upgradeServersRunning) {
-        const pid = ns.exec("scripts/upgrade_servers.js", HOST_NAME, 1, 120000000000); // 120 B max server value
-        // const pid = ns.exec('scripts/upgrade_servers.js', HOST_NAME); // No limit
+        const pid = ns.exec("scripts/upgrade-servers.js", HOST_NAME, 1, 120000000000); // 120 B max server value
+        // const pid = ns.exec('scripts/upgrade-servers.js', HOST_NAME); // No limit
         ns.ui.openTail(pid, HOST_NAME);
-        ns.tprint("Started scripts/upgrade_servers.js");
+        ns.tprint("Started scripts/upgrade-servers.js");
     } else {
-        ns.tprint("scripts/upgrade_servers.js is already running");
+        ns.tprint("scripts/upgrade-servers.js is already running");
     }
 }
 
@@ -157,12 +157,12 @@ function startStockTraderIfNotRunning(ns) {
 }
 
 function startUpgradeHnetIfNeeded(ns) {
-    // Check if "kamu/upgrade-hnet.js" is running on "home"
-    const upgradeHnetRunning = isScriptRunning(ns, "scripts/hacknet_manager.js", HOST_NAME);
+    // Check if "scripts/hacknet-manager.js" is running on "home"
+    const upgradeHnetRunning = isScriptRunning(ns, "scripts/hacknet-manager.js", HOST_NAME);
 
     // If not running, execute the script
     if (!upgradeHnetRunning) {
-        ns.exec("scripts/hacknet_manager.js", HOST_NAME, 1, 0.1);
+        ns.exec("scripts/hacknet-manager.js", HOST_NAME, 1, 0.1);
     }
 }
 
@@ -172,16 +172,16 @@ function launchStatsMonitoring(ns) {
 }
 
 function startShareAllRamIfNotRunning(ns) {
-    // Launch "run scripts/share_all_free_ram.js b-24" if not running
-    const shareAllRamRunning = isScriptRunning(ns, "scripts/share_all_free_ram.js", HOST_NAME);
+    // Launch "run scripts/share-all-free-ram.js b-24" if not running
+    const shareAllRamRunning = isScriptRunning(ns, "scripts/share-all-free-ram.js", HOST_NAME);
     if (!shareAllRamRunning) {
-        ns.exec("scripts/share_all_free_ram.js", HOST_NAME, 1, "b-24");
+        ns.exec("scripts/share-all-free-ram.js", HOST_NAME, 1, "b-24");
     }
 }
 
 function printAllFactionServerPaths(ns) {
-    // Call 'scripts/find_server.js' with --faction
-    ns.exec("scripts/find_server.js", HOST_NAME, 1, "--faction");
+    // Call 'scripts/find-server.js' with --faction
+    ns.exec("scripts/find-server.js", HOST_NAME, 1, "--faction");
 }
 
 function startTorManagerIfNotRunning(ns) {
@@ -192,15 +192,15 @@ function startTorManagerIfNotRunning(ns) {
         return;
     }
 
-    // Check if "scripts/tor_manager.js" is running on "home"
-    let torManagerRunning = isScriptRunning(ns, "scripts/tor_manager.js", HOST_NAME);
+    // Check if "scripts/tor-manager.js" is running on "home"
+    let torManagerRunning = isScriptRunning(ns, "scripts/tor-manager.js", HOST_NAME);
 
     // If not running, execute the script
     if (!torManagerRunning) {
-        ns.exec("scripts/tor_manager.js", HOST_NAME, 1, "-c");
-        ns.tprint("Started scripts/tor_manager.js");
+        ns.exec("scripts/tor-manager.js", HOST_NAME, 1, "-c");
+        ns.tprint("Started scripts/tor-manager.js");
     } else {
-        ns.tprint("scripts/tor_manager.js is already running");
+        ns.tprint("scripts/tor-manager.js is already running");
     }
 }
 
@@ -214,15 +214,15 @@ function startProgramManagerIfNotRunning(ns) {
         return;
     }
 
-    // Check if "scripts/program_manager.js" is running on "home"
-    let programManagerRunning = isScriptRunning(ns, "scripts/program_manager.js", HOST_NAME);
+    // Check if "scripts/program-manager.js" is running on "home"
+    let programManagerRunning = isScriptRunning(ns, "scripts/program-manager.js", HOST_NAME);
 
     // If not running, execute the script
     if (!programManagerRunning) {
-        ns.exec("scripts/program_manager.js", HOST_NAME, 1, "-c");
-        ns.tprint("Started scripts/program_manager.js");
+        ns.exec("scripts/program-manager.js", HOST_NAME, 1, "-c");
+        ns.tprint("Started scripts/program-manager.js");
     } else {
-        ns.tprint("scripts/program_manager.js is already running");
+        ns.tprint("scripts/program-manager.js is already running");
     }
 }
 

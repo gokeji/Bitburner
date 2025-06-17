@@ -50,7 +50,7 @@ export async function main(ns) {
     validate(ns, action, server, host);
 
     ns.killall(host);
-    ns.exec("/scripts/copy_scripts.js", "home", 1, host);
+    ns.exec("/scripts/copy-scripts.js", "home", 1, host);
     let threads = parseInt(ns.getServerMaxRam(host) / ns.getScriptRam(script));
     if (threads == 0) {
         ns.print(host + " cannot run script. No RAM");

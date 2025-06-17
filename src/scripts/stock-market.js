@@ -1,4 +1,4 @@
-// file: stock_market.js
+// file: stock-market.js
 // Comprehensive stock market report showing market cap, forecasts, and stock details
 
 // import { NS } from "@ns";

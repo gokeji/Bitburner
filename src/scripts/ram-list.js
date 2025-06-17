@@ -136,7 +136,7 @@ export async function main(ns) {
 
     // Kill other instances
     ns.ps(ns.getHostname())
-        .filter((p) => p.filename === "scripts/ram_list.js" && p.pid !== ns.pid)
+        .filter((p) => p.filename === "scripts/ram-list.js" && p.pid !== ns.pid)
         .forEach((p) => {
             ns.ui.closeTail(p.pid);
             ns.kill(p.pid);

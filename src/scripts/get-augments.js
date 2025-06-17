@@ -1,6 +1,6 @@
 import { NS } from "@ns";
 import { optimizeAugmentPurchases } from "./augment-calc.js";
-import { calculatePortfolioValue } from "./stock_market.js";
+import { calculatePortfolioValue } from "./stock-market.js";
 
 const argsSchema = [
     ["buy", false], // Set to true to actually purchase the augmentations
