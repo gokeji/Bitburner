@@ -133,13 +133,17 @@ export async function main(ns) {
                                 continue;
                             }
 
+                            // Check if backdoor script is already running for this server
+                            if (ns.isRunning(backdoorScript, "home", server)) {
+                                continue; // Script still running, skip
+                            }
+
                             const homeMaxRam = ns.getServerMaxRam("home");
                             const homeUsedRam = ns.getServerUsedRam("home")
                             const homeFreeRam = Math.max(0, homeMaxRam - homeUsedRam - homeReservedRam);
                             if (homeFreeRam >= backdoorScriptRam) {
                                 const backdoorSuccess = ns.exec(backdoorScript, "home", 1, server);
                                 ns.print("INFO backdoor script started on " + server + " - " + backdoorSuccess);
-                                // Only remove from set if script failed to start
                                 if (!backdoorSuccess) {
                                     ns.print("WARN failed to start backdoor script for " + server);
                                 }
