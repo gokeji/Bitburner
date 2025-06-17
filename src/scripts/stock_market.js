@@ -5,6 +5,65 @@
 
 const commission = 100000;
 
+/**
+ * Calculate the total portfolio value and profit/loss
+ * @param {NS} ns - The NetScript API
+ * @returns {Object} Portfolio summary with totalValue, totalProfit, and positions
+ */
+export function calculatePortfolioValue(ns) {
+    const stocks = getAllStockData(ns);
+    const positionsHeld = stocks.filter(stock => stock.longShares > 0 || stock.shortShares > 0);
+
+    let totalValue = 0;
+    let totalProfit = 0;
+    const positions = [];
+
+    for (const stock of positionsHeld) {
+        if (stock.longShares > 0) {
+            const currentValue = stock.bidPrice * stock.longShares;
+            const costBasis = stock.longPrice * stock.longShares;
+            const profit = currentValue - costBasis - 2 * commission;
+
+            totalValue += currentValue;
+            totalProfit += profit;
+
+            positions.push({
+                symbol: stock.sym,
+                type: 'LONG',
+                shares: stock.longShares,
+                currentValue: currentValue,
+                profit: profit,
+                forecast: stock.forecast
+            });
+        }
+
+        if (stock.shortShares > 0) {
+            const currentValue = stock.askPrice * stock.shortShares;
+            const costBasis = stock.shortPrice * stock.shortShares;
+            const profit = costBasis - currentValue - 2 * commission;
+
+            totalValue += currentValue;
+            totalProfit += profit;
+
+            positions.push({
+                symbol: stock.sym,
+                type: 'SHORT',
+                shares: stock.shortShares,
+                currentValue: currentValue,
+                profit: profit,
+                forecast: stock.forecast
+            });
+        }
+    }
+
+    return {
+        totalValue: totalValue,
+        totalProfit: totalProfit,
+        positions: positions,
+        hasPositions: positions.length > 0
+    };
+}
+
 export async function main(ns) {
     ns.disableLog("ALL");
 
@@ -172,9 +231,9 @@ function printDetailedStockInfo(ns, stocks) {
 }
 
 function printPlayerPositions(ns, stocks) {
-    const positionsHeld = stocks.filter(stock => stock.longShares > 0 || stock.shortShares > 0);
+    const portfolio = calculatePortfolioValue(ns);
 
-    if (positionsHeld.length === 0) {
+    if (!portfolio.hasPositions) {
         ns.tprint("");
         ns.tprint("=== PLAYER POSITIONS ===");
         ns.tprint("No stock positions currently held.");
@@ -184,43 +243,16 @@ function printPlayerPositions(ns, stocks) {
     ns.tprint("");
     ns.tprint("=== PLAYER POSITIONS ===");
 
-    let totalValue = 0;
-    let totalProfit = 0;
-
-    for (const stock of positionsHeld) {
-        if (stock.longShares > 0) {
-            const currentValue = stock.bidPrice * stock.longShares;
-            const costBasis = stock.longPrice * stock.longShares;
-            const profit = currentValue - costBasis - 2 * commission;
-
-            totalValue += currentValue;
-            totalProfit += profit;
-
-            const profitStr = profit >= 0 ? `+${ns.nFormat(profit, "$0.0a")}` : ns.nFormat(profit, "$0.0a");
-            ns.tprint(`LONG ${stock.sym}: ${ns.nFormat(stock.longShares, "0,0")} shares | ` +
-                     `Value: ${ns.nFormat(currentValue, "$0.0a")} | ` +
-                     `P&L: ${profitStr} | ` +
-                     `Forecast: ${(stock.forecast * 100).toFixed(1)}%`);
-        }
-
-        if (stock.shortShares > 0) {
-            const currentValue = stock.askPrice * stock.shortShares;
-            const costBasis = stock.shortPrice * stock.shortShares;
-            const profit = costBasis - currentValue - 2 * commission;
-
-            totalValue += currentValue;
-            totalProfit += profit;
-
-            const profitStr = profit >= 0 ? `+${ns.nFormat(profit, "$0.0a")}` : ns.nFormat(profit, "$0.0a");
-            ns.tprint(`SHORT ${stock.sym}: ${ns.nFormat(stock.shortShares, "0,0")} shares | ` +
-                     `Value: ${ns.nFormat(currentValue, "$0.0a")} | ` +
-                     `P&L: ${profitStr} | ` +
-                     `Forecast: ${(stock.forecast * 100).toFixed(1)}%`);
-        }
+    for (const position of portfolio.positions) {
+        const profitStr = position.profit >= 0 ? `+${ns.nFormat(position.profit, "$0.0a")}` : ns.nFormat(position.profit, "$0.0a");
+        ns.tprint(`${position.type} ${position.symbol}: ${ns.nFormat(position.shares, "0,0")} shares | ` +
+                 `Value: ${ns.nFormat(position.currentValue, "$0.0a")} | ` +
+                 `P&L: ${profitStr} | ` +
+                 `Forecast: ${(position.forecast * 100).toFixed(1)}%`);
     }
 
     ns.tprint("");
     ns.tprint("=== PORTFOLIO SUMMARY ===");
-    ns.tprint(`Total Portfolio Value: ${ns.nFormat(totalValue, "$0.0a")}`);
-    ns.tprint(`Total P&L: ${totalProfit >= 0 ? '+' : ''}${ns.nFormat(totalProfit, "$0.0a")}`);
+    ns.tprint(`Total Portfolio Value: ${ns.nFormat(portfolio.totalValue, "$0.0a")}`);
+    ns.tprint(`Total P&L: ${portfolio.totalProfit >= 0 ? '+' : ''}${ns.nFormat(portfolio.totalProfit, "$0.0a")}`);
 }

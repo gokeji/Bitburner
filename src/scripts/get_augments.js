@@ -1,5 +1,6 @@
-import { NS } from "@ns";
+// import { NS } from "@ns";
 import { optimizeAugmentPurchases } from "./augment-calc.js";
+import { calculatePortfolioValue } from "./stock_market.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -105,12 +106,13 @@ export async function main(ns) {
     available: true
   }));
 
-  // Get player's current money in dollars for budget calculation
-  const currentMoney = player.money;
+  // Calculate total available budget including cash and stock portfolio
+  const currentCash = player.money;
+  const portfolio = calculatePortfolioValue(ns);
+  const totalBudget = currentCash + portfolio.totalValue;
 
   // Optimize the purchase order
-  const result = optimizeAugmentPurchases(augmentsForOptimizer, currentMoney);
-
+  const result = optimizeAugmentPurchases(augmentsForOptimizer, totalBudget);
 
   // Display the optimal purchase order
   ns.print('');
@@ -128,10 +130,20 @@ export async function main(ns) {
   }
 
   ns.print('');
-  ns.print('=== SUMMARY ===');
+  ns.print('=== BUDGET SUMMARY ===');
+  ns.print(`Current cash: $${ns.formatNumber(currentCash)}`);
+  if (portfolio.hasPositions) {
+    ns.print(`Stock portfolio value: $${ns.formatNumber(portfolio.totalValue)}`);
+    ns.print(`Stock portfolio P&L: ${portfolio.totalProfit >= 0 ? '+' : ''}$${ns.formatNumber(portfolio.totalProfit)}`);
+  } else {
+    ns.print(`Stock portfolio value: $0 (no positions)`);
+  }
+  ns.print(`Total available budget: $${ns.formatNumber(totalBudget)}`);
+  ns.print('');
+  ns.print('=== PURCHASE SUMMARY ===');
   ns.print(`Total augments to purchase: ${result.purchaseOrder.length}`);
   ns.print(`Total cost: $${ns.formatNumber(result.totalCost * 1000000)}`);
-  ns.print(`Current money: $${ns.formatNumber(currentMoney)}`);
+  ns.print(`Remaining budget: $${ns.formatNumber(totalBudget - (result.totalCost * 1000000))}`);
   ns.print(`Hacking augments: ${result.purchaseOrder.filter(aug => aug.hackingBoost).length}`);
   ns.print(`Reputation augments: ${result.purchaseOrder.filter(aug => aug.repBoost).length}`);
 
