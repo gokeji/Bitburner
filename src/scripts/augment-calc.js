@@ -139,35 +139,85 @@ function calculateOptimalOrder(augments, maxBudget = null) {
         }
     }
 
-    // Simple loop to categorize augments as purchasable or unaffordable
+    // Smart loop to maximize augments purchased within budget
     let purchaseOrder = [];
     let unpurchasedAugments = [];
     let totalCost = 0;
     let totalCostOfAll = 0;
     let multiplier = 1;
+    let nextUnaffordableItem = null;
+    let remainingAugments = [...flattenedAugments];
 
+    // First pass: calculate total cost of all augments
     for (const aug of flattenedAugments) {
         const actualCost = aug.cost * multiplier;
         totalCostOfAll += actualCost;
+        multiplier *= COST_MULTIPLIER;
+    }
 
-        if (maxBudget === null || totalCost + actualCost <= maxBudget) {
-            // Can afford this augment
-            purchaseOrder.push({
-                ...aug,
-                currentCost: actualCost
-            });
-            totalCost += actualCost;
-        } else {
-            // Cannot afford this augment
+    // Reset multiplier for purchase logic
+    multiplier = 1;
+    let purchaseIndex = 0;
+
+    // Continue purchasing until no more items can be afforded
+    while (remainingAugments.length > 0) {
+        let foundAffordableItem = false;
+
+        for (let i = 0; i < remainingAugments.length; i++) {
+            const aug = remainingAugments[i];
+            const actualCost = aug.cost * multiplier;
+
+            if (maxBudget === null || totalCost + actualCost <= maxBudget) {
+                // Can afford this augment
+                purchaseOrder.push({
+                    ...aug,
+                    currentCost: actualCost,
+                    purchaseOrder: purchaseIndex + 1
+                });
+                totalCost += actualCost;
+                multiplier *= COST_MULTIPLIER;
+                purchaseIndex++;
+
+                // Remove this item from remaining list
+                remainingAugments.splice(i, 1);
+                foundAffordableItem = true;
+                break; // Start over from the beginning of the list
+            }
+        }
+
+        // If we couldn't find any affordable item, we're done
+        if (!foundAffordableItem) {
+            break;
+        }
+    }
+
+    // Add remaining items to unpurchased list with their costs
+    multiplier = 1;
+    for (const aug of flattenedAugments) {
+        const actualCost = aug.cost * multiplier;
+
+        // Check if this item was purchased
+        const wasPurchased = purchaseOrder.some(purchased => purchased.name === aug.name);
+
+        if (!wasPurchased) {
             unpurchasedAugments.push({
                 ...aug,
                 currentCost: actualCost
             });
+
+            // Track the first unaffordable item (by original priority order)
+            if (nextUnaffordableItem === null) {
+                nextUnaffordableItem = {
+                    ...aug,
+                    currentCost: actualCost,
+                    totalCostToAfford: totalCost + actualCost
+                };
+            }
         }
         multiplier *= COST_MULTIPLIER;
     }
 
-    return { purchaseOrder, unpurchasedAugments, totalCost, totalCostOfAll };
+    return { purchaseOrder, unpurchasedAugments, totalCost, totalCostOfAll, nextUnaffordableItem };
 }
 
 export function optimizeAugmentPurchases(initialAugments, maxBudgetInDollars) {
@@ -208,7 +258,8 @@ export function optimizeAugmentPurchases(initialAugments, maxBudgetInDollars) {
         unpurchasedAugments: result.unpurchasedAugments || [],
         totalCost: result.totalCost,
         totalCostOfAll: result.totalCostOfAll,
-        neurofluxCount: NEUROFlUX_TO_PURCHASE
+        neurofluxCount: NEUROFlUX_TO_PURCHASE,
+        nextUnaffordableItem: result.nextUnaffordableItem
     };
 }
 
@@ -271,6 +322,10 @@ if (typeof process !== 'undefined' && process.argv && import.meta.url === `file:
         console.log(`Remaining budget: $${formatNumber(remainingBudget * 1000000)}`);
     }
     console.log(`Total cost of all augments: $${formatNumber(result.totalCostOfAll * 1000000)}`);
+    if (result.nextUnaffordableItem && maxBudget !== null) {
+        console.log(`Next unaffordable item: ${result.nextUnaffordableItem.name} - $${formatNumber(result.nextUnaffordableItem.currentCost * 1000000)}`);
+        console.log(`Total budget needed for next item: $${formatNumber(result.nextUnaffordableItem.totalCostToAfford * 1000000)}`);
+    }
     console.log('');
     console.log(`NeuroFlux Governors: ${result.neurofluxCount}`);
     console.log(`Hacking augments: ${result.purchaseOrder.filter(aug => aug.hackingBoost).length}`);
