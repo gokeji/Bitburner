@@ -2,14 +2,25 @@ import { NS } from "@ns";
 import { optimizeAugmentPurchases } from "./augment-calc.js";
 import { calculatePortfolioValue } from "./stock_market.js";
 
+const argsSchema = [
+    ['buy', false], // Set to true to actually purchase the augmentations
+    ['hacking-rep-only', false], // Set to true to only show augments that boost hacking or reputation
+];
+
+export function autocomplete(data, args) {
+    data.flags(argsSchema);
+    return [];
+}
+
 /** @param {NS} ns **/
 export async function main(ns) {
   // const hackingMultiplier = ns.getPlayer().
   // const hackingMultiplier = ns.singularity.getHackingLevelMultiplier();
   // const hackingLevel = Math.floor(14.14 * (32 * Math.log(100000000000 + 534.6) - 200))
 
-  const shouldPurchase = ns.args.includes("--buy");
-  const hackingRepOnly = ns.args.includes("--hacking-rep-only");
+  const flags = ns.flags(argsSchema);
+  const shouldPurchase = flags.buy;
+  const hackingRepOnly = flags['hacking-rep-only'];
 
   ns.ui.openTail(); // Open tail because there's a lot of good output
 
