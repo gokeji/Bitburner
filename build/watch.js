@@ -33,26 +33,54 @@ async function syncStatic() {
   return syncDirectory.async(path.resolve(src), path.resolve(dist), {
     exclude: (file) => {
       const { ext } = path.parse(file);
+      // Only exclude files with disallowed extensions
       return ext && !allowedFiletypes.includes(ext);
+    },
+    forceSync: (filePath) => {
+      const { ext } = path.parse(filePath);
+      // Force sync for JS/TS files so we can process them even if they haven't changed
+      return ext === '.js' || ext === '.ts';
+    },
+    filter: (filePath) => {
+      const { ext } = path.parse(filePath);
+
+      // For JS/TS files, we need to process them for BitBurner imports
+      if ((ext === '.js' || ext === '.ts') && fs.existsSync(filePath)) {
+        try {
+          const content = fs.readFileSync(filePath, 'utf8');
+          const filteredContent = filterBitBurnerImports(content, filePath);
+
+          // If content needs filtering, we'll handle it in the sync process
+          if (content !== filteredContent) {
+            // Create a temporary processed version
+            const relativePath = path.relative(path.resolve(src), filePath);
+            const targetPath = path.resolve(dist, relativePath);
+
+            // Ensure target directory exists
+            const targetDir = path.dirname(targetPath);
+            if (!fs.existsSync(targetDir)) {
+              fs.mkdirSync(targetDir, { recursive: true });
+            }
+
+            // Write filtered content directly to target
+            fs.writeFileSync(targetPath, filteredContent, 'utf8');
+
+            // Return false to prevent normal sync since we handled it manually
+            return false;
+          }
+        } catch (error) {
+          console.warn(`Could not filter BitBurner imports for ${filePath}:`, error.message);
+        }
+      }
+
+      // Return true to include the file in normal sync
+      return true;
     },
     async afterEachSync(event) {
       // log file action
       let eventType;
       if (event.eventType === 'add' || event.eventType === 'init:copy') {
         eventType = 'changed';
-
-        // Filter BitBurner incompatible imports from copied files
-        if (event.targetPath) {
-          try {
-            const content = await fs.promises.readFile(event.targetPath, 'utf8');
-            const filteredContent = filterBitBurnerImports(content, event.targetPath);
-            if (content !== filteredContent) {
-              await fs.promises.writeFile(event.targetPath, filteredContent, 'utf8');
-            }
-          } catch (error) {
-            // Ignore errors for non-text files
-          }
-        }
       } else if (event.eventType === 'unlink') {
         eventType = 'deleted';
       }
