@@ -36,23 +36,23 @@ async function syncStatic() {
       return ext && !allowedFiletypes.includes(ext);
     },
     async afterEachSync(event) {
+      // Filter BitBurner NS imports
+      if (event.targetPath) {
+        try {
+          const content = await fs.promises.readFile(event.targetPath, 'utf8');
+          const filteredContent = filterBitBurnerImports(content, event.targetPath);
+          if (content !== filteredContent) {
+            await fs.promises.writeFile(event.targetPath, filteredContent, 'utf8');
+          }
+        } catch (error) {
+          // Ignore errors for non-text files
+        }
+      }
+
       // log file action
       let eventType;
       if (event.eventType === 'add' || event.eventType === 'init:copy') {
         eventType = 'changed';
-
-        // Filter BitBurner incompatible imports from copied files
-        if (event.targetPath) {
-          try {
-            const content = await fs.promises.readFile(event.targetPath, 'utf8');
-            const filteredContent = filterBitBurnerImports(content, event.targetPath);
-            if (content !== filteredContent) {
-              await fs.promises.writeFile(event.targetPath, filteredContent, 'utf8');
-            }
-          } catch (error) {
-            // Ignore errors for non-text files
-          }
-        }
       } else if (event.eventType === 'unlink') {
         eventType = 'deleted';
       }
