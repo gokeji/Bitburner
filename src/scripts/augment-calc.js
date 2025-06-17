@@ -66,7 +66,7 @@ function addNeoruFluxGovernors(augments, count) {
     return [...augments, ...neuroFluxGovernors];
 }
 
-function calculateOptimalOrder(augments) {
+function calculateOptimalOrder(augments, maxBudget = null) {
     // Remove duplicates - keep the one from the preferred faction (or first occurrence)
     const deduplicatedAugments = [];
     const seenNames = new Set();
@@ -131,24 +131,43 @@ function calculateOptimalOrder(augments) {
     // Sort priority items by their priority cost (descending)
     priorityItems.sort((a, b) => b.priorityCost - a.priorityCost);
 
-    // Now execute purchases in this priority order
-    let purchaseOrder = [];
-    let totalCost = 0;
-    let multiplier = 1;
-
+    // Flatten all augments into a single ordered list
+    const flattenedAugments = [];
     for (const item of priorityItems) {
         for (const aug of item.augments) {
-            const actualCost = aug.cost * multiplier;
+            flattenedAugments.push(aug);
+        }
+    }
+
+    // Simple loop to categorize augments as purchasable or unaffordable
+    let purchaseOrder = [];
+    let unpurchasedAugments = [];
+    let totalCost = 0;
+    let totalCostOfAll = 0;
+    let multiplier = 1;
+
+    for (const aug of flattenedAugments) {
+        const actualCost = aug.cost * multiplier;
+        totalCostOfAll += actualCost;
+
+        if (maxBudget === null || totalCost + actualCost <= maxBudget) {
+            // Can afford this augment
             purchaseOrder.push({
                 ...aug,
                 currentCost: actualCost
             });
             totalCost += actualCost;
-            multiplier *= COST_MULTIPLIER;
+        } else {
+            // Cannot afford this augment
+            unpurchasedAugments.push({
+                ...aug,
+                currentCost: actualCost
+            });
         }
+        multiplier *= COST_MULTIPLIER;
     }
 
-    return { purchaseOrder, totalCost };
+    return { purchaseOrder, unpurchasedAugments, totalCost, totalCostOfAll };
 }
 
 export function optimizeAugmentPurchases(initialAugments, maxBudgetInDollars) {
@@ -158,18 +177,26 @@ export function optimizeAugmentPurchases(initialAugments, maxBudgetInDollars) {
     if (maxBudget !== null) {
         // If we have a max budget, keep adding neuroflux governors until we can't afford the next one
         let augments = [...initialAugments];
-        result = calculateOptimalOrder(augments);
+        let bestResult = calculateOptimalOrder(augments, maxBudget);
+        let neurofluxCount = 1;
 
-        while (result.totalCost < maxBudget) {
+        // Only try to add more NeuroFlux if we can afford all current augments
+        while (bestResult.unpurchasedAugments.length === 0 && bestResult.totalCost < maxBudget) {
             augments = addNeoruFluxGovernors(augments, 1);
-            const tempResult = calculateOptimalOrder(augments);
-            if (tempResult.totalCost <= maxBudget) {
-                result = tempResult;
-                NEUROFlUX_TO_PURCHASE++;
+            const tempResult = calculateOptimalOrder(augments, maxBudget);
+
+            // If we can still afford everything, use this result
+            if (tempResult.unpurchasedAugments.length === 0) {
+                bestResult = tempResult;
+                neurofluxCount++;
             } else {
+                // If we can't afford everything with the new NeuroFlux, break
                 break;
             }
         }
+
+        result = bestResult;
+        NEUROFlUX_TO_PURCHASE = neurofluxCount;
     } else {
         // If we don't have a max budget, just add the specified number of neuroflux governors
         const augments = addNeoruFluxGovernors(initialAugments, NEUROFlUX_TO_PURCHASE - 1);
@@ -178,7 +205,9 @@ export function optimizeAugmentPurchases(initialAugments, maxBudgetInDollars) {
 
     return {
         purchaseOrder: result.purchaseOrder,
+        unpurchasedAugments: result.unpurchasedAugments || [],
         totalCost: result.totalCost,
+        totalCostOfAll: result.totalCostOfAll,
         neurofluxCount: NEUROFlUX_TO_PURCHASE
     };
 }
@@ -217,13 +246,31 @@ if (typeof process !== 'undefined' && process.argv && import.meta.url === `file:
         console.log(`${i+1}. ${aug.name}${hackingMark} - $${formatNumber(aug.currentCost * 1000000)} [${aug.faction}]${prereqInfo}`);
     }
 
+    // Display unpurchased augments if any exist
+    if (result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
+        console.log('');
+        console.log('=== AUGMENTS NOT PURCHASED (INSUFFICIENT BUDGET) ===');
+        for (let i = 0; i < result.unpurchasedAugments.length; i++) {
+            const aug = result.unpurchasedAugments[i];
+            const hackingMark = aug.hackingBoost ? ' 🧠' : '';
+            const prereqInfo = aug.prereqs.length > 0 ? ` (required: ${aug.prereqs.join(', ')})` : '';
+            console.log(`${i+1}. ${aug.name}${hackingMark} - $${formatNumber(aug.currentCost * 1000000)} [${aug.faction}]${prereqInfo}`);
+        }
+    }
+
     console.log('');
     console.log('=== SUMMARY ===');
     console.log(`Total augments to purchase: ${result.purchaseOrder.length}`);
+    if (result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
+        console.log(`Augments not purchased due to budget: ${result.unpurchasedAugments.length}`);
+    }
     console.log(`Total cost: $${formatNumber(result.totalCost * 1000000)}`);
     if (maxBudget !== null) {
         console.log(`Total budget: $${formatNumber(maxBudget * 1000000)}`);
+        const remainingBudget = maxBudget - result.totalCost;
+        console.log(`Remaining budget: $${formatNumber(remainingBudget * 1000000)}`);
     }
+    console.log(`Total cost of all augments: $${formatNumber(result.totalCostOfAll * 1000000)}`);
     console.log('');
     console.log(`NeuroFlux Governors: ${result.neurofluxCount}`);
     console.log(`Hacking augments: ${result.purchaseOrder.filter(aug => aug.hackingBoost).length}`);
