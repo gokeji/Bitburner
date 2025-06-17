@@ -1,4 +1,5 @@
 import { NS } from "@ns";
+import { optimizeAugmentPurchases } from "./augment-calc.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -93,36 +94,45 @@ export async function main(ns) {
     augmentationsByFaction[aug.faction].push(aug);
   });
 
-  ns.print("let initialAugments = [");
-  ns.print("");
+  // Convert to format expected by optimizeAugmentPurchases
+  const augmentsForOptimizer = affordableAugmentations.map(aug => ({
+    name: aug.name,
+    cost: aug.cost, // Already in millions
+    faction: aug.faction,
+    prereqs: aug.prereqs,
+    hackingBoost: aug.hackingBoost,
+    repBoost: aug.repBoost,
+    available: true
+  }));
 
-  const factionNames = Object.keys(augmentationsByFaction).sort();
+  // Get player's current money in dollars for budget calculation
+  const currentMoney = player.money;
 
-  for (let factionIndex = 0; factionIndex < factionNames.length; factionIndex++) {
-    const faction = factionNames[factionIndex];
-    const augments = augmentationsByFaction[faction];
+  // Optimize the purchase order
+  const result = optimizeAugmentPurchases(augmentsForOptimizer, currentMoney);
 
-    // Add faction comment
-    ns.print(`\n    // ${faction}`);
 
-    // Add augmentations for this faction
-    for (let i = 0; i < augments.length; i++) {
-      const aug = augments[i];
-      const prereqsStr = aug.prereqs.length > 0 ? `[${aug.prereqs.map(p => `'${p}'`).join(', ')}]` : '[]';
-      const isLastAugmentInFaction = i === augments.length - 1;
-      const isLastFaction = factionIndex === factionNames.length - 1;
-      const comma = (isLastAugmentInFaction && isLastFaction) ? '' : ',';
+  // Display the optimal purchase order
+  ns.print('');
+  ns.print('=== OPTIMAL AUGMENTATION PURCHASE ORDER ===');
+  ns.print(`Cost multiplier per purchase: 1.9x`);
+  ns.print('Legend: 🧠 = Improves hacking, 📈 = Improves reputation');
+  ns.print('');
 
-      ns.print(`    { name: '${aug.name}', cost: ${aug.cost.toFixed(3)}, faction: '${aug.faction}', prereqs: ${prereqsStr}, hackingBoost: ${aug.hackingBoost}, repBoost: ${aug.repBoost} }${comma}`);
-    }
+  for (let i = 0; i < result.purchaseOrder.length; i++) {
+    const aug = result.purchaseOrder[i];
+    const hackingMark = aug.hackingBoost ? ' 🧠' : '';
+    const repMark = aug.repBoost ? ' 📈' : '';
+    const prereqInfo = aug.prereqs.length > 0 ? ` (requires: ${aug.prereqs.join(', ')})` : '';
+    ns.print(`${i+1}. ${aug.name}${hackingMark}${repMark} - $${ns.formatNumber(aug.currentCost * 1000000)} [${aug.faction}]${prereqInfo}`);
   }
 
-  ns.print("");
-  ns.print("];");
-
-  ns.print(`Total augmentations: ${affordableAugmentations.length}`);
-  ns.print(`Unique augmentations: ${new Set(affordableAugmentations.map(aug => aug.name)).size}`);
-  ns.print(`Total hacking augments: ${affordableAugmentations.filter(aug => aug.hackingBoost).length}`);
-  ns.print(`Total cost: $${affordableAugmentations.reduce((sum, aug) => sum + aug.cost, 0).toFixed(3)}`);
+  ns.print('');
+  ns.print('=== SUMMARY ===');
+  ns.print(`Total augments to purchase: ${result.purchaseOrder.length}`);
+  ns.print(`Total cost: $${ns.formatNumber(result.totalCost * 1000000)}`);
+  ns.print(`Current money: $${ns.formatNumber(currentMoney)}`);
+  ns.print(`Hacking augments: ${result.purchaseOrder.filter(aug => aug.hackingBoost).length}`);
+  ns.print(`Reputation augments: ${result.purchaseOrder.filter(aug => aug.repBoost).length}`);
 
 }

@@ -3,14 +3,10 @@
 // Usage: node augment-calc.js [maxBudget]
 // Example: node augment-calc.js 1000000000 (for $1B budget)
 
-const args = process.argv.slice(2);
-const maxBudget = args.length > 0 ? parseFloat(args[0]) / 1000000 : null; // Convert to millions for internal calculations
-let neurofluxToPurchase = 1;
-
 const COST_MULTIPLIER = 1.9;
+let NEUROFlUX_TO_PURCHASE = 1; // Only used if no max budget is provided
 
 let initialAugments = [
-
     // BitRunners
     { name: 'NeuroFlux Governor - Level 36', cost: 73.575, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
     { name: 'Enhanced Myelin Sheathing', cost: 1375, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
@@ -46,8 +42,11 @@ function addNeoruFluxGovernors(augments, count) {
         .sort((a, b) => {
             const namePartsA = a.name.split(' ');
             const namePartsB = b.name.split(' ');
-            return  parseInt(namePartsB[namePartsB.length - 1]) - parseInt(namePartsA[namePartsA.length - 1]);
+            return parseInt(namePartsB[namePartsB.length - 1]) - parseInt(namePartsA[namePartsA.length - 1]);
         });
+
+    if (neurofluxByLevel.length === 0) return augments;
+
     const highestLevelNeuroFluxGovernor = neurofluxByLevel[0];
     const nameParts = highestLevelNeuroFluxGovernor.name.split(' ');
     const neurofluxCurrentLevel = parseInt(nameParts[nameParts.length - 1]);
@@ -55,19 +54,16 @@ function addNeoruFluxGovernors(augments, count) {
     const neuroFluxGovernors = [];
 
     for (let i = neurofluxCurrentLevel + 1; i <= neurofluxCurrentLevel + count; i++) {
-        neuroFluxGovernors.push({ name: `NeuroFlux Governor - Level ${i}`, cost: highestLevelNeuroFluxGovernor.cost * Math.pow(1.14, i - neurofluxCurrentLevel), faction: 'BitRunners', available: true, prereqs: [`NeuroFlux Governor - Level ${i - 1}`], hackingBoost: true });
+        neuroFluxGovernors.push({
+            name: `NeuroFlux Governor - Level ${i}`,
+            cost: highestLevelNeuroFluxGovernor.cost * Math.pow(1.14, i - neurofluxCurrentLevel),
+            faction: 'BitRunners',
+            available: true,
+            prereqs: [`NeuroFlux Governor - Level ${i - 1}`],
+            hackingBoost: true
+        });
     }
     return [...augments, ...neuroFluxGovernors];
-}
-
-// Let's assume you have enough money to buy everything - we'll calculate total needed
-function formatNumber(num) {
-    if (num >= 1e15) return (num/1e15).toFixed(2) + 'Q';
-    if (num >= 1e12) return (num/1e12).toFixed(2) + 'T';
-    if (num >= 1e9) return (num/1e9).toFixed(2) + 'B';
-    if (num >= 1e6) return (num/1e6).toFixed(2) + 'M';
-    if (num >= 1e3) return (num/1e3).toFixed(2) + 'K';
-    return num.toFixed(2);
 }
 
 function calculateOptimalOrder(augments) {
@@ -155,53 +151,81 @@ function calculateOptimalOrder(augments) {
     return { purchaseOrder, totalCost };
 }
 
+export function optimizeAugmentPurchases(initialAugments, maxBudgetInDollars) {
+    const maxBudget = maxBudgetInDollars ? maxBudgetInDollars / 1000000 : null;
+
+    let result;
+    if (maxBudget !== null) {
+        // If we have a max budget, keep adding neuroflux governors until we can't afford the next one
+        let augments = [...initialAugments];
+        result = calculateOptimalOrder(augments);
+
+        while (result.totalCost < maxBudget) {
+            augments = addNeoruFluxGovernors(augments, 1);
+            const tempResult = calculateOptimalOrder(augments);
+            if (tempResult.totalCost <= maxBudget) {
+                result = tempResult;
+                NEUROFlUX_TO_PURCHASE++;
+            } else {
+                break;
+            }
+        }
+    } else {
+        // If we don't have a max budget, just add the specified number of neuroflux governors
+        const augments = addNeoruFluxGovernors(initialAugments, NEUROFlUX_TO_PURCHASE - 1);
+        result = calculateOptimalOrder(augments);
+    }
+
+    return {
+        purchaseOrder: result.purchaseOrder,
+        totalCost: result.totalCost,
+        neurofluxCount: NEUROFlUX_TO_PURCHASE
+    };
+}
+
+function formatNumber(num) {
+    if (num >= 1e15) return (num/1e15).toFixed(2) + 'Q';
+    if (num >= 1e12) return (num/1e12).toFixed(2) + 'T';
+    if (num >= 1e9) return (num/1e9).toFixed(2) + 'B';
+    if (num >= 1e6) return (num/1e6).toFixed(2) + 'M';
+    if (num >= 1e3) return (num/1e3).toFixed(2) + 'K';
+    return num.toFixed(2);
+}
+
 // === MAIN PROGRAM ===
 
-let result;
-if (maxBudget !== null) {
-    let augments = [...initialAugments];
-    result = calculateOptimalOrder(augments);
-    console.log(`${neurofluxToPurchase} NeuroFlux Governors: $${formatNumber(result.totalCost * 1000000)}`);
+// If running standalone, run the main program
+if (typeof process !== 'undefined' && process.argv && import.meta.url === `file://${process.argv[1]}`) {
+    const args = process.argv.slice(2);
+    const maxBudget = args.length > 0 ? parseFloat(args[0]) / 1000000 : null;
 
-    while (result.totalCost < maxBudget) {
-        augments = addNeoruFluxGovernors(augments, 1);
-        const tempResult = calculateOptimalOrder(augments);
-        console.log(`${neurofluxToPurchase + 1} NeuroFlux Governors: $${formatNumber(result.totalCost * 1000000)}`);
-        if (tempResult.totalCost <= maxBudget) {
-            result = tempResult;
-            neurofluxToPurchase++;
-        } else {
-            break; // Exit the loop if we can't afford the next level
-        }
+    const result = optimizeAugmentPurchases(initialAugments, maxBudget ? maxBudget * 1000000 : null);
+
+    // Calculate and display results
+    console.log('');
+    console.log('=== BITBURNER AUGMENTATION PURCHASE OPTIMIZER ===');
+    console.log(`Cost multiplier per purchase: ${COST_MULTIPLIER}x`);
+    console.log('Legend: 🧠 = Improves hacking');
+    console.log('Note: Dependency chains are prioritized by cost of the last item in the chain');
+    console.log('');
+
+    console.log('=== OPTIMAL PURCHASE ORDER (WITH DEPENDENCY CHAIN PRIORITY) ===');
+    for (let i = 0; i < result.purchaseOrder.length; i++) {
+        const aug = result.purchaseOrder[i];
+        const hackingMark = aug.hackingBoost ? ' 🧠' : '';
+        const prereqInfo = aug.prereqs.length > 0 ? ` (required: ${aug.prereqs.join(', ')})` : '';
+        console.log(`${i+1}. ${aug.name}${hackingMark} - $${formatNumber(aug.currentCost * 1000000)} [${aug.faction}]${prereqInfo}`);
     }
-} else {
-    const augments = addNeoruFluxGovernors(initialAugments, neurofluxToPurchase - 1);
-    result = calculateOptimalOrder(augments);
-}
 
-// Calculate and display results
-console.log('');
-console.log('=== BITBURNER AUGMENTATION PURCHASE OPTIMIZER ===');
-console.log(`Cost multiplier per purchase: ${COST_MULTIPLIER}x`);
-console.log('Legend: 🧠 = Improves hacking');
-console.log('Note: Dependency chains are prioritized by cost of the last item in the chain');
-console.log('');
+    console.log('');
+    console.log('=== SUMMARY ===');
+    console.log(`Total augments to purchase: ${result.purchaseOrder.length}`);
+    console.log(`Total cost: $${formatNumber(result.totalCost * 1000000)}`);
+    if (maxBudget !== null) {
+        console.log(`Total budget: $${formatNumber(maxBudget * 1000000)}`);
+    }
+    console.log('');
+    console.log(`NeuroFlux Governors: ${result.neurofluxCount}`);
+    console.log(`Hacking augments: ${result.purchaseOrder.filter(aug => aug.hackingBoost).length}`);
 
-console.log('=== OPTIMAL PURCHASE ORDER (WITH DEPENDENCY CHAIN PRIORITY) ===');
-for (let i = 0; i < result.purchaseOrder.length; i++) {
-    const aug = result.purchaseOrder[i];
-    const hackingMark = aug.hackingBoost ? ' 🧠' : '';
-    const prereqInfo = aug.prereqs.length > 0 ? ` (required: ${aug.prereqs.join(', ')})` : '';
-    console.log(`${i+1}. ${aug.name}${hackingMark} - $${formatNumber(aug.currentCost * 1000000)} [${aug.faction}]${prereqInfo}`);
 }
-
-console.log('');
-console.log('=== SUMMARY ===');
-console.log(`Total augments to purchase: ${result.purchaseOrder.length}`);
-console.log(`Total cost: $${formatNumber(result.totalCost * 1000000)}`);
-if (maxBudget !== null) {
-    console.log(`Total budget: $${formatNumber(maxBudget * 1000000)}`);
-}
-console.log('');
-console.log(`NeuroFlux Governors: ${neurofluxToPurchase}`);
-console.log(`Hacking augments: ${result.purchaseOrder.filter(aug => aug.hackingBoost).length}`);
