@@ -1,6 +1,7 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
+const MAX_SERVER_VALUE = -1; // 120000000000; // 120 B max server value
 
 /** @param {NS} ns */
 export async function main(ns) {
@@ -63,7 +64,7 @@ export async function main(ns) {
 }
 
 function startDistributedHackIfNotRunning(ns) {
-    // Check if "kamu/distributed-hack.js" is running on "home"
+    // Check if "kamu/distributed-hack.js" is running on HOST_NAME
     let distributedHackRunning = isScriptRunning(ns, "kamu/distributed-hack.js", HOST_NAME);
 
     // If not running, execute the script
@@ -76,12 +77,12 @@ function startDistributedHackIfNotRunning(ns) {
 }
 
 export function startIpvgoIfNotRunning(ns) {
-    // Check if "master/ipvgo.js" is running on "home"
-    let ipvgoRunning = isScriptRunning(ns, "techLord/master/ipvgo.js", "home");
+    // Check if "master/ipvgo.js" is running on HOST_NAME
+    let ipvgoRunning = isScriptRunning(ns, "techLord/master/ipvgo.js", HOST_NAME);
 
     // If not running, execute the script
     if (!ipvgoRunning) {
-        ns.exec("techLord/master/auto-play-ipvgo.js", "home");
+        ns.exec("techLord/master/auto-play-ipvgo.js", HOST_NAME);
         ns.tprint("Started techLord/master/auto-play-ipvgo.js");
     } else {
         ns.tprint("techLord/master/ipvgo.js is already running");
@@ -89,7 +90,7 @@ export function startIpvgoIfNotRunning(ns) {
 }
 
 function startAutoJoinFactionsIfNotRunning(ns) {
-    // Check if "scripts/auto-join-factions.js" is running on "home"
+    // Check if "scripts/auto-join-factions.js" is running on HOST_NAME
     let autoJoinFactionsRunning = isScriptRunning(ns, "scripts/auto-join-factions.js", HOST_NAME);
 
     // If not running, execute the script
@@ -102,13 +103,12 @@ function startAutoJoinFactionsIfNotRunning(ns) {
 }
 
 function startUpgradeServersIfNotRunning(ns) {
-    // Check if "scripts/upgrade-servers.js" is running on "home"
+    // Check if "scripts/upgrade-servers.js" is running on HOST_NAME
     let upgradeServersRunning = isScriptRunning(ns, "scripts/upgrade-servers.js", HOST_NAME);
 
     // If not running, execute the script
     if (!upgradeServersRunning) {
-        const pid = ns.exec("scripts/upgrade-servers.js", HOST_NAME, 1, 120000000000); // 120 B max server value
-        // const pid = ns.exec('scripts/upgrade-servers.js', HOST_NAME); // No limit
+        const pid = ns.exec("scripts/upgrade-servers.js", HOST_NAME, 1, MAX_SERVER_VALUE);
         ns.ui.openTail(pid, HOST_NAME);
         ns.tprint("Started scripts/upgrade-servers.js");
     } else {
@@ -127,7 +127,7 @@ function startStockTraderIfNotRunning(ns) {
 
     if (has4SDataTixApi) {
         ns.tprint("4SDataTix API is available - starting stock trader");
-        // Check if "kamu/stock-trader.js" is running on "home"
+        // Check if "kamu/stock-trader.js" is running on HOST_NAME
         let stockTraderRunning = isScriptRunning(ns, "kamu/stock-trader.js", HOST_NAME);
 
         // If not running, execute the script
@@ -141,7 +141,7 @@ function startStockTraderIfNotRunning(ns) {
         }
     } else {
         ns.tprint("4SDataTix API is not available - starting early stock trader");
-        // Check if "kamu/stock-trader.js" is running on "home"
+        // Check if "kamu/stock-trader.js" is running on HOST_NAME
         let stockTraderRunning = isScriptRunning(ns, "kamu/early-stock-trader.js", HOST_NAME);
 
         // If not running, execute the script
@@ -157,7 +157,7 @@ function startStockTraderIfNotRunning(ns) {
 }
 
 function startUpgradeHnetIfNeeded(ns) {
-    // Check if "scripts/hacknet-manager.js" is running on "home"
+    // Check if "scripts/hacknet-manager.js" is running on HOST_NAME
     const upgradeHnetRunning = isScriptRunning(ns, "scripts/hacknet-manager.js", HOST_NAME);
 
     // If not running, execute the script
@@ -186,13 +186,13 @@ function printAllFactionServerPaths(ns) {
 
 function startTorManagerIfNotRunning(ns) {
     // Check if TOR is already available
-    let hasTor = () => ns.scan("home").includes("darkweb");
+    let hasTor = () => ns.scan(HOST_NAME).includes("darkweb");
     if (hasTor()) {
         ns.tprint("TOR router already available");
         return;
     }
 
-    // Check if "scripts/tor-manager.js" is running on "home"
+    // Check if "scripts/tor-manager.js" is running on HOST_NAME
     let torManagerRunning = isScriptRunning(ns, "scripts/tor-manager.js", HOST_NAME);
 
     // If not running, execute the script
@@ -207,14 +207,14 @@ function startTorManagerIfNotRunning(ns) {
 function startProgramManagerIfNotRunning(ns) {
     // Check if all programs are already available
     const programNames = ["BruteSSH.exe", "FTPCrack.exe", "relaySMTP.exe", "HTTPWorm.exe", "SQLInject.exe"];
-    const allProgramsAvailable = programNames.every((prog) => ns.fileExists(prog, "home"));
+    const allProgramsAvailable = programNames.every((prog) => ns.fileExists(prog, HOST_NAME));
 
     if (allProgramsAvailable) {
         ns.tprint("All port opener programs already available");
         return;
     }
 
-    // Check if "scripts/program-manager.js" is running on "home"
+    // Check if "scripts/program-manager.js" is running on HOST_NAME
     let programManagerRunning = isScriptRunning(ns, "scripts/program-manager.js", HOST_NAME);
 
     // If not running, execute the script
