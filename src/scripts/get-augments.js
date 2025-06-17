@@ -7,6 +7,78 @@ const argsSchema = [
     ["hacking-rep-only", false], // Set to true to only show augments that boost hacking or reputation
 ];
 
+/**
+ * Validates NeuroFlux Governor reputation requirements
+ * @param {NS} ns - NetScript object
+ * @param {Object} player - Player object
+ * @param {number} currentNeuroFluxGovernorLevel - Current NeuroFlux level
+ * @param {number} neurofluxCount - Number of NeuroFlux to purchase
+ * @returns {Object} Validation result with canPurchase, error, bestFaction, and maxRepReq
+ */
+function validateNeuroFluxReputation(ns, player, currentNeuroFluxGovernorLevel, neurofluxCount) {
+    if (neurofluxCount <= 0) {
+        return { canPurchase: true, error: "", bestFaction: null, maxRepReq: 0 };
+    }
+
+    const baseNeuroFluxRepReq = ns.singularity.getAugmentationRepReq("NeuroFlux Governor");
+    const finalNeuroFluxLevel = currentNeuroFluxGovernorLevel + neurofluxCount - 1;
+    const maxNeuroFluxRepReq = baseNeuroFluxRepReq * 1.14 ** (finalNeuroFluxLevel - currentNeuroFluxGovernorLevel);
+
+    const neuroFluxFactions = ns.singularity.getAugmentationFactions("NeuroFlux Governor");
+    let maxFactionRep = 0;
+    let bestNeuroFluxFaction = null;
+
+    for (const faction of neuroFluxFactions) {
+        if (player.factions.includes(faction)) {
+            const factionRep = ns.singularity.getFactionRep(faction);
+            if (factionRep > maxFactionRep) {
+                maxFactionRep = factionRep;
+                bestNeuroFluxFaction = faction;
+            }
+        }
+    }
+
+    const canPurchase = maxFactionRep >= maxNeuroFluxRepReq;
+    const error = canPurchase
+        ? ""
+        : `Insufficient reputation for final NeuroFlux Governor (Level ${finalNeuroFluxLevel}). Required: ${ns.formatNumber(maxNeuroFluxRepReq)}, Available: ${ns.formatNumber(maxFactionRep)} from ${bestNeuroFluxFaction || "no faction"}`;
+
+    return {
+        canPurchase,
+        error,
+        bestFaction: bestNeuroFluxFaction,
+        maxRepReq: maxNeuroFluxRepReq,
+        maxAvailableRep: maxFactionRep,
+        finalLevel: finalNeuroFluxLevel,
+    };
+}
+
+/**
+ * Displays NeuroFlux reputation warning or success message
+ * @param {NS} ns - NetScript object
+ * @param {Object} validation - Validation result from validateNeuroFluxReputation
+ * @param {boolean} isPurchasing - Whether the user is attempting to purchase
+ */
+function displayNeuroFluxStatus(ns, validation, isPurchasing) {
+    if (validation.maxRepReq === 0) return; // No NeuroFlux to purchase
+
+    if (!validation.canPurchase) {
+        ns.print(
+            `\n❌ NeuroFlux Governor Level ${validation.finalLevel}: Need ${ns.formatNumber(validation.maxRepReq)} rep, have ${ns.formatNumber(validation.maxAvailableRep)} (${validation.bestFaction || "no faction"})`,
+        );
+        if (isPurchasing) {
+            ns.print("=== PURCHASE ABORTED ===");
+            ns.print("Purchase cancelled to prevent reputation shortage for NeuroFlux Governor upgrades.");
+        } else {
+            ns.print("⚠️  Use --buy with caution - NeuroFlux purchases may fail due to insufficient reputation.");
+        }
+    } else {
+        ns.print(
+            `\n✅ NeuroFlux Governor Level ${validation.finalLevel}: Rep sufficient (${ns.formatNumber(validation.maxAvailableRep)} from ${validation.bestFaction})`,
+        );
+    }
+}
+
 export function autocomplete(data, args) {
     data.flags(argsSchema);
     return [];
@@ -150,9 +222,6 @@ export async function main(ns) {
         available: true,
     }));
 
-    // ns.print(JSON.stringify(augmentsForOptimizer, null, 2));
-    // return;
-
     // Calculate total available budget including cash and stock portfolio
     const currentCash = player.money;
     const portfolio = calculatePortfolioValue(ns);
@@ -236,7 +305,21 @@ export async function main(ns) {
         );
     }
 
+    // === NEUROFLUX GOVERNOR REPUTATION VALIDATION ===
+    const neuroFluxValidation = validateNeuroFluxReputation(
+        ns,
+        player,
+        currentNeuroFluxGovernorLevel,
+        result.neurofluxCount,
+    );
+    displayNeuroFluxStatus(ns, neuroFluxValidation, shouldPurchase);
+
     if (shouldPurchase) {
+        // Check if we should proceed with purchase
+        if (!neuroFluxValidation.canPurchase && result.neurofluxCount > 0) {
+            return;
+        }
+
         ns.print("\n");
         ns.print("=== Liquidating Stocks ===");
         await ns.exec("./liquidate.js", "home");
@@ -244,20 +327,28 @@ export async function main(ns) {
         ns.print("\n");
         ns.print("=== PURCHASING AUGMENTS ===");
         ns.print(`Purchasing ${result.purchaseOrder.length} augments`);
-        for (const aug of result.purchaseOrder) {
+        for (let i = 0; i < result.purchaseOrder.length; i++) {
+            const aug = result.purchaseOrder[i];
+
             // Parse out the base augmentation name (remove level info for NeuroFlux Governor)
             let augmentationName = aug.name;
+            let factionToUse = aug.faction;
+
             if (aug.name.startsWith("NeuroFlux Governor - Level")) {
                 augmentationName = "NeuroFlux Governor";
+                // Use the faction with the highest reputation for NeuroFlux Governor
+                if (neuroFluxValidation.bestFaction) {
+                    factionToUse = neuroFluxValidation.bestFaction;
+                }
             }
 
-            const success = ns.singularity.purchaseAugmentation(aug.faction, augmentationName);
+            const success = ns.singularity.purchaseAugmentation(factionToUse, augmentationName);
             if (success) {
                 ns.print(
-                    `Purchased ${augmentationName} from ${aug.faction} for $${ns.formatNumber(ns.singularity.getAugmentationPrice(augmentationName))}`,
+                    `${i + 1}. Purchased ${augmentationName} from ${factionToUse} for $${ns.formatNumber(ns.singularity.getAugmentationPrice(augmentationName))}`,
                 );
             } else {
-                ns.print(`Failed to purchase ${augmentationName} from ${aug.faction}`);
+                ns.print(`Failed to purchase ${augmentationName} from ${factionToUse}`);
             }
         }
     }

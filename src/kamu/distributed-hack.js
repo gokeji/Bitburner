@@ -132,7 +132,7 @@ export async function main(ns) {
             // modify singularityFunctionsAvailable at the top to de- / activate
             if (singularityFunctionsAvailable == true) {
                 for (var backdoorServer of backdoorServers.values()) {
-                    if (server == backdoorServer) {
+                    if (server === backdoorServer) {
                         if (ns.getServerRequiredHackingLevel(server) <= ns.getHackingLevel()) {
                             // Check if backdoor is already installed before attempting
                             if (ns.getServer(server).backdoorInstalled) {
