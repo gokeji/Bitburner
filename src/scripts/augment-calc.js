@@ -514,7 +514,7 @@ const initialAugments = [
   ]
 
 function addNeuroFluxGovernors(augments, count) {
-    const neurofluxByLevel = augments
+    const highestLevelNeuroFlux = augments
         .filter(aug => aug.name.includes('NeuroFlux Governor'))
         .sort((a, b) => {
             const namePartsA = a.name.split(' ');
@@ -522,9 +522,9 @@ function addNeuroFluxGovernors(augments, count) {
             return parseInt(namePartsB[namePartsB.length - 1]) - parseInt(namePartsA[namePartsA.length - 1]);
         });
 
-    if (neurofluxByLevel.length === 0) return augments;
+    if (highestLevelNeuroFlux.length === 0) return augments;
 
-    const highestLevelNeuroFluxGovernor = neurofluxByLevel[0];
+    const highestLevelNeuroFluxGovernor = highestLevelNeuroFlux[0];
     const nameParts = highestLevelNeuroFluxGovernor.name.split(' ');
     const neurofluxCurrentLevel = parseInt(nameParts[nameParts.length - 1]);
 
@@ -534,10 +534,11 @@ function addNeuroFluxGovernors(augments, count) {
         neuroFluxGovernors.push({
             name: `NeuroFlux Governor - Level ${i}`,
             cost: highestLevelNeuroFluxGovernor.cost * Math.pow(1.14, i - neurofluxCurrentLevel),
-            faction: 'BitRunners',
+            faction: highestLevelNeuroFluxGovernor.faction,
             available: true,
             prereqs: [`NeuroFlux Governor - Level ${i - 1}`],
-            hackingBoost: true
+            hackingBoost: true,
+            repBoost: true
         });
     }
     return [...augments, ...neuroFluxGovernors];

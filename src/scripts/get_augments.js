@@ -9,6 +9,9 @@ export async function main(ns) {
   // const hackingLevel = Math.floor(14.14 * (32 * Math.log(100000000000 + 534.6) - 200))
 
   const shouldPurchase = ns.args.includes("--buy");
+  const hackingRepOnly = ns.args.includes("--hacking-rep-only");
+
+  ns.ui.openTail(); // Open tail because there's a lot of good output
 
   ns.print("\n\n\n\n\n\n\n\n\n")
 
@@ -73,13 +76,22 @@ export async function main(ns) {
         if (player.factions.includes(faction)) {
           const factionRep = ns.singularity.getFactionRep(faction);
           if (factionRep >= repReq) {
+            const hackingBoost = hasHackingBoost(stats);
+            const repBoost = hasRepBoost(stats);
+
+            // If --hacking-rep-only flag is set, skip augments that don't boost hacking or rep
+            // Exception: Always include NeuroFlux Governor as it provides hacking boost
+            if (hackingRepOnly && !hackingBoost && !repBoost && augmentation !== "NeuroFlux Governor") {
+              continue;
+            }
+
             affordableAugmentations.push({
               name: augmentation,
               cost: price / 1000000, // Convert to millions for easier reading
               faction: faction,
               prereqs: prereqs,
-              hackingBoost: hasHackingBoost(stats),
-              repBoost: hasRepBoost(stats),
+              hackingBoost: hackingBoost,
+              repBoost: repBoost,
               repReq: repReq,
               stats: stats
             });
@@ -131,6 +143,9 @@ export async function main(ns) {
   ns.print('=== OPTIMAL AUGMENTATION PURCHASE ORDER ===');
   ns.print(`Cost multiplier per purchase: 1.9x`);
   ns.print('Legend: 🧠 = Improves hacking, 📈 = Improves reputation');
+  if (hackingRepOnly) {
+    ns.print('INFO Filter: Only showing hacking/reputation augments');
+  }
   ns.print('\n');
 
   for (let i = 0; i < result.purchaseOrder.length; i++) {
@@ -167,6 +182,14 @@ export async function main(ns) {
   ns.print('\n');
   ns.print('=== PURCHASE SUMMARY ===');
   ns.print(`Total augments to purchase: ${result.purchaseOrder.length}`);
+
+  const hackingAugmentsCount = result.purchaseOrder.filter(aug => aug.hackingBoost).length - result.neurofluxCount;
+  const repAugmentsCount = result.purchaseOrder.filter(aug => aug.repBoost).length - result.neurofluxCount;
+  ns.print(`  - NeuroFlux Governors: ${result.neurofluxCount}`);
+  ns.print(`  - Hacking augments: ${hackingAugmentsCount}`);
+  ns.print(`  - Reputation augments: ${repAugmentsCount}`);
+  ns.print(`\n`);
+
   if (result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
     ns.print(`Augments not purchased due to budget: ${result.unpurchasedAugments.length}`);
   }
@@ -179,12 +202,8 @@ export async function main(ns) {
     ns.print(`Next unaffordable item: ${result.nextUnaffordableItem.name} - $${ns.formatNumber(result.nextUnaffordableItem.currentCost * 1000000)}`);
     ns.print(`Total budget needed for next item: $${ns.formatNumber(result.nextUnaffordableItem.totalCostToAfford * 1000000)}`);
   }
-  ns.print('\n');
-  ns.print(`Hacking augments: ${result.purchaseOrder.filter(aug => aug.hackingBoost).length}`);
-  ns.print(`Reputation augments: ${result.purchaseOrder.filter(aug => aug.repBoost).length}`);
 
   if (shouldPurchase) {
-    ns.ui.openTail();
     ns.print("\n")
     ns.print("=== Liquidating Stocks ===")
     await ns.exec("./liquidate.js", "home");
