@@ -161,7 +161,7 @@ function startUpgradeHnetIfNeeded(ns) {
 
 	// If not running, execute the script
 	if (!upgradeHnetRunning) {
-		ns.exec('scripts/hacknet_manager.js', HOST_NAME, 1, 0, 0.1);
+		ns.exec('scripts/hacknet_manager.js', HOST_NAME, 1, 0.1);
 	}
 }
 

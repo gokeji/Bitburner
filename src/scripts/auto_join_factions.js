@@ -45,7 +45,7 @@ export async function main(ns) {
                         //     }
                         // }
                     } else {
-                        ns.print(`❌ Skipping ${faction}`);
+                        // ns.print(`❌ Skipping ${faction}`);
                     }
                 } catch (error) {
                     ns.print(`❌ Error processing ${faction}: ${error.message}`);

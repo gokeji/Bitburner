@@ -21,7 +21,7 @@ const timeDiff = 200;
 const timeBetweenAttacks = 500;
 
 // Reserve this much RAM on home server (in GB)
-const homeReservedRam = 20;
+const homeReservedRam = 560;
 
 // Ignore servers
 const ignoreServers = ["b-24"];

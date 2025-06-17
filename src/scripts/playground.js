@@ -6,6 +6,49 @@ export async function main(ns) {
   // const hackingMultiplier = ns.singularity.getHackingLevelMultiplier();
   // const hackingLevel = Math.floor(14.14 * (32 * Math.log(100000000000 + 534.6) - 200))
 
+  const targetLevel = parseInt(ns.args[0]);
 
+  // Validate the argument
+  if (!targetLevel || isNaN(targetLevel) || targetLevel <= 0) {
+    ns.tprint("Usage: run playground.js <target_level>");
+    ns.tprint("Example: run playground.js 100");
+    return;
+  }
 
+  // Example usage
+  calculateHackingExpNeeded(ns, targetLevel);
+}
+
+/**
+ * Calculate EXP needed for target hacking level and show multiplier vs current EXP
+ * @param {NS} ns
+ * @param {number} targetLevel - The target hacking level you want to reach
+ */
+function calculateHackingExpNeeded(ns, targetLevel) {
+  const player = ns.getPlayer();
+  const currentLevel = player.skills.hacking;
+  const currentExp = player.exp.hacking;
+  const hackingMult = player.mults.hacking;
+
+  // Formula from if.player.js for calculating EXP needed for a level
+  // next_level_exp: Math.pow(Math.E,((this.data.hacking + 1)/(32*this.data.hacking_mult)+(25/4))) - (1069/2)
+  const targetExp = Math.pow(Math.E, ((targetLevel)/(32 * hackingMult) + (25/4))) - (1069/2);
+
+  const expNeeded = targetExp - currentExp;
+  const expMultiplier = targetExp / currentExp;
+
+  ns.tprint(`=== Hacking Level Analysis ===`);
+  ns.tprint(`Current Level: ${currentLevel}`);
+  ns.tprint(`Current EXP: ${ns.formatNumber(currentExp)}`);
+  ns.tprint(`Hacking Mult: ${ns.formatNumber(hackingMult)}`);
+  ns.tprint(`========================================`);
+
+  ns.tprint(`Target Level: ${targetLevel}`);
+  ns.tprint(`Target EXP Required: ${ns.formatNumber(targetExp)}`);
+  ns.tprint(`EXP Still Needed: ${ns.formatNumber(expNeeded)}`);
+  ns.tprint(`Target EXP is ${ns.formatNumber(expMultiplier)}x your current EXP`);
+
+  if (expNeeded <= 0) {
+    ns.tprint(`You've already reached or exceeded level ${targetLevel}!`);
+  }
 }
