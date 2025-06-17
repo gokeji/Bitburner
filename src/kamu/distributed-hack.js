@@ -126,13 +126,25 @@ export async function main(ns) {
                 for (var backdoorServer of backdoorServers.values()) {
                     if (server == backdoorServer) {
                         if (ns.getServerRequiredHackingLevel(server) <= ns.getHackingLevel()) {
+                            // Check if backdoor is already installed before attempting
+                            if (ns.getServer(server).backdoorInstalled) {
+                                ns.print("INFO backdoor already installed on " + server);
+                                backdoorServers.delete(backdoorServer);
+                                continue;
+                            }
+
                             const homeMaxRam = ns.getServerMaxRam("home");
                             const homeUsedRam = ns.getServerUsedRam("home")
                             const homeFreeRam = Math.max(0, homeMaxRam - homeUsedRam - homeReservedRam);
                             if (homeFreeRam >= backdoorScriptRam) {
                                 const backdoorSuccess = ns.exec(backdoorScript, "home", 1, server);
-                                ns.print("INFO backdoor on " + server + " - " + backdoorSuccess);
-                                backdoorServers.delete(backdoorServer);
+                                ns.print("INFO backdoor script started on " + server + " - " + backdoorSuccess);
+                                // Only remove from set if script failed to start
+                                if (!backdoorSuccess) {
+                                    ns.print("WARN failed to start backdoor script for " + server);
+                                }
+                                // Don't delete from backdoorServers here - let the script succeed first
+                                // The server will be removed when we detect backdoor is installed
                             }
                         }
                     }

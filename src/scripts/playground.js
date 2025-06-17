@@ -30,9 +30,9 @@ function calculateHackingExpNeeded(ns, targetLevel) {
   const currentExp = player.exp.hacking;
   const hackingMult = player.mults.hacking;
 
-  // Formula from if.player.js for calculating EXP needed for a level
-  // next_level_exp: Math.pow(Math.E,((this.data.hacking + 1)/(32*this.data.hacking_mult)+(25/4))) - (1069/2)
-  const targetExp = Math.pow(Math.E, ((targetLevel)/(32 * hackingMult) + (25/4))) - (1069/2);
+  // Correct formula from the game's source code:
+  // calculateExp(skill: number, mult = 1): Math.exp((skill / mult + 200) / 32) - 534.6
+  const targetExp = Math.exp((targetLevel / hackingMult + 200) / 32) - 534.6;
 
   const expNeeded = targetExp - currentExp;
   const expMultiplier = targetExp / currentExp;
