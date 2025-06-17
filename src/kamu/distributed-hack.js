@@ -764,7 +764,10 @@ async function scanAndNuke(ns) {
             }
             if (await ns.getServerNumPortsRequired(server) <= portOpened) {
                 await ns.nuke(server);
-                accessibleServers.add(server);
+                // Verify nuke was successful before adding to accessible servers
+                if (await ns.hasRootAccess(server)) {
+                    accessibleServers.add(server);
+                }
             }
         }
     }
