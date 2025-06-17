@@ -6,37 +6,514 @@
 const COST_MULTIPLIER = 1.9;
 let NEUROFlUX_TO_PURCHASE = 1; // Only used if no max budget is provided
 
-let initialAugments = [
-    // BitRunners
-    { name: 'NeuroFlux Governor - Level 36', cost: 73.575, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Enhanced Myelin Sheathing', cost: 1375, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
-    { name: 'DataJack', cost: 450, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Cranial Signal Processors - Gen IV', cost: 1100, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Embedded Netburner Module Core Implant', cost: 2500, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Neural Accelerator', cost: 1750, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Cranial Signal Processors - Gen V', cost: 2250, faction: 'BitRunners', available: true, prereqs: ['Cranial Signal Processors - Gen IV'], hackingBoost: true },
-    { name: 'Artificial Bio-neural Network Implant', cost: 3000, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
-    { name: 'BitRunners Neurolink', cost: 4375, faction: 'BitRunners', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Embedded Netburner Module Core V2 Upgrade', cost: 4500, faction: 'BitRunners', available: true, prereqs: ['Embedded Netburner Module Core Implant'], hackingBoost: true },
+const initialAugments = [
+    {
+      "name": "NeuroFlux Governor",
+      "cost": 4.119308620953353,
+      "faction": "BitRunners",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": true,
+      "available": true
+    },
+    {
+      "name": "Neurotrainer II",
+      "cost": 45,
+      "faction": "BitRunners",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Embedded Netburner Module",
+      "cost": 250,
+      "faction": "BitRunners",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "DataJack",
+      "cost": 450,
+      "faction": "BitRunners",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Cranial Signal Processors - Gen III",
+      "cost": 550,
+      "faction": "BitRunners",
+      "prereqs": [
+        "Cranial Signal Processors - Gen II",
+        "Cranial Signal Processors - Gen I"
+      ],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Cranial Signal Processors - Gen IV",
+      "cost": 1100,
+      "faction": "BitRunners",
+      "prereqs": [
+        "Cranial Signal Processors - Gen III",
+        "Cranial Signal Processors - Gen II",
+        "Cranial Signal Processors - Gen I"
+      ],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Enhanced Myelin Sheathing",
+      "cost": 1375,
+      "faction": "BitRunners",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Embedded Netburner Module Core Implant",
+      "cost": 2500,
+      "faction": "BitRunners",
+      "prereqs": [
+        "Embedded Netburner Module"
+      ],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "NeuroFlux Governor",
+      "cost": 4.119308620953353,
+      "faction": "Chongqing",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": true,
+      "available": true
+    },
+    {
+      "name": "Nuoptimal Nootropic Injector Implant",
+      "cost": 20,
+      "faction": "Chongqing",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Speech Processor Implant",
+      "cost": 50,
+      "faction": "Chongqing",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "NeuroFlux Governor",
+      "cost": 4.119308620953353,
+      "faction": "CyberSec",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": true,
+      "available": true
+    },
+    {
+      "name": "Cranial Signal Processors - Gen I",
+      "cost": 70,
+      "faction": "CyberSec",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Cranial Signal Processors - Gen II",
+      "cost": 125,
+      "faction": "CyberSec",
+      "prereqs": [
+        "Cranial Signal Processors - Gen I"
+      ],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Wired Reflexes",
+      "cost": 2.5,
+      "faction": "Ishima",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "NeuroFlux Governor",
+      "cost": 4.119308620953353,
+      "faction": "Ishima",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": true,
+      "available": true
+    },
+    {
+      "name": "Augmented Targeting I",
+      "cost": 15,
+      "faction": "Ishima",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Combat Rib I",
+      "cost": 23.75,
+      "faction": "Ishima",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "INFRARET Enhancement",
+      "cost": 30,
+      "faction": "Ishima",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Speech Processor Implant",
+      "cost": 50,
+      "faction": "Ishima",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "NeuroFlux Governor",
+      "cost": 4.119308620953353,
+      "faction": "Netburners",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": true,
+      "available": true
+    },
+    {
+      "name": "Hacknet Node NIC Architecture Neural-Upload",
+      "cost": 4.5,
+      "faction": "Netburners",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Hacknet Node Cache Architecture Neural-Upload",
+      "cost": 5.5,
+      "faction": "Netburners",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Hacknet Node CPU Architecture Neural-Upload",
+      "cost": 11,
+      "faction": "Netburners",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Hacknet Node Kernel Direct-Neural Interface",
+      "cost": 40,
+      "faction": "Netburners",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Hacknet Node Core Direct-Neural Interface",
+      "cost": 60,
+      "faction": "Netburners",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "NutriGen Implant",
+      "cost": 2.5,
+      "faction": "New Tokyo",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "NeuroFlux Governor",
+      "cost": 4.119308620953353,
+      "faction": "New Tokyo",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": true,
+      "available": true
+    },
+    {
+      "name": "Nuoptimal Nootropic Injector Implant",
+      "cost": 20,
+      "faction": "New Tokyo",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Speech Processor Implant",
+      "cost": 50,
+      "faction": "New Tokyo",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "NeuroFlux Governor",
+      "cost": 4.119308620953353,
+      "faction": "NiteSec",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": true,
+      "available": true
+    },
+    {
+      "name": "Neurotrainer II",
+      "cost": 45,
+      "faction": "NiteSec",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Cranial Signal Processors - Gen I",
+      "cost": 70,
+      "faction": "NiteSec",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Artificial Synaptic Potentiation",
+      "cost": 80,
+      "faction": "NiteSec",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Cranial Signal Processors - Gen II",
+      "cost": 125,
+      "faction": "NiteSec",
+      "prereqs": [
+        "Cranial Signal Processors - Gen I"
+      ],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "CRTX42-AA Gene Modification",
+      "cost": 225,
+      "faction": "NiteSec",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Embedded Netburner Module",
+      "cost": 250,
+      "faction": "NiteSec",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Neural-Retention Enhancement",
+      "cost": 250,
+      "faction": "NiteSec",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Cranial Signal Processors - Gen III",
+      "cost": 550,
+      "faction": "NiteSec",
+      "prereqs": [
+        "Cranial Signal Processors - Gen II",
+        "Cranial Signal Processors - Gen I"
+      ],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Wired Reflexes",
+      "cost": 2.5,
+      "faction": "Slum Snakes",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "NeuroFlux Governor",
+      "cost": 4.119308620953353,
+      "faction": "Slum Snakes",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": true,
+      "available": true
+    },
+    {
+      "name": "LuminCloaking-V1 Skin Implant",
+      "cost": 5,
+      "faction": "Slum Snakes",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Augmented Targeting I",
+      "cost": 15,
+      "faction": "Slum Snakes",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Combat Rib I",
+      "cost": 23.75,
+      "faction": "Slum Snakes",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "LuminCloaking-V2 Skin Implant",
+      "cost": 30,
+      "faction": "Slum Snakes",
+      "prereqs": [
+        "LuminCloaking-V1 Skin Implant"
+      ],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "NeuroFlux Governor",
+      "cost": 4.119308620953353,
+      "faction": "The Black Hand",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": true,
+      "available": true
+    },
+    {
+      "name": "Artificial Synaptic Potentiation",
+      "cost": 80,
+      "faction": "The Black Hand",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Wired Reflexes",
+      "cost": 2.5,
+      "faction": "Tian Di Hui",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "NeuroFlux Governor",
+      "cost": 4.119308620953353,
+      "faction": "Tian Di Hui",
+      "prereqs": [],
+      "hackingBoost": true,
+      "repBoost": true,
+      "available": true
+    },
+    {
+      "name": "Speech Enhancement",
+      "cost": 12.5,
+      "faction": "Tian Di Hui",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "ADR-V1 Pheromone Gene",
+      "cost": 17.5,
+      "faction": "Tian Di Hui",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": true,
+      "available": true
+    },
+    {
+      "name": "Nuoptimal Nootropic Injector Implant",
+      "cost": 20,
+      "faction": "Tian Di Hui",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    },
+    {
+      "name": "Social Negotiation Assistant (S.N.A)",
+      "cost": 30,
+      "faction": "Tian Di Hui",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": true,
+      "available": true
+    },
+    {
+      "name": "Speech Processor Implant",
+      "cost": 50,
+      "faction": "Tian Di Hui",
+      "prereqs": [],
+      "hackingBoost": false,
+      "repBoost": false,
+      "available": true
+    }
+  ]
 
-    // Black Hand
-    { name: 'NeuroFlux Governor - Level 36', cost: 73.575, faction: 'Black Hand', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Enhanced Myelin Sheathing', cost: 1375, faction: 'Black Hand', available: true, prereqs: [], hackingBoost: true },
-    { name: 'The Black Hand', cost: 550, faction: 'Black Hand', available: true, prereqs: [], hackingBoost: true },
-    { name: 'DataJack', cost: 450, faction: 'Black Hand', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Cranial Signal Processors - Gen IV', cost: 1100, faction: 'Black Hand', available: true, prereqs: [], hackingBoost: true },
-    { name: 'Embedded Netburner Module Core Implant', cost: 2500, faction: 'Black Hand', available: true, prereqs: ['DataJack'], hackingBoost: true },
-
-    // NiteSec
-    { name: 'CRTX42-AA Gene Modification', cost: 225, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
-    { name: 'NeuroFlux Governor - Level 36', cost: 73.575, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
-    { name: 'DataJack', cost: 450, faction: 'NiteSec', available: true, prereqs: [], hackingBoost: true },
-
-    // Tian Di Hui
-    { name: 'Neuroreceptor Management Implant', cost: 550, faction: 'Tian Di Hui', available: true, prereqs: [], hackingBoost: true },
-];
-
-function addNeoruFluxGovernors(augments, count) {
+function addNeuroFluxGovernors(augments, count) {
     const neurofluxByLevel = augments
         .filter(aug => aug.name.includes('NeuroFlux Governor'))
         .sort((a, b) => {
@@ -232,7 +709,11 @@ export function optimizeAugmentPurchases(initialAugments, maxBudgetInDollars) {
 
         // Only try to add more NeuroFlux if we can afford all current augments
         while (bestResult.unpurchasedAugments.length === 0 && bestResult.totalCost < maxBudget) {
-            augments = addNeoruFluxGovernors(augments, 1);
+            const initialAugmentCount = augments.length;
+            augments = addNeuroFluxGovernors(augments, 1);
+            if (augments.length === initialAugmentCount) {
+                break;
+            }
             const tempResult = calculateOptimalOrder(augments, maxBudget);
 
             // If we can still afford everything, use this result
@@ -249,7 +730,7 @@ export function optimizeAugmentPurchases(initialAugments, maxBudgetInDollars) {
         NEUROFlUX_TO_PURCHASE = neurofluxCount;
     } else {
         // If we don't have a max budget, just add the specified number of neuroflux governors
-        const augments = addNeoruFluxGovernors(initialAugments, NEUROFlUX_TO_PURCHASE - 1);
+        const augments = addNeuroFluxGovernors(initialAugments, NEUROFlUX_TO_PURCHASE - 1);
         result = calculateOptimalOrder(augments);
     }
 

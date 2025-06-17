@@ -80,6 +80,7 @@ export function startIpvgoIfNotRunning(ns) {
 	// If not running, execute the script
 	if (!ipvgoRunning) {
 		ns.exec('techLord/master/auto-play-ipvgo.js', "home");
+		ns.tprint("Started techLord/master/auto-play-ipvgo.js");
 	} else {
 		ns.tprint("techLord/master/ipvgo.js is already running");
 	}
