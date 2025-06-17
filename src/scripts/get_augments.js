@@ -43,11 +43,13 @@ export async function main(ns) {
     });
   }
 
-  const currentNeuroFluxGovernorPrice = ns.singularity.getAugmentationPrice("NeuroFlux Governor");
+  const currentlyPurchasedAugments = ns.singularity.getOwnedAugmentations(true).length - ns.singularity.getOwnedAugmentations(false).length;
+  const priceMultiplier = 1.9 ** currentlyPurchasedAugments;
+  const currentNeuroFluxGovernorPrice = ns.singularity.getAugmentationPrice("NeuroFlux Governor") / priceMultiplier;
   const neuroFluxGovernorBasePrice = ns.singularity.getAugmentationBasePrice("NeuroFlux Governor");
 
   // How many exponents of 1.14 do we need to get to the current price? the exponent is the level
-  const currentNeuroFluxGovernorLevel = 1 + Math.log(currentNeuroFluxGovernorPrice / neuroFluxGovernorBasePrice) / Math.log(1.14);
+  const currentNeuroFluxGovernorLevel = Math.round(1 + Math.log(currentNeuroFluxGovernorPrice / neuroFluxGovernorBasePrice) / Math.log(1.14));
   ns.print(`Current NeuroFlux Governor Level: ${currentNeuroFluxGovernorLevel}`);
 
   const ownedAndPurchasedAugmentations = ns.singularity.getOwnedAugmentations(true);
@@ -223,11 +225,17 @@ export async function main(ns) {
     ns.print('=== PURCHASING AUGMENTS ===');
     ns.print(`Purchasing ${result.purchaseOrder.length} augments`);
     for (const aug of result.purchaseOrder) {
-      const success = ns.singularity.purchaseAugmentation(aug.faction, aug.name);
+      // Parse out the base augmentation name (remove level info for NeuroFlux Governor)
+      let augmentationName = aug.name;
+      if (aug.name.startsWith("NeuroFlux Governor - Level")) {
+        augmentationName = "NeuroFlux Governor";
+      }
+
+      const success = ns.singularity.purchaseAugmentation(aug.faction, augmentationName);
       if (success) {
-        ns.print(`Purchased ${aug.name} from ${aug.faction} for $${ns.formatNumber(ns.singularity.getAugmentationPrice(aug.name))}`);
+        ns.print(`Purchased ${augmentationName} from ${aug.faction} for $${ns.formatNumber(ns.singularity.getAugmentationPrice(augmentationName))}`);
       } else {
-        ns.print(`Failed to purchase ${aug.name} from ${aug.faction}`);
+        ns.print(`Failed to purchase ${augmentationName} from ${aug.faction}`);
       }
     }
   }
