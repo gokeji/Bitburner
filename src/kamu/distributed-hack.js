@@ -7,6 +7,10 @@
 // the money ratio is increased and decreased automatically, starting with this value initially
 var hackMoneyRatio = 0.1;
 
+// target money ratio - grow servers to this fraction of their max money (0.1 = 10% of max money)
+// This reduces the number of grow threads needed and allows for more efficient RAM usage
+var targetMoneyRatio = 0.2;
+
 // the maximum numberof parallel burst attacks against one server
 // the value of this variable should not make a big difference however
 var maxParallelAttacks = 100;
@@ -111,6 +115,13 @@ export async function main(ns) {
         ns.tprint("Increase hackMoneyRatio to " + hackMoneyRatio);
     }
     ns.print("INFO initial hack money ratio: " + hackMoneyRatio);
+    ns.print(
+        "INFO target money ratio: " +
+            targetMoneyRatio +
+            " (grow servers to " +
+            targetMoneyRatio * 100 +
+            "% of max money)",
+    );
 
     var growStocks = new Set();
     var hackStocks = new Set();
@@ -284,13 +295,17 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
                 // just in case a server was 100% hacked with no money left
                 money = 1;
             }
-            var initialGrowRatio = maxMoney / money;
+
+            // Calculate target money based on targetMoneyRatio
+            var targetMoney = maxMoney * targetMoneyRatio;
+            var initialGrowRatio = Math.max(1, targetMoney / money); // Ensure ratio is at least 1
             var hackReGrowRatio = 1;
             var overallGrowRatio = 1;
 
-            // hack if near max money (no substantial growth needed)
-            if (initialGrowRatio < 1.1) {
-                hackThreads = Math.floor(ns.hackAnalyzeThreads(target, hackMoneyRatio * money));
+            // hack if at or above target money (no substantial growth needed)
+            if (money >= targetMoney * 0.9) {
+                // Allow small buffer for rounding
+                hackThreads = Math.floor(ns.hackAnalyzeThreads(target, hackMoneyRatio * targetMoney));
 
                 //ns.print("Hack threads: " + hackThreads);
 
@@ -302,7 +317,8 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
 
                 addedHackSecurity = hackThreads * hackThreadSecurityIncrease;
             } else {
-                //ns.print("WARN initial grow ratio: " + initialGrowRatio + " on target " + target);
+                // Server needs to be grown to target money first
+                //ns.print("INFO server needs growth: " + target + " current: " + money + " target: " + targetMoney);
             }
 
             // grow what was missing before and what we expect to hack
@@ -367,7 +383,7 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
                     //      so we could hack for more than * maxPercentage
                     // => we leave a negligible small percentage of the RAM unused.
 
-                    hackThreads = Math.floor(ns.hackAnalyzeThreads(target, reducedHackMoneyRatio * money));
+                    hackThreads = Math.floor(ns.hackAnalyzeThreads(target, reducedHackMoneyRatio * targetMoney));
                     if (hackThreads < 1) {
                         hackThreads = 1;
                     }
@@ -376,6 +392,7 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
                     addedHackSecurity = hackThreads * hackThreadSecurityIncrease;
                     hackReGrowRatio = 1 / (1 - reducedHackMoneyRatio);
                     overallGrowRatio = initialGrowRatio * hackReGrowRatio;
+
                     growThreads = Math.floor(ns.growthAnalyze(target, overallGrowRatio, 1));
                     addedGrowSecurity = growThreads * growThreadSecurityIncrease;
 
@@ -516,10 +533,10 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
             }
         }
 
-        // var profit = money * maxPercentage * ns.hackAnalyzeChance(target) / (hackThreads + growThreads + weakThreads);
+        // var profit = targetMoney * maxPercentage * ns.hackAnalyzeChance(target) / (hackThreads + growThreads + weakThreads);
         // Could use hackAnalyzeChance for better value rating - costs ram however
 
-        var profit = (money * maxPercentage) / (hackThreads + growThreads + weakThreads);
+        var profit = (targetMoney * maxPercentage) / (hackThreads + growThreads + weakThreads);
         var profitM = (profit * 60) / weakTime;
         profitsm.set(target, profitM);
 

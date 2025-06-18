@@ -95,6 +95,7 @@ export async function main(ns) {
     const hackingRepOnly = flags["hacking-rep-only"];
 
     ns.ui.openTail(); // Open tail because there's a lot of good output
+    ns.ui.resizeTail(800, 600);
 
     ns.print("\n\n\n\n\n\n\n\n\n");
 

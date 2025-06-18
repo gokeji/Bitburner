@@ -1,11 +1,18 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = -1; // 120000000000; // 120 B max server value
+const MAX_SERVER_VALUE = 12000000000; // 12 B max server value
+const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
+
+export function autocomplete(data, args) {
+    return ["--share", "--faction", "--low-ram"];
+}
 
 /** @param {NS} ns */
 export async function main(ns) {
     const shouldShare = ns.args.includes("--share");
+    const showFactionServerPaths = ns.args.includes("--faction") || ns.args.includes("-f");
+    const lowRamMode = ns.args.includes("--low-ram");
 
     // Kill all other scripts called autoplay.js
     ns.ps(HOST_NAME)
@@ -16,14 +23,8 @@ export async function main(ns) {
             }
         });
 
-    const showFactionServerPaths = ns.args.includes("--faction") || ns.args.includes("-f");
-
     // Start all required scripts if not running
     startDistributedHackIfNotRunning(ns);
-
-    // Start TOR and program managers
-    startTorManagerIfNotRunning(ns);
-    startProgramManagerIfNotRunning(ns);
 
     startUpgradeHnetIfNeeded(ns);
 
@@ -31,7 +32,13 @@ export async function main(ns) {
 
     startIpvgoIfNotRunning(ns);
 
-    startAutoJoinFactionsIfNotRunning(ns);
+    if (!lowRamMode) {
+        // Start TOR and program managers
+        startTorManagerIfNotRunning(ns);
+        startProgramManagerIfNotRunning(ns);
+
+        startAutoJoinFactionsIfNotRunning(ns);
+    }
 
     if (showFactionServerPaths) {
         printAllFactionServerPaths(ns);
@@ -63,56 +70,66 @@ export async function main(ns) {
     ns.tprint("INFO Stock trader and share ram started - Autoplay complete");
 }
 
-function startDistributedHackIfNotRunning(ns) {
-    // Check if "kamu/distributed-hack.js" is running on HOST_NAME
-    let distributedHackRunning = isScriptRunning(ns, "kamu/distributed-hack.js", HOST_NAME);
+function isScriptRunning(ns, scriptName, hostname) {
+    const runningScripts = ns.ps(hostname).map((process) => process.filename);
+    return runningScripts.includes(scriptName);
+}
 
-    // If not running, execute the script
-    if (!distributedHackRunning) {
-        ns.exec("kamu/distributed-hack.js", HOST_NAME);
-        ns.tprint("Started kamu/distributed-hack.js");
-    } else {
-        ns.tprint("kamu/distributed-hack.js is already running");
+/**
+ * Helper function to start a script if it's not already running
+ * @param {NS} ns - The NetScript namespace
+ * @param {string} scriptName - Name of the script to start
+ * @param {string} hostname - Hostname to run the script on (default: HOME_NAME)
+ * @param {number} threads - Number of threads (default: 1)
+ * @param {...any} args - Arguments to pass to the script
+ * @returns {{pid: number, success: boolean}} - PID and success status
+ */
+function startScriptIfNotRunning(ns, scriptName, hostname = HOST_NAME, threads = 1, ...args) {
+    const isRunning = isScriptRunning(ns, scriptName, hostname);
+
+    if (isRunning) {
+        ns.tprint(`${scriptName} is already running`);
+        return { pid: 0, success: false };
     }
+
+    const pid = ns.exec(scriptName, hostname, threads, ...args);
+
+    if (pid === 0) {
+        ns.tprint(`ERROR Failed to start ${scriptName}`);
+        return { pid: 0, success: false };
+    } else {
+        ns.tprint(`Started ${scriptName} with PID ${pid}`);
+        return { pid, success: true };
+    }
+}
+
+function startDistributedHackIfNotRunning(ns) {
+    startScriptIfNotRunning(ns, "kamu/distributed-hack.js");
 }
 
 export function startIpvgoIfNotRunning(ns) {
-    // Check if "master/ipvgo.js" is running on HOST_NAME
+    // Check if "master/ipvgo.js" is running on HOST_NAME (different check script name)
     let ipvgoRunning = isScriptRunning(ns, "techLord/master/ipvgo.js", HOST_NAME);
 
-    // If not running, execute the script
-    if (!ipvgoRunning) {
-        ns.exec("techLord/master/auto-play-ipvgo.js", HOST_NAME);
-        ns.tprint("Started techLord/master/auto-play-ipvgo.js");
-    } else {
+    if (ipvgoRunning) {
         ns.tprint("techLord/master/ipvgo.js is already running");
+        return;
     }
+
+    const result = startScriptIfNotRunning(ns, "techLord/master/auto-play-ipvgo.js");
+    // Note: This function checks for a different script name than what it starts
 }
 
 function startAutoJoinFactionsIfNotRunning(ns) {
-    // Check if "scripts/auto-join-factions.js" is running on HOST_NAME
-    let autoJoinFactionsRunning = isScriptRunning(ns, "scripts/auto-join-factions.js", HOST_NAME);
-
-    // If not running, execute the script
-    if (!autoJoinFactionsRunning) {
-        ns.exec("scripts/auto-join-factions.js", HOST_NAME);
-        ns.tprint("Started scripts/auto-join-factions.js");
-    } else {
-        ns.tprint("scripts/auto-join-factions.js is already running");
-    }
+    startScriptIfNotRunning(ns, "scripts/auto-join-factions.js");
 }
 
 function startUpgradeServersIfNotRunning(ns) {
-    // Check if "scripts/upgrade-servers.js" is running on HOST_NAME
-    let upgradeServersRunning = isScriptRunning(ns, "scripts/upgrade-servers.js", HOST_NAME);
+    const result = startScriptIfNotRunning(ns, "scripts/upgrade-servers.js", HOST_NAME, 1, MAX_SERVER_VALUE);
 
-    // If not running, execute the script
-    if (!upgradeServersRunning) {
-        const pid = ns.exec("scripts/upgrade-servers.js", HOST_NAME, 1, MAX_SERVER_VALUE);
-        ns.ui.openTail(pid, HOST_NAME);
-        ns.tprint("Started scripts/upgrade-servers.js");
-    } else {
-        ns.tprint("scripts/upgrade-servers.js is already running");
+    if (result.success) {
+        ns.ui.openTail(result.pid, HOST_NAME);
+        ns.tprint("Started scripts/upgrade-servers.js with max server value of " + ns.formatNumber(MAX_SERVER_VALUE));
     }
 }
 
@@ -127,61 +144,37 @@ function startStockTraderIfNotRunning(ns) {
 
     if (has4SDataTixApi) {
         ns.tprint("4SDataTix API is available - starting stock trader");
-        // Check if "kamu/stock-trader.js" is running on HOST_NAME
-        let stockTraderRunning = isScriptRunning(ns, "kamu/stock-trader.js", HOST_NAME);
 
-        // If not running, execute the script
-        if (!stockTraderRunning) {
+        const result = startScriptIfNotRunning(ns, "kamu/stock-trader.js");
+        if (result.success) {
             ns.kill("kamu/early-stock-trader.js");
-            const pid = ns.exec("kamu/stock-trader.js", HOST_NAME);
-            ns.tprint("Started kamu/stock-trader.js");
-            ns.ui.openTail(pid, HOST_NAME);
-        } else {
-            ns.tprint("kamu/stock-trader.js is already running");
+            ns.ui.openTail(result.pid, HOST_NAME);
         }
     } else {
         ns.tprint("4SDataTix API is not available - starting early stock trader");
-        // Check if "kamu/stock-trader.js" is running on HOST_NAME
-        let stockTraderRunning = isScriptRunning(ns, "kamu/early-stock-trader.js", HOST_NAME);
 
-        // If not running, execute the script
-        if (!stockTraderRunning) {
+        const result = startScriptIfNotRunning(ns, "kamu/early-stock-trader.js");
+        if (result.success) {
             ns.kill("kamu/stock-trader.js");
-            const pid = ns.exec("kamu/early-stock-trader.js", HOST_NAME);
-            ns.tprint("Started kamu/early-stock-trader.js");
-            ns.ui.openTail(pid, HOST_NAME);
-        } else {
-            ns.tprint("kamu/early-stock-trader.js is already running");
+            ns.ui.openTail(result.pid, HOST_NAME);
         }
     }
 }
 
 function startUpgradeHnetIfNeeded(ns) {
-    // Check if "scripts/hacknet-manager.js" is running on HOST_NAME
-    const upgradeHnetRunning = isScriptRunning(ns, "scripts/hacknet-manager.js", HOST_NAME);
-
-    // If not running, execute the script
-    if (!upgradeHnetRunning) {
-        ns.exec("scripts/hacknet-manager.js", HOST_NAME, 1, 0.1);
-    }
+    startScriptIfNotRunning(ns, "scripts/hacknet-manager.js", HOST_NAME, 1, HACKNET_MAX_PAYBACK_TIME);
 }
 
 function launchStatsMonitoring(ns) {
-    // Launch "get_stats.js -c"
-    ns.exec("get_stats.js", HOST_NAME, 1, "--chart");
+    startScriptIfNotRunning(ns, "get-stats.js", HOST_NAME, 1, "--chart");
 }
 
 function startShareAllRamIfNotRunning(ns) {
-    // Launch "run scripts/share-all-free-ram.js b-24" if not running
-    const shareAllRamRunning = isScriptRunning(ns, "scripts/share-all-free-ram.js", HOST_NAME);
-    if (!shareAllRamRunning) {
-        ns.exec("scripts/share-all-free-ram.js", HOST_NAME, 1, "b-24");
-    }
+    startScriptIfNotRunning(ns, "scripts/share-all-free-ram.js", HOST_NAME, 1, "b-24");
 }
 
 function printAllFactionServerPaths(ns) {
-    // Call 'scripts/find-server.js' with --faction
-    ns.exec("scripts/find-server.js", HOST_NAME, 1, "--faction");
+    startScriptIfNotRunning(ns, "scripts/find-server.js", HOST_NAME, 1, "--faction");
 }
 
 function startTorManagerIfNotRunning(ns) {
@@ -192,16 +185,7 @@ function startTorManagerIfNotRunning(ns) {
         return;
     }
 
-    // Check if "scripts/tor-manager.js" is running on HOST_NAME
-    let torManagerRunning = isScriptRunning(ns, "scripts/tor-manager.js", HOST_NAME);
-
-    // If not running, execute the script
-    if (!torManagerRunning) {
-        ns.exec("scripts/tor-manager.js", HOST_NAME, 1, "-c");
-        ns.tprint("Started scripts/tor-manager.js");
-    } else {
-        ns.tprint("scripts/tor-manager.js is already running");
-    }
+    startScriptIfNotRunning(ns, "scripts/tor-manager.js", HOST_NAME, 1, "-c");
 }
 
 function startProgramManagerIfNotRunning(ns) {
@@ -214,19 +198,5 @@ function startProgramManagerIfNotRunning(ns) {
         return;
     }
 
-    // Check if "scripts/program-manager.js" is running on HOST_NAME
-    let programManagerRunning = isScriptRunning(ns, "scripts/program-manager.js", HOST_NAME);
-
-    // If not running, execute the script
-    if (!programManagerRunning) {
-        ns.exec("scripts/program-manager.js", HOST_NAME, 1, "-c");
-        ns.tprint("Started scripts/program-manager.js");
-    } else {
-        ns.tprint("scripts/program-manager.js is already running");
-    }
-}
-
-function isScriptRunning(ns, scriptName, hostname) {
-    const runningScripts = ns.ps(hostname).map((process) => process.filename);
-    return runningScripts.includes(scriptName);
+    startScriptIfNotRunning(ns, "scripts/program-manager.js", HOST_NAME, 1, "-c");
 }
