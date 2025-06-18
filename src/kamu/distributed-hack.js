@@ -9,7 +9,7 @@ var hackMoneyRatio = 0.1;
 
 // target money ratio - grow servers to this fraction of their max money (0.1 = 10% of max money)
 // This reduces the number of grow threads needed and allows for more efficient RAM usage
-var targetMoneyRatio = 0.2;
+var targetMoneyRatio = 1.0;
 
 // the maximum numberof parallel burst attacks against one server
 // the value of this variable should not make a big difference however
