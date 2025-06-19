@@ -164,7 +164,8 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget) {
     let bestMaxPrice = null;
 
     ns.print("\n=== ITERATIVE PRICE FILTERING OPTIMIZATION ===");
-    ns.print("Finding the best price filter that maximizes hacking + rep stats...\n");
+    ns.print("Finding the best price filter that maximizes hacking + rep stats...");
+    ns.print(`Testing ${allPrices.length} different price thresholds...`);
 
     // Try each price threshold
     for (let i = 0; i < allPrices.length; i++) {
@@ -195,7 +196,8 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget) {
     }
 
     if (bestResult) {
-        ns.print(`\n✅ Best filter: Max price $${ns.formatNumber(bestMaxPrice * 1000000)}`);
+        ns.print(`\n✅ Optimization complete!`);
+        ns.print(`   Best filter: Max price $${ns.formatNumber(bestMaxPrice * 1000000)}`);
         ns.print(`   Augments: ${bestResult.purchaseOrder.length}`);
         ns.print(`   Hacking boost: +${((bestResult.statIncrease.totalHacking.hackingLevel - 1) * 100).toFixed(1)}%`);
         ns.print(`   Rep boost: +${((bestResult.statIncrease.totalRep - 1) * 100).toFixed(1)}%`);
@@ -411,26 +413,13 @@ export async function main(ns) {
     if (hackingRepOnly) {
         ns.print("INFO Filter: Only showing hacking/reputation augments");
     }
-
-    // Display total stat increases if available
-    if (result.statIncrease) {
-        ns.print(`\n📊 TOTAL STAT INCREASES:`);
-        ns.print(
-            `   Hacking level: ${result.statIncrease.totalHacking.hackingLevel.toFixed(3)}x (+${((result.statIncrease.totalHacking.hackingLevel - 1) * 100).toFixed(1)}%)`,
-        );
-        ns.print(`   Hacking chance: ${result.statIncrease.totalHacking.hackingChance.toFixed(3)}x`);
-        ns.print(`   Hacking speed: ${result.statIncrease.totalHacking.hackingSpeed.toFixed(3)}x`);
-        ns.print(`   Hacking money: ${result.statIncrease.totalHacking.hackingMoney.toFixed(3)}x`);
-        ns.print(`   Hacking grow: ${result.statIncrease.totalHacking.hackingGrow.toFixed(3)}x`);
-        ns.print(`   Hacking exp: ${result.statIncrease.totalHacking.hackingExp.toFixed(3)}x`);
-        ns.print(
-            `   Reputation multiplier: ${result.statIncrease.totalRep.toFixed(3)}x (+${((result.statIncrease.totalRep - 1) * 100).toFixed(1)}%)`,
-        );
-        if (result.maxPriceFilter) {
-            ns.print(`   Max price filter applied: $${ns.formatNumber(result.maxPriceFilter * 1000000)}`);
-        }
+    if (hackingOnly) {
+        ns.print("INFO Filter: Only showing hacking augments");
     }
-    ns.print("\n");
+    if (result.maxPriceFilter) {
+        ns.print(`INFO Price filter applied: Max $${ns.formatNumber(result.maxPriceFilter * 1000000)}`);
+    }
+    ns.print("");
 
     for (let i = 0; i < result.purchaseOrder.length; i++) {
         const aug = result.purchaseOrder[i];
@@ -495,6 +484,26 @@ export async function main(ns) {
         ns.print(
             `Total budget needed for next item: $${ns.formatNumber(result.nextUnaffordableItem.totalCostToAfford * 1000000)}`,
         );
+    }
+
+    // Display comprehensive stat increases if available
+    if (result.statIncrease) {
+        ns.print("\n");
+        ns.print("=== TOTAL STAT INCREASES FROM ALL AUGMENTS ===");
+        ns.print(
+            `Hacking Level: ${result.statIncrease.totalHacking.hackingLevel.toFixed(3)}x (+${((result.statIncrease.totalHacking.hackingLevel - 1) * 100).toFixed(1)}%)`,
+        );
+        ns.print(`Hacking Chance: ${result.statIncrease.totalHacking.hackingChance.toFixed(3)}x`);
+        ns.print(`Hacking Speed: ${result.statIncrease.totalHacking.hackingSpeed.toFixed(3)}x`);
+        ns.print(`Hacking Money: ${result.statIncrease.totalHacking.hackingMoney.toFixed(3)}x`);
+        ns.print(`Hacking Grow: ${result.statIncrease.totalHacking.hackingGrow.toFixed(3)}x`);
+        ns.print(`Hacking Exp: ${result.statIncrease.totalHacking.hackingExp.toFixed(3)}x`);
+        ns.print(
+            `Reputation: ${result.statIncrease.totalRep.toFixed(3)}x (+${((result.statIncrease.totalRep - 1) * 100).toFixed(1)}%)`,
+        );
+        if (result.statIncrease.neurofluxLevels > 0) {
+            ns.print(`NeuroFlux Levels: ${result.statIncrease.neurofluxLevels} (1% boost each to all stats)`);
+        }
     }
 
     // === NEUROFLUX GOVERNOR REPUTATION VALIDATION ===
