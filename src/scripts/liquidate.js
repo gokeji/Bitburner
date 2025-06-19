@@ -6,6 +6,11 @@ const commission = 100000;
 export async function main(ns) {
     ns.disableLog("ALL");
 
+    if (!ns.stock.hasTIXAPIAccess()) {
+        ns.tprint("ERROR: TIX API access required");
+        return;
+    }
+
     ns.tprint("=== SELLING ALL STOCK POSITIONS ===");
 
     const stocks = getAllStocks(ns);

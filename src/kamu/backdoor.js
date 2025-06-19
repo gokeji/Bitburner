@@ -1,3 +1,5 @@
+import { NS } from "@ns";
+
 export async function main(ns) {
     // w0r1d_d43m0n
     if (ns.args.length == 1) {
@@ -10,10 +12,10 @@ export async function main(ns) {
         for (let server of networkPath) {
             ns.singularity.connect(server);
             if (server == target) {
-                let backdoorSuccess = await ns.singularity.installBackdoor();
-                ns.tprint("Installed backdoor on " + server + " - " + backdoorSuccess);
+                await ns.singularity.installBackdoor();
+                ns.tprint("Installed backdoor on " + server);
                 ns.singularity.connect("home");
-                return backdoorSuccess;
+                return true;
             }
         }
     } else {
