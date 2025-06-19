@@ -92,13 +92,13 @@ export function autocomplete(data, args) {
  * @returns {Object} Object with totalHacking and totalRep multipliers
  */
 function calculateTotalStatIncrease(ns, augmentations) {
-    let totalHackingMultiplier = 1;
-    let totalRepMultiplier = 1;
-    let totalHackingChance = 1;
-    let totalHackingSpeed = 1;
-    let totalHackingMoney = 1;
-    let totalHackingGrow = 1;
-    let totalHackingExp = 1;
+    let totalHackingMultiplier = ns.getPlayer().mults.hacking;
+    let totalHackingChance = ns.getPlayer().mults.hacking_chance;
+    let totalHackingSpeed = ns.getPlayer().mults.hacking_speed;
+    let totalHackingMoney = ns.getPlayer().mults.hacking_money;
+    let totalHackingGrow = ns.getPlayer().mults.hacking_grow;
+    let totalHackingExp = ns.getPlayer().mults.hacking_exp;
+    let totalRepMultiplier = ns.getPlayer().mults.faction_rep;
     let neurofluxLevels = 0;
 
     for (const aug of augmentations) {
