@@ -5,6 +5,7 @@ import { calculatePortfolioValue } from "./stock-market.js";
 const argsSchema = [
     ["buy", false], // Set to true to actually purchase the augmentations
     ["hacking-rep-only", false], // Set to true to only show augments that boost hacking or reputation
+    ["hacking-only", false], // Set to true to only show augments that boost hacking
 ];
 
 /**
@@ -93,6 +94,11 @@ export function autocomplete(data, args) {
 function calculateTotalStatIncrease(ns, augmentations) {
     let totalHackingMultiplier = 1;
     let totalRepMultiplier = 1;
+    let totalHackingChance = 1;
+    let totalHackingSpeed = 1;
+    let totalHackingMoney = 1;
+    let totalHackingGrow = 1;
+    let totalHackingExp = 1;
     let neurofluxLevels = 0;
 
     for (const aug of augmentations) {
@@ -108,11 +114,11 @@ function calculateTotalStatIncrease(ns, augmentations) {
 
         // Multiply hacking-related stats
         if (stats.hacking > 1) totalHackingMultiplier *= stats.hacking;
-        if (stats.hacking_chance > 1) totalHackingMultiplier *= stats.hacking_chance;
-        if (stats.hacking_speed > 1) totalHackingMultiplier *= stats.hacking_speed;
-        if (stats.hacking_money > 1) totalHackingMultiplier *= stats.hacking_money;
-        if (stats.hacking_grow > 1) totalHackingMultiplier *= stats.hacking_grow;
-        if (stats.hacking_exp > 1) totalHackingMultiplier *= stats.hacking_exp;
+        if (stats.hacking_chance > 1) totalHackingChance += stats.hacking_chance;
+        if (stats.hacking_speed > 1) totalHackingSpeed += stats.hacking_speed;
+        if (stats.hacking_money > 1) totalHackingMoney += stats.hacking_money;
+        if (stats.hacking_grow > 1) totalHackingGrow += stats.hacking_grow;
+        if (stats.hacking_exp > 1) totalHackingExp += stats.hacking_exp;
 
         // Multiply reputation stats
         if (stats.faction_rep > 1) totalRepMultiplier *= stats.faction_rep;
@@ -120,12 +126,23 @@ function calculateTotalStatIncrease(ns, augmentations) {
 
     // NeuroFlux Governor provides 1% hacking boost per level
     if (neurofluxLevels > 0) {
-        totalHackingMultiplier *= 1.01 ** neurofluxLevels;
+        totalHackingChance *= 1.01 ** neurofluxLevels;
+        totalHackingSpeed *= 1.01 ** neurofluxLevels;
+        totalHackingMoney *= 1.01 ** neurofluxLevels;
+        totalHackingGrow *= 1.01 ** neurofluxLevels;
+        totalHackingExp *= 1.01 ** neurofluxLevels;
         totalRepMultiplier *= 1.01 ** neurofluxLevels;
     }
 
     return {
-        totalHacking: totalHackingMultiplier,
+        totalHacking: {
+            hackingLevel: totalHackingMultiplier,
+            hackingChance: totalHackingChance,
+            hackingSpeed: totalHackingSpeed,
+            hackingMoney: totalHackingMoney,
+            hackingGrow: totalHackingGrow,
+            hackingExp: totalHackingExp,
+        },
         totalRep: totalRepMultiplier,
         neurofluxLevels: neurofluxLevels,
     };
@@ -161,7 +178,7 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget) {
 
         // Calculate total stat increase for this result
         const statIncrease = calculateTotalStatIncrease(ns, result.purchaseOrder);
-        const totalStatScore = statIncrease.totalHacking - 1 + (statIncrease.totalRep - 1);
+        const totalStatScore = statIncrease.totalHacking.hackingLevel - 1 + (statIncrease.totalRep - 1);
 
         ns.print(
             `Max price: $${ns.formatNumber(maxPrice * 1000000)} | Augments: ${result.purchaseOrder.length} | Hacking: +${((statIncrease.totalHacking - 1) * 100).toFixed(1)}% | Rep: +${((statIncrease.totalRep - 1) * 100).toFixed(1)}% | Total score: ${totalStatScore.toFixed(3)}`,
@@ -180,7 +197,7 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget) {
     if (bestResult) {
         ns.print(`\n✅ Best filter: Max price $${ns.formatNumber(bestMaxPrice * 1000000)}`);
         ns.print(`   Augments: ${bestResult.purchaseOrder.length}`);
-        ns.print(`   Hacking boost: +${((bestResult.statIncrease.totalHacking - 1) * 100).toFixed(1)}%`);
+        ns.print(`   Hacking boost: +${((bestResult.statIncrease.totalHacking.hackingLevel - 1) * 100).toFixed(1)}%`);
         ns.print(`   Rep boost: +${((bestResult.statIncrease.totalRep - 1) * 100).toFixed(1)}%`);
         ns.print(`   Total stat score: ${bestTotalStats.toFixed(3)}`);
     }
@@ -197,6 +214,7 @@ export async function main(ns) {
     const flags = ns.flags(argsSchema);
     const shouldPurchase = flags.buy;
     const hackingRepOnly = flags["hacking-rep-only"];
+    const hackingOnly = flags["hacking-only"];
 
     ns.ui.openTail(); // Open tail because there's a lot of good output
     ns.ui.resizeTail(1000, 600);
@@ -282,6 +300,10 @@ export async function main(ns) {
                             continue;
                         }
 
+                        if (hackingOnly && !hackingBoost && augmentation !== "NeuroFlux Governor") {
+                            continue;
+                        }
+
                         affordableAugmentations.push({
                             name: augmentation,
                             cost: price / 1000000, // Convert to millions for easier reading
@@ -350,19 +372,21 @@ export async function main(ns) {
     }
 
     // If hacking-rep-only flag is set and we can't afford all augments, try price filtering optimization
-    if (hackingRepOnly && result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
+    if ((hackingRepOnly || hackingOnly) && result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
         ns.print("🔍 Cannot afford all augments with hacking-rep-only filter. Trying price filtering optimization...");
 
         // Store the original result for comparison
         const originalStatIncrease = result.statIncrease;
         const originalTotalStats = originalStatIncrease
-            ? originalStatIncrease.totalHacking - 1 + (originalStatIncrease.totalRep - 1)
+            ? originalStatIncrease.totalHacking.hackingLevel - 1 + (originalStatIncrease.totalRep - 1)
             : 0;
 
         const optimizedResult = optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget);
         if (optimizedResult) {
             const optimizedTotalStats =
-                optimizedResult.statIncrease.totalHacking - 1 + (optimizedResult.statIncrease.totalRep - 1);
+                optimizedResult.statIncrease.totalHacking.hackingLevel -
+                1 +
+                (optimizedResult.statIncrease.totalRep - 1);
 
             ns.print(`\n📊 COMPARISON:`);
             ns.print(
@@ -392,8 +416,13 @@ export async function main(ns) {
     if (result.statIncrease) {
         ns.print(`\n📊 TOTAL STAT INCREASES:`);
         ns.print(
-            `   Hacking multiplier: ${result.statIncrease.totalHacking.toFixed(3)}x (+${((result.statIncrease.totalHacking - 1) * 100).toFixed(1)}%)`,
+            `   Hacking level: ${result.statIncrease.totalHacking.hackingLevel.toFixed(3)}x (+${((result.statIncrease.totalHacking.hackingLevel - 1) * 100).toFixed(1)}%)`,
         );
+        ns.print(`   Hacking chance: ${result.statIncrease.totalHacking.hackingChance.toFixed(3)}x`);
+        ns.print(`   Hacking speed: ${result.statIncrease.totalHacking.hackingSpeed.toFixed(3)}x`);
+        ns.print(`   Hacking money: ${result.statIncrease.totalHacking.hackingMoney.toFixed(3)}x`);
+        ns.print(`   Hacking grow: ${result.statIncrease.totalHacking.hackingGrow.toFixed(3)}x`);
+        ns.print(`   Hacking exp: ${result.statIncrease.totalHacking.hackingExp.toFixed(3)}x`);
         ns.print(
             `   Reputation multiplier: ${result.statIncrease.totalRep.toFixed(3)}x (+${((result.statIncrease.totalRep - 1) * 100).toFixed(1)}%)`,
         );
