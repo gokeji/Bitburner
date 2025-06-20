@@ -9,7 +9,7 @@ export function autocomplete(data, args) {
         .filter((name, index, arr) => arr.indexOf(name) === index) // Remove duplicates
         .sort();
 
-    return [scriptFilenames, "tail"];
+    return [...scriptFilenames, "tail"];
 }
 
 /** @param {NS} ns **/

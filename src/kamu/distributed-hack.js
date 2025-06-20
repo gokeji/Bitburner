@@ -536,7 +536,8 @@ function manageAndHack(ns, freeRams, servers, targets, growStocks, hackStocks) {
         // var profit = targetMoney * maxPercentage * ns.hackAnalyzeChance(target) / (hackThreads + growThreads + weakThreads);
         // Could use hackAnalyzeChance for better value rating - costs ram however
 
-        var profit = (targetMoney * maxPercentage) / (hackThreads + growThreads + weakThreads);
+        var profit =
+            (targetMoney * maxPercentage * ns.hackAnalyzeChance(target)) / (hackThreads + growThreads + weakThreads);
         var profitM = (profit * 60) / weakTime;
         profitsm.set(target, profitM);
 
