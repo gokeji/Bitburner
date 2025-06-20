@@ -71,6 +71,14 @@ export async function main(ns) {
     return;
 }
 
+/**
+ * Prepares the target server for hacking, get it to the min security level and grow it to max money.
+ * Do a WGW batch of 3 scripts, weaken, grow, weaken.
+ * Or if already at min security level, just do GW batch of 2 scripts, grow, weaken.
+ * @param {NS} ns - The Netscript API.
+ * @param {string} target - The target server to prep.
+ * @returns {void}
+ */
 function prepServer(ns, target) {
     // TODO: - Add way to optimize cpuCores
     const cpuCores = 1;
@@ -83,30 +91,44 @@ function prepServer(ns, target) {
 
     const weakenAmount = ns.weakenAnalyze(1, cpuCores);
     const weakenTime = ns.getWeakenTime(target);
+    const growthTime = ns.getGrowTime(target);
 
     ns.print(`=== Prepping for hack ===`);
-    ns.print(`=== Weaken to min security level ===`);
-    ns.print(`Weaken Target: ${minSecurityLevel}`);
-    ns.print(`Weaken Amount: ${weakenAmount}`);
-    ns.print(`Weaken Threads Needed: ${Math.ceil((securityLevel - minSecurityLevel) / weakenAmount)}`);
-    ns.print(`Weaken Time: ${weakenTime}ms`);
-    executeWeaken(ns, "home", target, Math.ceil((securityLevel - minSecurityLevel) / weakenAmount), 0);
+
+    // Check if server is already at min security level
+    const needsInitialWeaken = securityLevel > minSecurityLevel;
+
+    if (needsInitialWeaken) {
+        ns.print(`=== Weaken to min security level ===`);
+        ns.print(`Weaken Target: ${minSecurityLevel}`);
+        ns.print(`Weaken Amount: ${weakenAmount}`);
+        ns.print(`Weaken Threads Needed: ${Math.ceil((securityLevel - minSecurityLevel) / weakenAmount)}`);
+        ns.print(`Weaken Time: ${weakenTime}ms`);
+        executeWeaken(ns, "home", target, Math.ceil((securityLevel - minSecurityLevel) / weakenAmount), 0);
+    } else {
+        ns.print(`=== Server already at min security level, skipping initial weaken ===`);
+    }
 
     ns.print(`=== Grow to max money ===`);
     const growthAmount = maxMoney / currentMoney;
     const growthThreads = Math.ceil(ns.growthAnalyze(target, growthAmount, cpuCores));
     const growthSecurityChange = ns.growthAnalyzeSecurity(growthThreads, target, cpuCores);
-    const growthTime = ns.getGrowTime();
     ns.print(`Grow Amount: ${growthAmount}`);
     ns.print(`Grow Threads Needed: ${growthThreads}`);
-    ns.print(`Grow Time: ${ns.getGrowTime(target)}ms`);
-    executeGrow(ns, "home", target, growthThreads, weakenTime - growthTime + SCRIPT_DELAY);
+    ns.print(`Grow Time: ${growthTime}ms`);
+
+    // Adjust timing based on whether initial weaken was needed
+    const growDelay = needsInitialWeaken ? weakenTime - growthTime + SCRIPT_DELAY : 0;
+    executeGrow(ns, "home", target, growthThreads, growDelay);
 
     ns.print(`=== Weaken to min security level again after growing ===`);
     const weakenThreadsNeeded = Math.ceil(growthSecurityChange / weakenAmount);
     ns.print(`Weaken Threads Needed: ${weakenThreadsNeeded}`);
     ns.print(`Weaken Time: ${weakenTime}ms`);
-    executeWeaken(ns, "home", target, weakenThreadsNeeded, 2 * SCRIPT_DELAY);
+
+    // Adjust timing based on whether initial weaken was needed (2 scripts vs 3)
+    const finalWeakenDelay = needsInitialWeaken ? 2 * SCRIPT_DELAY : SCRIPT_DELAY - (weakenTime - growthTime);
+    executeWeaken(ns, "home", target, weakenThreadsNeeded, finalWeakenDelay);
 }
 
 function executeWeaken(ns, host, target, threads, sleepTime) {
