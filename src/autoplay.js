@@ -98,7 +98,7 @@ function startScriptIfNotRunning(ns, scriptName, hostname = HOST_NAME, threads =
         ns.tprint(`ERROR Failed to start ${scriptName}`);
         return { pid: 0, success: false };
     } else {
-        ns.tprint(`Started ${scriptName} with PID ${pid}`);
+        ns.tprint(`SUCCESS Started ${scriptName} with PID ${pid}`);
         return { pid, success: true };
     }
 }

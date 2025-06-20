@@ -1,3 +1,5 @@
+import { NS } from "@ns";
+
 /** @param {NS} ns
  * the purpose of the program-manager is to buy all the programs
  * from the darkweb we can afford so we don't have to do it manually
@@ -22,13 +24,13 @@ export async function main(ns) {
         foundMissingProgram = false;
         for (const prog of programNames) {
             if (!ns.fileExists(prog, "home")) {
+                foundMissingProgram = true; // We found a missing program
                 if (ns.singularity.purchaseProgram(prog)) {
                     const cost = ns.singularity.getDarkwebProgramCost(prog);
-                    ns.print(`INFO Purchased ${prog} for $${cost}`);
-                    ns.tprint(`INFO Purchased ${prog} for $${cost}`);
-                } else {
-                    foundMissingProgram = true;
+                    ns.print(`INFO Purchased ${prog} for $${ns.formatNumber(cost)}`);
+                    ns.tprint(`INFO Purchased ${prog} for $${ns.formatNumber(cost)}`);
                 }
+                // Note: We don't need an else clause here because foundMissingProgram is already true
             }
         }
         if (keepRunning && foundMissingProgram) await ns.sleep(interval);

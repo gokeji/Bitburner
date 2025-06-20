@@ -252,6 +252,9 @@ export async function main(ns) {
     );
     ns.print(`Current NeuroFlux Governor Level: ${currentNeuroFluxGovernorLevel}`);
 
+    const portfolio = ns.stock.hasTIXAPIAccess() ? calculatePortfolioValue(ns) : { totalValue: 0, totalProfit: 0 };
+    const totalBudget = player.money + portfolio.totalValue;
+
     const ownedAndPurchasedAugmentations = ns.singularity.getOwnedAugmentations(true);
     const availableAugmentations = Array.from(allAugmentations)
         .filter((augmentation) => !ownedAndPurchasedAugmentations.includes(augmentation))
@@ -284,8 +287,8 @@ export async function main(ns) {
         const stats = ns.singularity.getAugmentationStats(augmentation);
         const prereqs = ns.singularity.getAugmentationPrereq(augmentation);
 
-        // Check if we have enough money
-        const canAffordPrice = player.money >= price;
+        // Check if we have enough money (using total budget including stocks)
+        const canAffordPrice = totalBudget >= price;
 
         if (canAffordPrice) {
             // Check each faction separately - create separate entries for each qualifying faction
@@ -359,11 +362,6 @@ export async function main(ns) {
         repBoost: aug.repBoost,
         available: true,
     }));
-
-    // Calculate total available budget including cash and stock portfolio
-    const currentCash = player.money;
-    const portfolio = ns.stock.hasTIXAPIAccess() ? calculatePortfolioValue(ns) : { totalValue: 0, totalProfit: 0 };
-    const totalBudget = currentCash + portfolio.totalValue;
 
     // Optimize the purchase order
     let result = optimizeAugmentPurchases(augmentsForOptimizer, totalBudget);
@@ -448,7 +446,7 @@ export async function main(ns) {
 
     ns.print("\n");
     ns.print("=== BUDGET SUMMARY ===");
-    ns.print(`Current cash: $${ns.formatNumber(currentCash)}`);
+    ns.print(`Current cash: $${ns.formatNumber(player.money)}`);
     if (portfolio.hasPositions) {
         ns.print(`Stock portfolio value: $${ns.formatNumber(portfolio.totalValue)}`);
         ns.print(

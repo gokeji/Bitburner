@@ -31,6 +31,7 @@ export async function main(ns) {
 
     // Get the script name (first argument)
     let scriptName = ns.args[0];
+    ns.tprint(`Args: ${ns.args}`);
 
     // Add .js extension if not present
     if (!scriptName.endsWith(".js")) {
@@ -61,7 +62,7 @@ export async function main(ns) {
     ns.tprint(`Running ${scriptName} from ${fullPath}...`);
 
     try {
-        const pid = ns.run(fullPath, 1, ...remainingArgs);
+        const pid = ns.exec(fullPath, "home", 1, ...remainingArgs);
         if (pid === 0) {
             ns.tprint(`ERROR: Failed to run ${fullPath}. Check if the script exists and has no syntax errors.`);
         } else {
