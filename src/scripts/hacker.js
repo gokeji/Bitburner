@@ -11,14 +11,18 @@ let DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
 let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
 let SECURITY_LEVEL_THRESHOLD = 0; // Prep servers to be within minSecurityLevel + this amount
 
+/**
+ * Map of server name to priority value.
+ * @type {Map<string, number>}
+ */
+let serverPriorityMap = new Map();
+
 /** @param {NS} ns **/
 export async function main(ns) {
     // Test printing all the hack grow and weaken stats for n00dles as a test
     const target = "n00dles";
 
     // Get the current stats
-
-    const cpuCores = 1;
 
     const serverInfo = ns.getServer(target);
     const securityLevel = serverInfo.hackDifficulty;
@@ -33,17 +37,155 @@ export async function main(ns) {
     ns.print(`Current Money: ${currentMoney}`);
     ns.print(`Max Money: ${maxMoney}`);
 
-    if (currentMoney < maxMoney * PREP_MONEY_THRESHOLD || securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD) {
-        prepServer(ns, target);
-
-        ns.sleep(10000);
-    } else {
-        ns.print(`Server is already prepped, skipping prep`);
+    calculateTargetServerPriorities(ns);
+    for (const [server, priority] of serverPriorityMap) {
+        ns.print(`${server}: ${ns.formatNumber(priority)}`);
     }
 
-    scheduleBatchHackCycles(ns, target, 10);
+    // if (currentMoney < maxMoney * PREP_MONEY_THRESHOLD || securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD) {
+    //     prepServer(ns, target);
+
+    //     ns.sleep(10000);
+    // } else {
+    //     ns.print(`Server is already prepped, skipping prep`);
+    // }
+
+    // scheduleBatchHackCycles(ns, target, 10);
 
     return;
+}
+
+/**
+ * Calculates the hack stats given current security, hacking to hackingPercentage, and growing back to 100% money.
+ * @param {NS} ns
+ * @param {string} server
+ * @returns {Object} - Object containing hack stats
+ */
+function getServerHackStats(ns, server) {
+    const cpuCores = 1;
+
+    const serverInfo = ns.getServer(server);
+    const securityLevel = serverInfo.hackDifficulty;
+    const minSecurityLevel = serverInfo.minDifficulty;
+    const currentMoney = serverInfo.moneyAvailable;
+    const maxMoney = serverInfo.moneyMax;
+
+    const weakenAmount = ns.weakenAnalyze(1, cpuCores);
+    const weakenTime = ns.getWeakenTime(server);
+    const growthTime = ns.getGrowTime(server);
+
+    const hackChance = ns.hackAnalyzeChance(server);
+    const hackPercentageFromOneThread = ns.hackAnalyze(server);
+    const hackThreads = Math.ceil(hackPercentage / hackPercentageFromOneThread);
+    const hackSecurityChange = ns.hackAnalyzeSecurity(hackThreads, server);
+    const hackTime = ns.getHackTime(server);
+
+    const growthThreads = Math.ceil(ns.growthAnalyze(server, 1 / hackPercentage, cpuCores));
+    const growthSecurityChange = ns.growthAnalyzeSecurity(growthThreads, server, cpuCores);
+    const growthFactor = ns.getServerGrowth(server);
+
+    const weakenTarget = hackSecurityChange + growthSecurityChange;
+    const weakenThreadsNeeded = Math.ceil(weakenTarget / weakenAmount);
+
+    return {
+        securityLevel,
+        minSecurityLevel,
+        currentMoney,
+        maxMoney,
+        hackChance,
+        hackPercentageFromOneThread,
+        hackThreads,
+        hackSecurityChange,
+        hackTime,
+        weakenTime,
+        weakenThreadsNeeded,
+        growthThreads,
+        growthSecurityChange,
+        growthFactor,
+        weakenAmount,
+        growthTime,
+    };
+}
+
+/**
+ * Calculates the priority of each server based on the money and security level.
+ * @param {NS} ns - The Netscript API.
+ * @returns {void}
+ */
+function calculateTargetServerPriorities(ns) {
+    const servers = get_servers(ns, "hackableOnly");
+    for (const server of servers) {
+        const serverInfo = ns.getServer(server);
+        const maxMoney = serverInfo.moneyMax;
+
+        const { hackChance, hackThreads, growthThreads, weakenThreadsNeeded, weakenTime } = getServerHackStats(
+            ns,
+            server,
+        );
+
+        var profitPerRamSecond =
+            (hackPercentage * maxMoney * hackChance) / (hackThreads + growthThreads + weakenThreadsNeeded) / weakenTime;
+
+        // Debug logging to see hack chance
+        // if (profitPerRamSecond === 0) {
+        //     ns.print(
+        //         `DEBUG ${server}: hackChance=${hackChance}, maxMoney=${maxMoney}, hackThreads=${hackThreads}, growthThreads=${growthThreads}, weakenThreadsNeeded=${weakenThreadsNeeded}`,
+        //     );
+        // }
+
+        serverPriorityMap.set(server, profitPerRamSecond);
+    }
+}
+
+/**
+ * Gets all servers that are accessible to the player.
+ * @param {NS} ns - The Netscript API.
+ * @param {"hackableOnly" | "executableOnly" | "all"} getServerOptions - Whether to include all servers or just the ones that are accessible.
+ * @returns {string[]} - List of server names.
+ */
+function get_servers(ns, getServerOptions) {
+    /*
+	Scans and iterates through all servers.
+	If all is false, only servers with root access and have money are returned.
+	*/
+    var servers = ["home"];
+    var result = [];
+
+    const isHackable = (server) => {
+        if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) return false;
+        if (ns.getServerMaxMoney(server) === 0) return false;
+        return true;
+    };
+
+    const isExecutable = (server) => {
+        if (!ns.hasRootAccess(server)) return false;
+        return true;
+    };
+
+    var i = 0;
+    while (i < servers.length) {
+        var server = servers[i];
+        var s = ns.scan(server);
+        for (var j in s) {
+            var con = s[j];
+            if (servers.indexOf(con) < 0) {
+                servers.push(con);
+                if (getServerOptions === "all") {
+                    result.push(con);
+                    continue;
+                }
+                if (getServerOptions === "hackableOnly" && isHackable(con)) {
+                    result.push(con);
+                    continue;
+                }
+                if (getServerOptions === "executableOnly" && isExecutable(con)) {
+                    result.push(con);
+                }
+            }
+        }
+        i += 1;
+    }
+    return result;
 }
 
 /**
