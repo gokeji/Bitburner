@@ -5,7 +5,9 @@ const growScript = "/kamu/grow.js";
 const weakenScript = "/kamu/weaken.js";
 
 var hackPercentage = 0.5;
-let SCRIPT_DELAY = 1000; // 30ms delay between scripts
+let SCRIPT_DELAY = 20; // ms delay between scripts
+let DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
+
 let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
 let SECURITY_LEVEL_THRESHOLD = 0; // Prep servers to be within minSecurityLevel + this amount
 
@@ -38,8 +40,8 @@ export async function main(ns) {
     } else {
         ns.print(`Server is already prepped, skipping prep`);
     }
-    ns.print(`Running batch hack`);
-    runBatchHack(ns, target);
+
+    scheduleBatchHackCycles(ns, target, 10);
 
     return;
 }
@@ -107,15 +109,23 @@ function prepServer(ns, target) {
     }
 }
 
+function scheduleBatchHackCycles(ns, target, cycles) {
+    for (let i = 0; i < cycles; i++) {
+        ns.print(`+++++ Batch ${i + 1} +++++`);
+        runBatchHack(ns, target, (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES) * i);
+    }
+}
+
 /**
  * Runs a batch of 3 scripts, weaken, grow, weaken.
  * Hack to a predetermined percentage of max money, grow back to 100% money, and then weaken to min security level. Offset the timing so that hack finishes just slightly before grow, and grow finishes just slightly before weaken.
  * Scripts should finish within SCRIPT_DELAY ms of each other.
  * @param {NS} ns - The Netscript API.
  * @param {string} target - The target server to hack.
+ * @param {number} extraDelay - Extra delay to add to the scripts.
  * @returns {void}
  */
-function runBatchHack(ns, target) {
+function runBatchHack(ns, target, extraDelay) {
     const cpuCores = 1; // TODO: - Add way to optimize cpuCores
 
     const serverInfo = ns.getServer(target);
@@ -145,21 +155,21 @@ function runBatchHack(ns, target) {
     ns.print(`Hack Threads: ${hackThreads}`);
     ns.print(`Hack Security Change: ${hackSecurityChange}`);
     ns.print(`Hack Time: ${hackTime}ms`);
-    executeHack(ns, "home", target, hackThreads, weakenTime - hackTime - SCRIPT_DELAY * 2, false);
+    executeHack(ns, "home", target, hackThreads, weakenTime - hackTime - SCRIPT_DELAY * 2 + extraDelay, false);
 
     ns.print(`=== Growing 2X back to 100% ===`);
     ns.print(`Growth Threads: ${growthThreads}`);
     ns.print(`Growth Security Change: ${growthSecurityChange}`);
     ns.print(`Growth Time: ${growthTime}ms`);
     ns.print(`Growth Factor: ${growthFactor}`);
-    executeGrow(ns, "home", target, growthThreads, weakenTime - growthTime - SCRIPT_DELAY, true);
+    executeGrow(ns, "home", target, growthThreads, weakenTime - growthTime - SCRIPT_DELAY + extraDelay, true);
 
     ns.print(`=== Weakening to min security level ===`);
     ns.print(`Weaken Target: ${weakenTarget}`);
     ns.print(`Weaken Threads Needed: ${weakenThreadsNeeded}`);
     ns.print(`Weaken Amount: ${weakenAmount}`);
     ns.print(`Weaken Time: ${weakenTime}ms`);
-    executeWeaken(ns, "home", target, weakenThreadsNeeded, 0);
+    executeWeaken(ns, "home", target, weakenThreadsNeeded, extraDelay);
 }
 
 /**
@@ -171,6 +181,9 @@ function runBatchHack(ns, target) {
  * @param {number} sleepTime
  */
 function executeWeaken(ns, host, target, threads, sleepTime) {
+    if (sleepTime < 0) {
+        ns.print(`WARN Sleep time is negative for weaken script on ${target}`);
+    }
     const pid = ns.exec(weakenScript, host, threads, target, sleepTime);
     if (!pid) {
         ns.tprint(`WARN Failed to execute weaken script on ${target}`);
@@ -189,6 +202,9 @@ function executeWeaken(ns, host, target, threads, sleepTime) {
  * @param {boolean} stockArg - Whether to influence stock or not.
  */
 function executeGrow(ns, host, target, threads, sleepTime, stockArg) {
+    if (sleepTime < 0) {
+        ns.print(`WARN Sleep time is negative for grow script on ${target}`);
+    }
     const pid = ns.exec(growScript, host, threads, target, sleepTime, stockArg);
     if (!pid) {
         ns.tprint(`WARN Failed to execute grow script on ${target}`);
@@ -207,6 +223,9 @@ function executeGrow(ns, host, target, threads, sleepTime, stockArg) {
  * @param {boolean} stockArg - Whether to influence stock or not.
  */
 function executeHack(ns, host, target, threads, sleepTime, stockArg) {
+    if (sleepTime < 0) {
+        ns.print(`WARN Sleep time is negative for hack script on ${target}`);
+    }
     const pid = ns.exec(hackScript, host, threads, target, sleepTime);
     if (!pid) {
         ns.tprint(`WARN Failed to execute hack script on ${target}`);
