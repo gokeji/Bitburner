@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = 12000000000; // 12 B max server value
+const MAX_SERVER_VALUE = 120000000000; // 120 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 
 export function autocomplete(data, args) {

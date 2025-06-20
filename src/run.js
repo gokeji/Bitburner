@@ -9,7 +9,7 @@ export function autocomplete(data, args) {
         .filter((name, index, arr) => arr.indexOf(name) === index) // Remove duplicates
         .sort();
 
-    return scriptFilenames;
+    return [scriptFilenames, "tail"];
 }
 
 /** @param {NS} ns **/
@@ -67,6 +67,9 @@ export async function main(ns) {
             ns.tprint(`ERROR: Failed to run ${fullPath}. Check if the script exists and has no syntax errors.`);
         } else {
             ns.tprint(`Successfully started ${scriptName} with PID ${pid}`);
+        }
+        if (ns.args.includes("tail")) {
+            ns.ui.openTail(pid);
         }
     } catch (error) {
         ns.tprint(`ERROR: Failed to run ${fullPath}: ${error.message}`);
