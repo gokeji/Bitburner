@@ -14,9 +14,9 @@ export async function main(ns) {
 
     // Check if TOR is available first
     let hasTor = () => ns.scan("home").includes("darkweb");
-    if (!hasTor()) {
+    while (!hasTor()) {
         ns.print("TOR router not available - cannot purchase programs from darkweb");
-        return;
+        await ns.sleep(interval);
     }
 
     let foundMissingProgram = false;
