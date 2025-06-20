@@ -6,6 +6,8 @@ const weakenScript = "/kamu/weaken.js";
 
 var hackPercentage = 0.5;
 let SCRIPT_DELAY = 1000; // 30ms delay between scripts
+let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
+let SECURITY_LEVEL_THRESHOLD = 0; // Prep servers to be within minSecurityLevel + this amount
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -22,8 +24,6 @@ export async function main(ns) {
     const currentMoney = serverInfo.moneyAvailable;
     const maxMoney = serverInfo.moneyMax;
 
-    const weakenAmount = ns.weakenAnalyze(1, cpuCores);
-
     ns.print("\n\n\n\n\n\n");
     ns.print(`${target}`);
     ns.print(`Security Level: ${securityLevel}`);
@@ -31,42 +31,15 @@ export async function main(ns) {
     ns.print(`Current Money: ${currentMoney}`);
     ns.print(`Max Money: ${maxMoney}`);
 
-    const hackChance = ns.hackAnalyzeChance(target);
-    const hackPercentageFromOneThread = ns.hackAnalyze(target);
-    const hackThreads = Math.ceil(hackPercentage / hackPercentageFromOneThread);
-    const hackSecurityChange = ns.hackAnalyzeSecurity(hackThreads, target);
-    const hackTime = ns.getHackTime(target);
+    if (currentMoney < maxMoney * PREP_MONEY_THRESHOLD || securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD) {
+        prepServer(ns, target);
 
-    const growthThreads = Math.ceil(ns.growthAnalyze(target, 1 / hackPercentage, cpuCores));
-    const growthSecurityChange = ns.growthAnalyzeSecurity(growthThreads, target, cpuCores);
-    const growthTime = ns.getGrowTime(target);
-    const growthFactor = ns.getServerGrowth(target);
-
-    const weakenTarget = hackSecurityChange + growthSecurityChange;
-    const weakenThreadsNeeded = Math.ceil(weakenTarget / weakenAmount);
-    const weakenTime = ns.getWeakenTime(target);
-
-    prepServer(ns, target);
-
-    // ns.print(`=== Hacking 50% of max money ===`);
-    // ns.print(`Hack Chance: ${hackChance}`);
-    // ns.print(`Hack Percentage From One Thread: ${hackPercentageFromOneThread}`);
-    // ns.print(`Hack Amount: ${hackPercentage * maxMoney}`);
-    // ns.print(`Hack Threads: ${hackThreads}`);
-    // ns.print(`Hack Security Change: ${hackSecurityChange}`);
-    // ns.print(`Hack Time: ${hackTime}ms`);
-
-    // ns.print(`=== Growing 2X back to 100% ===`);
-    // ns.print(`Growth Threads: ${growthThreads}`);
-    // ns.print(`Growth Security Change: ${growthSecurityChange}`);
-    // ns.print(`Growth Time: ${growthTime}ms`);
-    // ns.print(`Growth Factor: ${growthFactor}`);
-
-    // ns.print(`=== Weakening to min security level ===`);
-    // ns.print(`Weaken Target: ${weakenTarget}`);
-    // ns.print(`Weaken Threads Needed: ${weakenThreadsNeeded}`);
-    // ns.print(`Weaken Amount: ${weakenAmount}`);
-    // ns.print(`Weaken Time: ${weakenTime}ms`);
+        ns.sleep(10000);
+    } else {
+        ns.print(`Server is already prepped, skipping prep`);
+    }
+    ns.print(`Running batch hack`);
+    runBatchHack(ns, target);
 
     return;
 }
@@ -96,7 +69,8 @@ function prepServer(ns, target) {
     ns.print(`=== Prepping for hack ===`);
 
     // Check if server is already at min security level
-    const needsInitialWeaken = securityLevel > minSecurityLevel;
+    const needsInitialWeaken = securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD;
+    const needsGrow = currentMoney < maxMoney * PREP_MONEY_THRESHOLD;
 
     if (needsInitialWeaken) {
         ns.print(`=== Weaken to min security level ===`);
@@ -109,28 +83,93 @@ function prepServer(ns, target) {
         ns.print(`=== Server already at min security level, skipping initial weaken ===`);
     }
 
-    ns.print(`=== Grow to max money ===`);
-    const growthAmount = maxMoney / currentMoney;
-    const growthThreads = Math.ceil(ns.growthAnalyze(target, growthAmount, cpuCores));
-    const growthSecurityChange = ns.growthAnalyzeSecurity(growthThreads, target, cpuCores);
-    ns.print(`Grow Amount: ${growthAmount}`);
-    ns.print(`Grow Threads Needed: ${growthThreads}`);
-    ns.print(`Grow Time: ${growthTime}ms`);
+    if (needsGrow) {
+        ns.print(`=== Grow to max money ===`);
+        const growthAmount = maxMoney / currentMoney;
+        const growthThreads = Math.ceil(ns.growthAnalyze(target, growthAmount, cpuCores));
+        const growthSecurityChange = ns.growthAnalyzeSecurity(growthThreads, target, cpuCores);
+        ns.print(`Grow Amount: ${growthAmount}`);
+        ns.print(`Grow Threads Needed: ${growthThreads}`);
+        ns.print(`Grow Time: ${growthTime}ms`);
 
-    // Adjust timing based on whether initial weaken was needed
-    const growDelay = needsInitialWeaken ? weakenTime - growthTime + SCRIPT_DELAY : 0;
-    executeGrow(ns, "home", target, growthThreads, growDelay);
+        // Adjust timing based on whether initial weaken was needed
+        const growDelay = needsInitialWeaken ? weakenTime - growthTime + SCRIPT_DELAY : 0;
+        executeGrow(ns, "home", target, growthThreads, growDelay);
 
-    ns.print(`=== Weaken to min security level again after growing ===`);
-    const weakenThreadsNeeded = Math.ceil(growthSecurityChange / weakenAmount);
-    ns.print(`Weaken Threads Needed: ${weakenThreadsNeeded}`);
-    ns.print(`Weaken Time: ${weakenTime}ms`);
+        ns.print(`=== Weaken to min security level again after growing ===`);
+        const weakenThreadsNeeded = Math.ceil(growthSecurityChange / weakenAmount);
+        ns.print(`Weaken Threads Needed: ${weakenThreadsNeeded}`);
+        ns.print(`Weaken Time: ${weakenTime}ms`);
 
-    // Adjust timing based on whether initial weaken was needed (2 scripts vs 3)
-    const finalWeakenDelay = needsInitialWeaken ? 2 * SCRIPT_DELAY : SCRIPT_DELAY - (weakenTime - growthTime);
-    executeWeaken(ns, "home", target, weakenThreadsNeeded, finalWeakenDelay);
+        // Adjust timing based on whether initial weaken was needed (2 scripts vs 3)
+        const finalWeakenDelay = needsInitialWeaken ? 2 * SCRIPT_DELAY : SCRIPT_DELAY - (weakenTime - growthTime);
+        executeWeaken(ns, "home", target, weakenThreadsNeeded, finalWeakenDelay);
+    }
 }
 
+/**
+ * Runs a batch of 3 scripts, weaken, grow, weaken.
+ * Hack to a predetermined percentage of max money, grow back to 100% money, and then weaken to min security level. Offset the timing so that hack finishes just slightly before grow, and grow finishes just slightly before weaken.
+ * Scripts should finish within SCRIPT_DELAY ms of each other.
+ * @param {NS} ns - The Netscript API.
+ * @param {string} target - The target server to hack.
+ * @returns {void}
+ */
+function runBatchHack(ns, target) {
+    const cpuCores = 1; // TODO: - Add way to optimize cpuCores
+
+    const serverInfo = ns.getServer(target);
+    const maxMoney = serverInfo.moneyMax;
+
+    const weakenAmount = ns.weakenAnalyze(1, cpuCores);
+    const weakenTime = ns.getWeakenTime(target);
+    const growthTime = ns.getGrowTime(target);
+
+    const hackChance = ns.hackAnalyzeChance(target);
+    const hackPercentageFromOneThread = ns.hackAnalyze(target);
+    const hackThreads = Math.ceil(hackPercentage / hackPercentageFromOneThread);
+    const hackSecurityChange = ns.hackAnalyzeSecurity(hackThreads, target);
+    const hackTime = ns.getHackTime(target);
+
+    const growthThreads = Math.ceil(ns.growthAnalyze(target, 1 / hackPercentage, cpuCores));
+    const growthSecurityChange = ns.growthAnalyzeSecurity(growthThreads, target, cpuCores);
+    const growthFactor = ns.getServerGrowth(target);
+
+    const weakenTarget = hackSecurityChange + growthSecurityChange;
+    const weakenThreadsNeeded = Math.ceil(weakenTarget / weakenAmount);
+
+    ns.print(`=== Hacking 50% of max money ===`);
+    ns.print(`Hack Chance: ${hackChance}`);
+    ns.print(`Hack Percentage From One Thread: ${hackPercentageFromOneThread}`);
+    ns.print(`Hack Amount: ${hackPercentage * maxMoney}`);
+    ns.print(`Hack Threads: ${hackThreads}`);
+    ns.print(`Hack Security Change: ${hackSecurityChange}`);
+    ns.print(`Hack Time: ${hackTime}ms`);
+    executeHack(ns, "home", target, hackThreads, weakenTime - hackTime - SCRIPT_DELAY * 2, false);
+
+    ns.print(`=== Growing 2X back to 100% ===`);
+    ns.print(`Growth Threads: ${growthThreads}`);
+    ns.print(`Growth Security Change: ${growthSecurityChange}`);
+    ns.print(`Growth Time: ${growthTime}ms`);
+    ns.print(`Growth Factor: ${growthFactor}`);
+    executeGrow(ns, "home", target, growthThreads, weakenTime - growthTime - SCRIPT_DELAY, true);
+
+    ns.print(`=== Weakening to min security level ===`);
+    ns.print(`Weaken Target: ${weakenTarget}`);
+    ns.print(`Weaken Threads Needed: ${weakenThreadsNeeded}`);
+    ns.print(`Weaken Amount: ${weakenAmount}`);
+    ns.print(`Weaken Time: ${weakenTime}ms`);
+    executeWeaken(ns, "home", target, weakenThreadsNeeded, 0);
+}
+
+/**
+ * Executes the weaken script on the target server.
+ * @param {NS} ns - The Netscript API.
+ * @param {string} host
+ * @param {string} target
+ * @param {number} threads
+ * @param {number} sleepTime
+ */
 function executeWeaken(ns, host, target, threads, sleepTime) {
     const pid = ns.exec(weakenScript, host, threads, target, sleepTime);
     if (!pid) {
@@ -140,8 +179,17 @@ function executeWeaken(ns, host, target, threads, sleepTime) {
     }
 }
 
-function executeGrow(ns, host, target, threads, sleepTime) {
-    const pid = ns.exec(growScript, host, threads, target, sleepTime);
+/**
+ * Executes the grow script on the target server.
+ * @param {NS} ns - The Netscript API.
+ * @param {string} host
+ * @param {string} target
+ * @param {number} threads
+ * @param {number} sleepTime
+ * @param {boolean} stockArg - Whether to influence stock or not.
+ */
+function executeGrow(ns, host, target, threads, sleepTime, stockArg) {
+    const pid = ns.exec(growScript, host, threads, target, sleepTime, stockArg);
     if (!pid) {
         ns.tprint(`WARN Failed to execute grow script on ${target}`);
     } else {
@@ -149,6 +197,15 @@ function executeGrow(ns, host, target, threads, sleepTime) {
     }
 }
 
+/**
+ * Executes the hack script on the target server.
+ * @param {NS} ns - The Netscript API.
+ * @param {string} host
+ * @param {string} target
+ * @param {number} threads
+ * @param {number} sleepTime
+ * @param {boolean} stockArg - Whether to influence stock or not.
+ */
 function executeHack(ns, host, target, threads, sleepTime, stockArg) {
     const pid = ns.exec(hackScript, host, threads, target, sleepTime);
     if (!pid) {
