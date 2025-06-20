@@ -104,36 +104,18 @@ function getCurrentNeuroFluxPurchaseLevel(ns) {
  * @returns {Object} Object with totalHacking and totalRep multipliers
  */
 function calculateTotalStatIncrease(ns, augmentations) {
-    const currentNeuroFluxLevel = getCurrentNeuroFluxPurchaseLevel(ns) - 1;
-    var neuroFluxToBuy = 0;
+    let neuroFluxToBuy = 0;
 
-    // Current NeuroFlux multiplier (1% per level)
-    const currentNeuroFluxMultiplier = 1.01 ** currentNeuroFluxLevel;
+    // Start with current player multipliers
+    let hackingMultiplier = ns.getPlayer().mults.hacking;
+    let hackingChanceMultiplier = ns.getPlayer().mults.hacking_chance;
+    let hackingSpeedMultiplier = ns.getPlayer().mults.hacking_speed;
+    let hackingMoneyMultiplier = ns.getPlayer().mults.hacking_money;
+    let hackingGrowMultiplier = ns.getPlayer().mults.hacking_grow;
+    let hackingExpMultiplier = ns.getPlayer().mults.hacking_exp;
+    let repMultiplier = ns.getPlayer().mults.faction_rep;
 
-    ns.print(`Current NeuroFlux Level: ${currentNeuroFluxLevel}`);
-    ns.print(`Starting hacking multiplier: ${ns.getPlayer().mults.hacking}`);
-    ns.print(`Current neuroflux multiplier: ${currentNeuroFluxMultiplier}`);
-
-    // Step 1: Remove current NeuroFlux multiplier to get base multipliers
-    let baseHackingMultiplier = ns.getPlayer().mults.hacking / currentNeuroFluxMultiplier;
-    let baseHackingChance = ns.getPlayer().mults.hacking_chance / currentNeuroFluxMultiplier;
-    let baseHackingSpeed = ns.getPlayer().mults.hacking_speed / currentNeuroFluxMultiplier;
-    let baseHackingMoney = ns.getPlayer().mults.hacking_money / currentNeuroFluxMultiplier;
-    let baseHackingGrow = ns.getPlayer().mults.hacking_grow / currentNeuroFluxMultiplier;
-    let baseHackingExp = ns.getPlayer().mults.hacking_exp / currentNeuroFluxMultiplier;
-    let baseRepMultiplier = ns.getPlayer().mults.faction_rep / currentNeuroFluxMultiplier;
-
-    ns.print(`Base hacking multiplier (without NeuroFlux): ${baseHackingMultiplier}`);
-
-    // Step 2: Add augmentation bonuses additively (excluding NeuroFlux)
-    let addedHackingBonus = 0;
-    let addedHackingChanceBonus = 0;
-    let addedHackingSpeedBonus = 0;
-    let addedHackingMoneyBonus = 0;
-    let addedHackingGrowBonus = 0;
-    let addedHackingExpBonus = 0;
-    let addedRepBonus = 0;
-
+    // Apply each augmentation multiplicatively
     for (const aug of augmentations) {
         let augName = aug.name;
 
@@ -141,66 +123,38 @@ function calculateTotalStatIncrease(ns, augmentations) {
         if (aug.name.startsWith("NeuroFlux Governor - Level")) {
             augName = "NeuroFlux Governor";
             neuroFluxToBuy++;
-            continue;
         }
 
         const stats = ns.singularity.getAugmentationStats(augName);
 
-        if (stats.hacking > 1) {
-            ns.print(`${augName} hacking bonus: +${((stats.hacking - 1) * 100).toFixed(1)}%`);
-        }
-
-        // Add bonuses additively (convert multiplier to percentage bonus)
-        if (stats.hacking > 1) addedHackingBonus += stats.hacking - 1;
-        if (stats.hacking_chance > 1) addedHackingChanceBonus += stats.hacking_chance - 1;
-        if (stats.hacking_speed > 1) addedHackingSpeedBonus += stats.hacking_speed - 1;
-        if (stats.hacking_money > 1) addedHackingMoneyBonus += stats.hacking_money - 1;
-        if (stats.hacking_grow > 1) addedHackingGrowBonus += stats.hacking_grow - 1;
-        if (stats.hacking_exp > 1) addedHackingExpBonus += stats.hacking_exp - 1;
-        if (stats.faction_rep > 1) addedRepBonus += stats.faction_rep - 1;
+        // Multiply each stat by the augmentation's multiplier
+        hackingMultiplier *= stats.hacking;
+        hackingChanceMultiplier *= stats.hacking_chance;
+        hackingSpeedMultiplier *= stats.hacking_speed;
+        hackingMoneyMultiplier *= stats.hacking_money;
+        hackingGrowMultiplier *= stats.hacking_grow;
+        hackingExpMultiplier *= stats.hacking_exp;
+        repMultiplier *= stats.faction_rep;
     }
-
-    ns.print(`Total added hacking bonus: +${(addedHackingBonus * 100).toFixed(1)}%`);
-
-    // Step 3: Apply the additive bonuses to base multipliers
-    const newBaseHackingMultiplier = baseHackingMultiplier + addedHackingBonus;
-    const newBaseHackingChance = baseHackingChance + addedHackingChanceBonus;
-    const newBaseHackingSpeed = baseHackingSpeed + addedHackingSpeedBonus;
-    const newBaseHackingMoney = baseHackingMoney + addedHackingMoneyBonus;
-    const newBaseHackingGrow = baseHackingGrow + addedHackingGrowBonus;
-    const newBaseHackingExp = baseHackingExp + addedHackingExpBonus;
-    const newBaseRepMultiplier = baseRepMultiplier + addedRepBonus;
-
-    // Step 4: Apply new NeuroFlux multiplier
-    const finalNeuroFluxLevel = currentNeuroFluxLevel + neuroFluxToBuy;
-    const finalNeuroFluxMultiplier = 1.01 ** finalNeuroFluxLevel;
-
-    ns.print(`Final NeuroFlux Level: ${finalNeuroFluxLevel} (buying ${neuroFluxToBuy})`);
-    ns.print(`Final neuroflux multiplier: ${finalNeuroFluxMultiplier}`);
-
-    const finalHackingMultiplier = newBaseHackingMultiplier * finalNeuroFluxMultiplier;
-    const finalHackingChance = newBaseHackingChance * finalNeuroFluxMultiplier;
-    const finalHackingSpeed = newBaseHackingSpeed * finalNeuroFluxMultiplier;
-    const finalHackingMoney = newBaseHackingMoney * finalNeuroFluxMultiplier;
-    const finalHackingGrow = newBaseHackingGrow * finalNeuroFluxMultiplier;
-    const finalHackingExp = newBaseHackingExp * finalNeuroFluxMultiplier;
-    const finalRepMultiplier = newBaseRepMultiplier * finalNeuroFluxMultiplier;
-
-    ns.print(`Final hacking multiplier: ${finalHackingMultiplier}`);
 
     return {
         totalHacking: {
-            hackingLevel: finalHackingMultiplier,
-            hackingChance: finalHackingChance,
-            hackingSpeed: finalHackingSpeed,
-            hackingMoney: finalHackingMoney,
-            hackingGrow: finalHackingGrow,
-            hackingExp: finalHackingExp,
+            hackingLevel: hackingMultiplier,
+            hackingChance: hackingChanceMultiplier,
+            hackingSpeed: hackingSpeedMultiplier,
+            hackingMoney: hackingMoneyMultiplier,
+            hackingGrow: hackingGrowMultiplier,
+            hackingExp: hackingExpMultiplier,
         },
-        totalRep: finalRepMultiplier,
+        totalRep: repMultiplier,
         neurofluxLevels: neuroFluxToBuy,
         // Store original values for comparison
         originalHacking: ns.getPlayer().mults.hacking,
+        originalHackingChance: ns.getPlayer().mults.hacking_chance,
+        originalHackingSpeed: ns.getPlayer().mults.hacking_speed,
+        originalHackingMoney: ns.getPlayer().mults.hacking_money,
+        originalHackingGrow: ns.getPlayer().mults.hacking_grow,
+        originalHackingExp: ns.getPlayer().mults.hacking_exp,
         originalRep: ns.getPlayer().mults.faction_rep,
     };
 }
@@ -539,32 +493,57 @@ export async function main(ns) {
 
     // Display comprehensive stat increases if available
     if (result.statIncrease) {
+        // Get original and final values
         const originalHacking = result.statIncrease.originalHacking;
+        const originalHackingChance = result.statIncrease.originalHackingChance;
+        const originalHackingSpeed = result.statIncrease.originalHackingSpeed;
+        const originalHackingMoney = result.statIncrease.originalHackingMoney;
+        const originalHackingGrow = result.statIncrease.originalHackingGrow;
+        const originalHackingExp = result.statIncrease.originalHackingExp;
         const originalRep = result.statIncrease.originalRep;
+
         const finalHacking = result.statIncrease.totalHacking.hackingLevel;
+        const finalHackingChance = result.statIncrease.totalHacking.hackingChance;
+        const finalHackingSpeed = result.statIncrease.totalHacking.hackingSpeed;
+        const finalHackingMoney = result.statIncrease.totalHacking.hackingMoney;
+        const finalHackingGrow = result.statIncrease.totalHacking.hackingGrow;
+        const finalHackingExp = result.statIncrease.totalHacking.hackingExp;
         const finalRep = result.statIncrease.totalRep;
 
-        // Calculate the multiplier increase (e.g., 2X for doubling)
+        // Calculate the multiplier increases
         const hackingIncrease = finalHacking / originalHacking;
+        const hackingChanceIncrease = finalHackingChance / originalHackingChance;
+        const hackingSpeedIncrease = finalHackingSpeed / originalHackingSpeed;
+        const hackingMoneyIncrease = finalHackingMoney / originalHackingMoney;
+        const hackingGrowIncrease = finalHackingGrow / originalHackingGrow;
+        const hackingExpIncrease = finalHackingExp / originalHackingExp;
         const repIncrease = finalRep / originalRep;
 
         ns.print("\n");
         ns.print("=== TOTAL STAT INCREASES FROM ALL AUGMENTS ===");
-        ns.print(`Current Hacking Multiplier: ${originalHacking.toFixed(3)}x`);
-        ns.print(`New Hacking Multiplier: ${finalHacking.toFixed(3)}x`);
         ns.print(
-            `Hacking Level Increase: ${hackingIncrease.toFixed(2)}X (${((hackingIncrease - 1) * 100).toFixed(1)}% increase)`,
+            `Hacking Level:  ${ns.formatPercent(originalHacking - 1)} -> ${ns.formatPercent(finalHacking - 1)} (${hackingIncrease.toFixed(2)}X increase)`,
+        );
+        ns.print(
+            `Hacking Chance: ${ns.formatPercent(originalHackingChance - 1)} -> ${ns.formatPercent(finalHackingChance - 1)} (${hackingChanceIncrease.toFixed(2)}X increase)`,
+        );
+        ns.print(
+            `Hacking Speed:  ${ns.formatPercent(originalHackingSpeed - 1)} -> ${ns.formatPercent(finalHackingSpeed - 1)} (${hackingSpeedIncrease.toFixed(2)}X increase)`,
+        );
+        ns.print(
+            `Hacking Money:  ${ns.formatPercent(originalHackingMoney - 1)} -> ${ns.formatPercent(finalHackingMoney - 1)} (${hackingMoneyIncrease.toFixed(2)}X increase)`,
+        );
+        ns.print(
+            `Hacking Grow:   ${ns.formatPercent(originalHackingGrow - 1)} -> ${ns.formatPercent(finalHackingGrow - 1)} (${hackingGrowIncrease.toFixed(2)}X increase)`,
+        );
+        ns.print(
+            `Hacking Exp:    ${ns.formatPercent(originalHackingExp - 1)} -> ${ns.formatPercent(finalHackingExp - 1)} (${hackingExpIncrease.toFixed(2)}X increase)`,
         );
         ns.print("");
-        ns.print(`Hacking Chance: ${result.statIncrease.totalHacking.hackingChance.toFixed(3)}x`);
-        ns.print(`Hacking Speed: ${result.statIncrease.totalHacking.hackingSpeed.toFixed(3)}x`);
-        ns.print(`Hacking Money: ${result.statIncrease.totalHacking.hackingMoney.toFixed(3)}x`);
-        ns.print(`Hacking Grow: ${result.statIncrease.totalHacking.hackingGrow.toFixed(3)}x`);
-        ns.print(`Hacking Exp: ${result.statIncrease.totalHacking.hackingExp.toFixed(3)}x`);
-        ns.print("");
-        ns.print(`Current Reputation Multiplier: ${originalRep.toFixed(3)}x`);
-        ns.print(`New Reputation Multiplier: ${finalRep.toFixed(3)}x`);
-        ns.print(`Reputation Increase: ${repIncrease.toFixed(2)}X (${((repIncrease - 1) * 100).toFixed(1)}% increase)`);
+        ns.print(
+            `Reputation:     ${ns.formatPercent(originalRep - 1)} -> ${ns.formatPercent(finalRep - 1)} (${repIncrease.toFixed(2)}X increase)`,
+        );
+
         if (result.statIncrease.neurofluxLevels > 0) {
             ns.print("");
             ns.print(`NeuroFlux Levels: ${result.statIncrease.neurofluxLevels} (1% boost each to all stats)`);
