@@ -338,6 +338,11 @@ export async function main(ns) {
         // Check if we have enough money (using total budget including stocks)
         const canAffordPrice = totalBudget >= price;
 
+        const alwaysIncludeList = [
+            "NeuroFlux Governor",
+            "Neuroreceptor Management Implant", // Removes penalty for not focusing on task
+        ];
+
         if (canAffordPrice) {
             // Check each faction separately - create separate entries for each qualifying faction
             for (const faction of augFactions) {
@@ -349,11 +354,11 @@ export async function main(ns) {
 
                         // If --hacking-rep-only flag is set, skip augments that don't boost hacking or rep
                         // Exception: Always include NeuroFlux Governor as it provides hacking boost
-                        if (hackingRepOnly && !hackingBoost && !repBoost && augmentation !== "NeuroFlux Governor") {
+                        if (hackingRepOnly && !hackingBoost && !repBoost && !alwaysIncludeList.includes(augmentation)) {
                             continue;
                         }
 
-                        if (hackingOnly && !hackingBoost && augmentation !== "NeuroFlux Governor") {
+                        if (hackingOnly && !hackingBoost && !alwaysIncludeList.includes(augmentation)) {
                             continue;
                         }
 
