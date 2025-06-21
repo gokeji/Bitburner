@@ -522,26 +522,26 @@ export async function main(ns) {
         ns.print("\n");
         ns.print("=== TOTAL STAT INCREASES FROM ALL AUGMENTS ===");
         ns.print(
-            `Hacking Level:  ${ns.formatPercent(originalHacking - 1)} -> ${ns.formatPercent(finalHacking - 1)} (${hackingIncrease.toFixed(2)}X increase)`,
+            `Hacking Level:  ${ns.formatPercent(originalHacking)} -> ${ns.formatPercent(finalHacking)} (${hackingIncrease.toFixed(2)}X increase)`,
         );
         ns.print(
-            `Hacking Chance: ${ns.formatPercent(originalHackingChance - 1)} -> ${ns.formatPercent(finalHackingChance - 1)} (${hackingChanceIncrease.toFixed(2)}X increase)`,
+            `Hacking Chance: ${ns.formatPercent(originalHackingChance)} -> ${ns.formatPercent(finalHackingChance)} (${hackingChanceIncrease.toFixed(2)}X increase)`,
         );
         ns.print(
-            `Hacking Speed:  ${ns.formatPercent(originalHackingSpeed - 1)} -> ${ns.formatPercent(finalHackingSpeed - 1)} (${hackingSpeedIncrease.toFixed(2)}X increase)`,
+            `Hacking Speed:  ${ns.formatPercent(originalHackingSpeed)} -> ${ns.formatPercent(finalHackingSpeed)} (${hackingSpeedIncrease.toFixed(2)}X increase)`,
         );
         ns.print(
-            `Hacking Money:  ${ns.formatPercent(originalHackingMoney - 1)} -> ${ns.formatPercent(finalHackingMoney - 1)} (${hackingMoneyIncrease.toFixed(2)}X increase)`,
+            `Hacking Money:  ${ns.formatPercent(originalHackingMoney)} -> ${ns.formatPercent(finalHackingMoney)} (${hackingMoneyIncrease.toFixed(2)}X increase)`,
         );
         ns.print(
-            `Hacking Grow:   ${ns.formatPercent(originalHackingGrow - 1)} -> ${ns.formatPercent(finalHackingGrow - 1)} (${hackingGrowIncrease.toFixed(2)}X increase)`,
+            `Hacking Grow:   ${ns.formatPercent(originalHackingGrow)} -> ${ns.formatPercent(finalHackingGrow)} (${hackingGrowIncrease.toFixed(2)}X increase)`,
         );
         ns.print(
-            `Hacking Exp:    ${ns.formatPercent(originalHackingExp - 1)} -> ${ns.formatPercent(finalHackingExp - 1)} (${hackingExpIncrease.toFixed(2)}X increase)`,
+            `Hacking Exp:    ${ns.formatPercent(originalHackingExp)} -> ${ns.formatPercent(finalHackingExp)} (${hackingExpIncrease.toFixed(2)}X increase)`,
         );
         ns.print("");
         ns.print(
-            `Reputation:     ${ns.formatPercent(originalRep - 1)} -> ${ns.formatPercent(finalRep - 1)} (${repIncrease.toFixed(2)}X increase)`,
+            `Reputation:     ${ns.formatPercent(originalRep)} -> ${ns.formatPercent(finalRep)} (${repIncrease.toFixed(2)}X increase)`,
         );
 
         if (result.statIncrease.neurofluxLevels > 0) {

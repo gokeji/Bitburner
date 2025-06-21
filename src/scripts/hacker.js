@@ -19,6 +19,7 @@ let serverPriorityMap = new Map();
 
 /** @param {NS} ns **/
 export async function main(ns) {
+    ns.disableLog("ALL");
     // Test printing all the hack grow and weaken stats for n00dles as a test
     const target = "n00dles";
 
@@ -37,9 +38,21 @@ export async function main(ns) {
     ns.print(`Current Money: ${currentMoney}`);
     ns.print(`Max Money: ${maxMoney}`);
 
+    const executableServers = get_servers(ns, "executableOnly");
+    const totalRamAvailable = executableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
+    ns.print(`Total RAM Available: ${ns.formatNumber(totalRamAvailable)}`);
+
     calculateTargetServerPriorities(ns);
-    for (const [server, priority] of serverPriorityMap) {
-        ns.print(`${server}: ${ns.formatNumber(priority)}`);
+    const sortedServers = Array.from(serverPriorityMap.entries()).sort((a, b) => b[1] - a[1]);
+    for (const [server, priority] of sortedServers) {
+        const { weakenTime, hackThreads, growthThreads, weakenThreadsNeeded } = getServerHackStats(ns, server, true);
+        const theoreticalBatchLimit = weakenTime / (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES);
+        const ramNeededPerBatch = hackThreads * 1.7 + growthThreads * 1.75 + weakenThreadsNeeded * 1.75;
+        const batchLimitByRam = ns.formatNumber(totalRamAvailable / ramNeededPerBatch);
+
+        ns.print(
+            `${server.padEnd(20)}: ${ns.formatNumber(priority).padStart(10)} ${ns.formatNumber(ramNeededPerBatch).padStart(9)}G ${batchLimitByRam.padStart(8)} / ${ns.formatNumber(theoreticalBatchLimit).padEnd(8)} ${(weakenTime / 1000).toFixed(2)}s`,
+        );
     }
 
     // if (currentMoney < maxMoney * PREP_MONEY_THRESHOLD || securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD) {
@@ -59,9 +72,10 @@ export async function main(ns) {
  * Calculates the hack stats given current security, hacking to hackingPercentage, and growing back to 100% money.
  * @param {NS} ns
  * @param {string} server
+ * @param {boolean} useFormulas - If true, use formulas API with optimal server conditions (min security, max money)
  * @returns {Object} - Object containing hack stats
  */
-function getServerHackStats(ns, server) {
+function getServerHackStats(ns, server, useFormulas = false) {
     const cpuCores = 1;
 
     const serverInfo = ns.getServer(server);
@@ -70,19 +84,61 @@ function getServerHackStats(ns, server) {
     const currentMoney = serverInfo.moneyAvailable;
     const maxMoney = serverInfo.moneyMax;
 
-    const weakenAmount = ns.weakenAnalyze(1, cpuCores);
-    const weakenTime = ns.getWeakenTime(server);
-    const growthTime = ns.getGrowTime(server);
+    let calcServer, player;
 
-    const hackChance = ns.hackAnalyzeChance(server);
-    const hackPercentageFromOneThread = ns.hackAnalyze(server);
+    if (useFormulas) {
+        // Create optimal server state for formulas API calculations
+        calcServer = {
+            ...serverInfo,
+            hackDifficulty: serverInfo.minDifficulty,
+            moneyAvailable: serverInfo.moneyMax,
+        };
+        player = ns.getPlayer();
+    }
+
+    const weakenAmount = ns.weakenAnalyze(1, cpuCores);
+
+    let weakenTime, growthTime, hackTime, hackChance, hackPercentageFromOneThread, growthFactor;
+
+    if (useFormulas) {
+        // Use formulas API with optimal server conditions
+        weakenTime = ns.formulas.hacking.weakenTime(calcServer, player);
+        growthTime = ns.formulas.hacking.growTime(calcServer, player);
+        hackTime = ns.formulas.hacking.hackTime(calcServer, player);
+        hackChance = ns.formulas.hacking.hackChance(calcServer, player);
+        hackPercentageFromOneThread = ns.formulas.hacking.hackPercent(calcServer, player);
+        growthFactor = ns.getServerGrowth(server); // No formulas equivalent
+    } else {
+        // Use existing ns functions with current server state
+        weakenTime = ns.getWeakenTime(server);
+        growthTime = ns.getGrowTime(server);
+        hackTime = ns.getHackTime(server);
+        hackChance = ns.hackAnalyzeChance(server);
+        hackPercentageFromOneThread = ns.hackAnalyze(server);
+        growthFactor = ns.getServerGrowth(server);
+    }
+
     const hackThreads = Math.ceil(hackPercentage / hackPercentageFromOneThread);
     const hackSecurityChange = ns.hackAnalyzeSecurity(hackThreads, server);
-    const hackTime = ns.getHackTime(server);
 
-    const growthThreads = Math.ceil(ns.growthAnalyze(server, 1 / hackPercentage, cpuCores));
+    let growthThreads;
+    if (useFormulas) {
+        // Use formulas API to calculate threads needed to grow from hackPercentage back to 100%
+        const targetMoney = maxMoney;
+        const currentMoneyAfterHack = maxMoney * (1 - hackPercentage);
+        growthThreads = Math.ceil(
+            ns.formulas.hacking.growThreads(
+                { ...calcServer, moneyAvailable: currentMoneyAfterHack },
+                player,
+                targetMoney,
+                cpuCores,
+            ),
+        );
+    } else {
+        growthThreads = Math.ceil(ns.growthAnalyze(server, 1 / hackPercentage, cpuCores));
+    }
+
     const growthSecurityChange = ns.growthAnalyzeSecurity(growthThreads, server, cpuCores);
-    const growthFactor = ns.getServerGrowth(server);
 
     const weakenTarget = hackSecurityChange + growthSecurityChange;
     const weakenThreadsNeeded = Math.ceil(weakenTarget / weakenAmount);
@@ -121,19 +177,13 @@ function calculateTargetServerPriorities(ns) {
         const { hackChance, hackThreads, growthThreads, weakenThreadsNeeded, weakenTime } = getServerHackStats(
             ns,
             server,
+            true, // Set to true to use formulas API with optimal conditions
         );
 
-        var profitPerRamSecond =
-            (hackPercentage * maxMoney * hackChance) / (hackThreads + growthThreads + weakenThreadsNeeded) / weakenTime;
+        var profitPerRam =
+            (hackPercentage * maxMoney * hackChance) / (hackThreads + growthThreads + weakenThreadsNeeded);
 
-        // Debug logging to see hack chance
-        // if (profitPerRamSecond === 0) {
-        //     ns.print(
-        //         `DEBUG ${server}: hackChance=${hackChance}, maxMoney=${maxMoney}, hackThreads=${hackThreads}, growthThreads=${growthThreads}, weakenThreadsNeeded=${weakenThreadsNeeded}`,
-        //     );
-        // }
-
-        serverPriorityMap.set(server, profitPerRamSecond);
+        serverPriorityMap.set(server, profitPerRam);
     }
 }
 
