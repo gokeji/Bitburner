@@ -45,13 +45,31 @@ export async function main(ns) {
     calculateTargetServerPriorities(ns);
     const sortedServers = Array.from(serverPriorityMap.entries()).sort((a, b) => b[1] - a[1]);
     for (const [server, priority] of sortedServers) {
-        const { weakenTime, hackThreads, growthThreads, weakenThreadsNeeded } = getServerHackStats(ns, server, true);
+        const { weakenTime, hackThreads, growthThreads, weakenThreadsNeeded, hackChance } = getServerHackStats(
+            ns,
+            server,
+            true,
+        );
         const theoreticalBatchLimit = weakenTime / (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES);
         const ramNeededPerBatch = hackThreads * 1.7 + growthThreads * 1.75 + weakenThreadsNeeded * 1.75;
         const batchLimitByRam = ns.formatNumber(totalRamAvailable / ramNeededPerBatch);
 
+        // Calculate actual throughput (money per second)
+        const serverInfo = ns.getServer(server);
+        const maxMoney = serverInfo.moneyMax;
+        const moneyPerBatch = hackPercentage * maxMoney * hackChance;
+        const actualBatchLimit = Math.min(totalRamAvailable / ramNeededPerBatch, theoreticalBatchLimit);
+        const throughput = (actualBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
+        const throughputPerRam = throughput / (actualBatchLimit * ramNeededPerBatch); // throughput per RAM ratio
+
+        // Dynamic scheduling priority - considers both efficiency and opportunity cost
+        const cycleTimeMinutes = weakenTime / 60000;
+        const immediateROI = moneyPerBatch / ramNeededPerBatch; // money per GB
+        const timeEfficiency = immediateROI / cycleTimeMinutes; // money per GB per minute
+        const dynamicPriority = timeEfficiency * Math.min(1, 300 / weakenTime); // bonus for shorter cycles
+
         ns.print(
-            `${server.padEnd(20)}: ${ns.formatNumber(priority).padStart(10)} ${ns.formatNumber(ramNeededPerBatch).padStart(9)}G ${batchLimitByRam.padStart(8)} / ${ns.formatNumber(theoreticalBatchLimit).padEnd(8)} ${(weakenTime / 1000).toFixed(2)}s`,
+            `${server.padEnd(20)}: ROI:${ns.formatNumber(immediateROI).padStart(8)} Eff:${ns.formatNumber(timeEfficiency).padStart(8)} DynPri:${ns.formatNumber(dynamicPriority).padStart(8)} ${ns.formatNumber(ramNeededPerBatch).padStart(9)}G ${cycleTimeMinutes.toFixed(1)}m $${ns.formatNumber(throughput).padStart(8)}/s`,
         );
     }
 
