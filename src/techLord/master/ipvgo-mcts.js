@@ -317,6 +317,7 @@ export async function main(ns) {
     // Main game loop
     let gameCount = 0;
     let result;
+    let adaptiveIterations = 50; // Start with very low iterations
 
     do {
         gameCount++;
@@ -324,8 +325,21 @@ export async function main(ns) {
         // Create game instance
         const game = new BitburnerGoGame(ns);
 
-        // Create MCTS AI with reasonable parameters
-        const iterations = 1000; // Adjust based on performance needs
+        // Adjust iterations based on game stage
+        const moveCount = game.state.moveCount;
+        let iterations;
+
+        if (moveCount < 20) {
+            // Early game - use fewer iterations for faster play
+            iterations = Math.min(adaptiveIterations, 30);
+        } else if (moveCount < 100) {
+            // Mid game - moderate iterations
+            iterations = Math.min(adaptiveIterations, 80);
+        } else {
+            // Late game - more careful analysis
+            iterations = Math.min(adaptiveIterations, 150);
+        }
+
         const exploration = 1.41; // Standard UCB1 exploration parameter
         const aiPlayer = new MCTS(game, 1, iterations, exploration);
 
@@ -338,12 +352,27 @@ export async function main(ns) {
             ns.print("No valid moves available, passing turn");
             result = await ns.go.passTurn();
         } else {
-            ns.print(`AI analyzing ${validMoves.length} possible moves with ${iterations} MCTS iterations...`);
+            ns.print(
+                `AI analyzing ${validMoves.length} possible moves with ${iterations} MCTS iterations (adaptive: ${adaptiveIterations})...`,
+            );
 
-            // Get AI move
+            // Get AI move with timeout protection
             const startTime = Date.now();
             const aiMove = aiPlayer.selectMove();
             const thinkTime = Date.now() - startTime;
+
+            // Adaptive iteration adjustment based on performance
+            if (thinkTime > 3000) {
+                // 3 seconds - too slow
+                adaptiveIterations = Math.max(20, adaptiveIterations - 10);
+                ns.print(`Reducing iterations to ${adaptiveIterations} (took ${thinkTime}ms)`);
+            } else if (thinkTime < 500 && adaptiveIterations < 100) {
+                // Under 0.5s - can handle more
+                adaptiveIterations = Math.min(100, adaptiveIterations + 5);
+                ns.print(`Increasing iterations to ${adaptiveIterations} (took ${thinkTime}ms)`);
+            } else {
+                ns.print(`Move calculated in ${thinkTime}ms`);
+            }
 
             if (!aiMove) {
                 ns.print("AI couldn't find a move, passing turn");
