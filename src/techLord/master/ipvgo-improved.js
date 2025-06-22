@@ -1,8 +1,8 @@
 import { NS } from "@ns";
 
-// Note: You'll need to install @sabaki/go-board via npm or include it in your project
-// For Bitburner, you may need to include the library directly or use a bundled version
-import { Board } from "@sabaki/go-board"; // Uncomment when library is available
+// Import the local copy of @sabaki/go-board
+// Note: Using require() since the library uses CommonJS exports
+import { Board } from "../../lib/sabaki/GoBoard.js";
 
 /** @param {NS} ns */
 export async function main(ns) {
@@ -34,25 +34,25 @@ export async function main(ns) {
             ];
         }
 
-        // Enhanced board representation with obstacle support
-        createBoardFromState(board) {
-            // Convert Bitburner board format to @sabaki/go-board format
-            // '#' positions become -2 (obstacles), empty become 0, X become 1, O become -1
-            const signMap = board.map((row) =>
-                row.split("").map((cell) => {
-                    if (cell === "#") return -2; // Obstacle marker
-                    if (cell === "X") return 1; // Black stone
-                    if (cell === "O") return -1; // White stone
-                    return 0; // Empty
-                }),
-            );
+        // Enhanced liberty counting with obstacle awareness using @sabaki/go-board
+        countLiberties(board, x, y) {
+            try {
+                // Convert to @sabaki/go-board format and use its liberty counting
+                const sabakiBoard = this.createBoardFromState(board);
+                const boardInstance = new Board(sabakiBoard.signMap);
 
-            // For now, use custom implementation until library is integrated
-            return { signMap, width: this.boardSize, height: this.boardSize };
+                // Get liberties using the library's robust implementation
+                const liberties = boardInstance.getLiberties([x, y]);
+                return liberties ? liberties.length : 0;
+            } catch (error) {
+                // Fallback to custom implementation if library fails
+                this.ns.print(`Library error, using fallback: ${error.message}`);
+                return this.countLibertiesCustom(board, x, y);
+            }
         }
 
-        // Enhanced liberty counting with obstacle awareness
-        countLiberties(board, x, y) {
+        // Fallback custom liberty counting (renamed from original)
+        countLibertiesCustom(board, x, y) {
             const color = board[y][x];
             if (color === "" || color === "#") return 0;
 
@@ -82,17 +82,77 @@ export async function main(ns) {
             return liberties.size;
         }
 
-        // Enhanced move validation with obstacle support
+        // Enhanced move validation using @sabaki/go-board
         isValidMove(board, y, x) {
+            try {
+                // Use @sabaki/go-board for robust move validation
+                const sabakiBoard = this.createBoardFromState(board);
+                const boardInstance = new Board(sabakiBoard.signMap);
+
+                // Determine player color (1 for X/black, -1 for O/white)
+                const playerSign = this.ourColor === "X" ? 1 : -1;
+
+                // Check if move is valid using library
+                const result = boardInstance.makeMove(playerSign, [x, y]);
+                return result !== null; // null means invalid move
+            } catch (error) {
+                // Fallback to basic validation
+                this.ns.print(`Move validation fallback: ${error.message}`);
+                return this.isValidMoveCustom(board, y, x);
+            }
+        }
+
+        // Fallback custom move validation
+        isValidMoveCustom(board, y, x) {
             // Check bounds
             if (!this.isValidCoord(x, y)) return false;
 
             // Check if position is empty (not stone or obstacle)
             if (board[y][x] !== "") return false;
 
-            // Additional validation for suicide moves and ko
-            // This would be handled by @sabaki/go-board's makeMove validation
             return true;
+        }
+
+        // Enhanced board representation with proper @sabaki/go-board integration
+        createBoardFromState(board) {
+            // Convert Bitburner board format to @sabaki/go-board format
+            const signMap = board.map((row) =>
+                row.split("").map((cell) => {
+                    if (cell === "#") return null; // @sabaki/go-board uses null for inaccessible
+                    if (cell === "X") return 1; // Black stone
+                    if (cell === "O") return -1; // White stone
+                    return 0; // Empty
+                }),
+            );
+
+            return { signMap, width: this.boardSize, height: this.boardSize };
+        }
+
+        // Enhanced group analysis using @sabaki/go-board
+        getGroupInfo(board, x, y) {
+            try {
+                const sabakiBoard = this.createBoardFromState(board);
+                const boardInstance = new Board(sabakiBoard.signMap);
+
+                // Get comprehensive group information
+                const chain = boardInstance.getChain([x, y]);
+                const liberties = boardInstance.getLiberties([x, y]);
+
+                return {
+                    stones: chain || [],
+                    liberties: liberties || [],
+                    size: chain ? chain.length : 0,
+                    libertiesCount: liberties ? liberties.length : 0,
+                };
+            } catch (error) {
+                // Fallback to basic counting
+                return {
+                    stones: [[x, y]],
+                    liberties: [],
+                    size: 1,
+                    libertiesCount: this.countLibertiesCustom(board, x, y),
+                };
+            }
         }
 
         // Enhanced pattern recognition with obstacle awareness
@@ -139,7 +199,7 @@ export async function main(ns) {
             return vulnerabilityScore;
         }
 
-        // Enhanced tactical analysis with obstacle integration
+        // Enhanced tactical analysis with obstacle integration using @sabaki/go-board
         findObstacleThreats(board, validMoves) {
             const threats = [];
             if (!this.ourColor) this.determineColors(board);
@@ -147,29 +207,30 @@ export async function main(ns) {
             for (let y = 0; y < this.boardSize; y++) {
                 for (let x = 0; x < this.boardSize; x++) {
                     if (board[y][x] === this.ourColor) {
+                        // Use enhanced group analysis from @sabaki/go-board
+                        const groupInfo = this.getGroupInfo(board, x, y);
                         const vulnerability = this.evaluateStoneVulnerability(board, x, y);
-                        const liberties = this.countLiberties(board, x, y);
+                        const liberties = groupInfo.libertiesCount;
 
                         // Higher priority for stones near obstacles
                         if (vulnerability > 100 && liberties <= 3) {
-                            for (const [dx, dy] of this.directions) {
-                                const nx = x + dx;
-                                const ny = y + dy;
-
-                                if (this.isValidCoord(nx, ny) && board[ny][nx] === "" && validMoves[ny][nx]) {
+                            // Check all liberty positions for defensive moves
+                            for (const [lx, ly] of groupInfo.liberties) {
+                                if (validMoves[ly] && validMoves[ly][lx]) {
                                     let priority = vulnerability + (4 - liberties) * 100;
 
                                     // Bonus for moves that create connections away from obstacles
-                                    const connectionValue = this.evaluateConnection(board, ny, nx);
-                                    const obstacleEscapeBonus = this.evaluateObstacleEscape(board, ny, nx, x, y);
+                                    const connectionValue = this.evaluateConnection(board, ly, lx);
+                                    const obstacleEscapeBonus = this.evaluateObstacleEscape(board, ly, lx, x, y);
 
                                     priority += connectionValue + obstacleEscapeBonus;
 
                                     threats.push({
-                                        move: [ny, nx],
+                                        move: [ly, lx],
                                         priority: priority,
                                         type: "obstacle_defense",
                                         targetStone: [y, x],
+                                        groupSize: groupInfo.size,
                                     });
                                 }
                             }
@@ -842,34 +903,37 @@ export async function main(ns) {
             return bestChild.move;
         }
 
-        // Enhanced tactical moves with obstacle awareness
+        // Enhanced tactical moves with obstacle awareness using @sabaki/go-board
         findTacticalMoves(board, validMoves) {
             const tacticalMoves = [];
-            const liberties = this.ns.go.analysis.getLiberties();
 
-            // 1. Find groups in atari (1 liberty) - highest priority
+            // 1. Find groups in atari (1 liberty) - highest priority using library
             for (let y = 0; y < this.boardSize; y++) {
                 for (let x = 0; x < this.boardSize; x++) {
-                    if (board[y][x] !== "" && liberties[y][x] === 1) {
-                        // Find the liberty
-                        for (const [dx, dy] of this.directions) {
-                            const nx = x + dx;
-                            const ny = y + dy;
-                            if (this.isValidCoord(nx, ny) && board[ny][nx] === "" && validMoves[ny][nx]) {
-                                if (board[y][x] === this.ourColor) {
-                                    // Save our group - highest priority
-                                    tacticalMoves.push({
-                                        move: [ny, nx],
-                                        priority: 1000,
-                                        type: "save_atari",
-                                    });
-                                } else {
-                                    // Capture opponent group - very high priority
-                                    tacticalMoves.push({
-                                        move: [ny, nx],
-                                        priority: 900,
-                                        type: "capture_atari",
-                                    });
+                    if (board[y][x] !== "" && board[y][x] !== "#") {
+                        const groupInfo = this.getGroupInfo(board, x, y);
+
+                        if (groupInfo.libertiesCount === 1) {
+                            // Use the exact liberty positions from the library
+                            for (const [lx, ly] of groupInfo.liberties) {
+                                if (validMoves[ly] && validMoves[ly][lx]) {
+                                    if (board[y][x] === this.ourColor) {
+                                        // Save our group - highest priority
+                                        tacticalMoves.push({
+                                            move: [ly, lx],
+                                            priority: 1000,
+                                            type: "save_atari",
+                                            groupSize: groupInfo.size,
+                                        });
+                                    } else {
+                                        // Capture opponent group - very high priority
+                                        tacticalMoves.push({
+                                            move: [ly, lx],
+                                            priority: 900,
+                                            type: "capture_atari",
+                                            groupSize: groupInfo.size,
+                                        });
+                                    }
                                 }
                             }
                         }
@@ -884,33 +948,30 @@ export async function main(ns) {
             // 3. Find groups with 2-3 liberties that are under attack
             for (let y = 0; y < this.boardSize; y++) {
                 for (let x = 0; x < this.boardSize; x++) {
-                    if (board[y][x] === this.ourColor && liberties[y][x] >= 2 && liberties[y][x] <= 3) {
-                        // Enhanced vulnerability check including obstacles
-                        const vulnerability = this.evaluateStoneVulnerability(board, x, y);
+                    if (board[y][x] === this.ourColor) {
+                        const groupInfo = this.getGroupInfo(board, x, y);
 
-                        if (vulnerability > 50) {
-                            // Stone is in some danger
-                            let reinforcementMoves = [];
+                        if (groupInfo.libertiesCount >= 2 && groupInfo.libertiesCount <= 3) {
+                            // Enhanced vulnerability check including obstacles
+                            const vulnerability = this.evaluateStoneVulnerability(board, x, y);
 
-                            for (const [dx, dy] of this.directions) {
-                                const nx = x + dx;
-                                const ny = y + dy;
-                                if (this.isValidCoord(nx, ny) && board[ny][nx] === "" && validMoves[ny][nx]) {
-                                    reinforcementMoves.push([ny, nx]);
+                            if (vulnerability > 50) {
+                                // Stone is in some danger - use liberty positions from library
+                                for (const [lx, ly] of groupInfo.liberties) {
+                                    if (validMoves[ly] && validMoves[ly][lx]) {
+                                        let connectionValue = this.evaluateConnection(board, ly, lx);
+                                        let priority = 400 + connectionValue + vulnerability;
+
+                                        if (groupInfo.libertiesCount === 2) priority += 200; // Extra urgent for 2-liberty groups
+
+                                        tacticalMoves.push({
+                                            move: [ly, lx],
+                                            priority: priority,
+                                            type: "reinforce_vulnerable",
+                                            groupSize: groupInfo.size,
+                                        });
+                                    }
                                 }
-                            }
-
-                            for (const [ry, rx] of reinforcementMoves) {
-                                let connectionValue = this.evaluateConnection(board, ry, rx);
-                                let priority = 400 + connectionValue + vulnerability;
-
-                                if (liberties[y][x] === 2) priority += 200; // Extra urgent for 2-liberty groups
-
-                                tacticalMoves.push({
-                                    move: [ry, rx],
-                                    priority: priority,
-                                    type: "reinforce_vulnerable",
-                                });
                             }
                         }
                     }
@@ -920,22 +981,26 @@ export async function main(ns) {
             // 4. Find moves that create atari (put opponent in danger)
             for (let y = 0; y < this.boardSize; y++) {
                 for (let x = 0; x < this.boardSize; x++) {
-                    if (board[y][x] === this.opponentColor && liberties[y][x] === 2) {
-                        // Check if opponent is also vulnerable to obstacles
-                        const opponentVulnerability = this.evaluateStoneVulnerability(board, x, y);
+                    if (board[y][x] === this.opponentColor) {
+                        const groupInfo = this.getGroupInfo(board, x, y);
 
-                        for (const [dx, dy] of this.directions) {
-                            const nx = x + dx;
-                            const ny = y + dy;
-                            if (this.isValidCoord(nx, ny) && board[ny][nx] === "" && validMoves[ny][nx]) {
-                                if (this.wouldCreateAtari(board, ny, nx, x, y)) {
-                                    let priority = 500 + opponentVulnerability; // Higher priority if opponent is vulnerable to obstacles
+                        if (groupInfo.libertiesCount === 2) {
+                            // Check if opponent is also vulnerable to obstacles
+                            const opponentVulnerability = this.evaluateStoneVulnerability(board, x, y);
 
-                                    tacticalMoves.push({
-                                        move: [ny, nx],
-                                        priority: priority,
-                                        type: "create_atari",
-                                    });
+                            // Check each liberty to see if playing there creates atari
+                            for (const [lx, ly] of groupInfo.liberties) {
+                                if (validMoves[ly] && validMoves[ly][lx]) {
+                                    if (this.wouldCreateAtari(board, ly, lx, x, y)) {
+                                        let priority = 500 + opponentVulnerability; // Higher priority if opponent is vulnerable to obstacles
+
+                                        tacticalMoves.push({
+                                            move: [ly, lx],
+                                            priority: priority,
+                                            type: "create_atari",
+                                            targetGroupSize: groupInfo.size,
+                                        });
+                                    }
                                 }
                             }
                         }
