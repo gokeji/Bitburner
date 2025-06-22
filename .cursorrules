@@ -1,1 +1,56 @@
 These are my bitBurner scripts, the video game.
+
+## Bitburner Hacking Optimization Context
+
+### Game Mechanics & Constraints
+
+- **Objective**: Maximize money throughput ($/second) using limited RAM resources
+- **Core Operation**: "Batches" consisting of Hack, Grow, Weaken (HGW) operations that run in parallel. Since HGW scripts are calculated when they complete, we aim to have scripts always finish in HGW order, so that the hack can remove money from the server, grow can grow it back to full, and weaken and bring the security levels of the server back to minimum.
+- **Timing Considerations**: Since hack is the fastest, followed by grow and weaken, in every batch, we kick off HGW at the same time, but H and G will sleep for a bit longer before they start, that way they can finish right around the same time as W. This completes an entire batch of hacking, which allows us to stack many of these batches spaced 80ms apart from each other, so there's a continuous stream of batches that are completing 80ms from each other (H + 20ms + G + 20ms + W + 20ms + 20ms between batches).
+- **Batch Staggering**: New batches can be started every 80ms (SCRIPT_DELAY \* 3 + DELAY_BETWEEN_BATCHES)
+- **Key Constraint**: RAM is time-locked - once allocated to a batch, it's unavailable for the entire cycle duration
+- **Cycle Times**: Range from a few seconds (fast servers) to 18+ minutes (slow servers). Becoming faster the higher hacking levels we have, and the higher the security levels of the server gets
+
+### Current System Status (Example)
+
+- **Total RAM Available**: ~200k GB
+- **Server Count**: 14+ hackable servers
+- **RAM per Batch**: Ranges from 439GB (n00dles) to 5kGB (foodnstuff)
+- **Throughput Range**: $4.8m/s to $76m/s per server
+- **Cycle Time Range**: 1.0m to 18.4m per server
+
+### Key Metrics
+
+- **ROI**: Return on Investment (money per GB of RAM)
+- **Eff**: Time Efficiency (money per GB per minute)
+- **Throughput**: Actual money per second achievable
+
+### Current Optimization Problem
+
+**Goal**: Implement "Cascading Priority with Forward Reservation" to ensure high-priority servers get continuous batch streams without starving lower-priority servers.
+
+**Current Limitation**: Binary scheduling (one attack per server) leaves high-value servers idle between cycles, while RAM could be used more efficiently.
+
+**Desired Solution**:
+
+1. **Priority-based allocation**: Higher efficiency servers get guaranteed RAM reservation
+2. **Continuous streaming**: Schedule multiple batches per server, staggered by 80ms
+3. **Dynamic reallocation**: When batches complete, immediately reallocate freed RAM to highest priority available work
+4. **Starvation prevention**: Don't allocate RAM to low-priority servers if it would prevent high-priority servers from maintaining continuous operation
+
+### Technical Implementation Notes
+
+- **Script RAM costs**: hack.js (1.7GB), grow.js (1.75GB), weaken.js (1.75GB)
+- **Timing constraints**: Weaken always takes longest, determines batch completion time
+- **Formulas API**: Use optimal server conditions (min security, max money) for calculations
+- **Look-ahead window**: Consider 2-3 management cycles (2-3 seconds) for forward planning
+
+### Resource Timeline Management
+
+The core challenge is managing RAM as a resource that exists in both space (total amount) and time (duration locked) dimensions. Need to track:
+
+- Currently allocated RAM and when it becomes available
+- Future RAM needs for maintaining continuous streams on priority servers
+- Opportunity cost of long-term commitments vs. short-term high-efficiency work
+
+This is a **Multi-Dimensional Resource Scheduling Problem** with time-locked resources and priority-based allocation constraints.
