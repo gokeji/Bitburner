@@ -26,7 +26,8 @@ export async function main(ns) {
         initializeGame() {
             // Get current board state from Bitburner
             const boardState = this.ns.go.getBoardState();
-            this.state.board = boardState.map((row) => row.split(""));
+            // Board state is already a 2D array, no need to split strings
+            this.state.board = boardState.map((row) => [...row]);
 
             // Determine colors and current player
             this.determineColors();
@@ -119,7 +120,8 @@ export async function main(ns) {
             for (let y = 0; y < this.boardSize; y++) {
                 for (let x = 0; x < this.boardSize; x++) {
                     if (bitburnerMoves[y][x]) {
-                        validMoves.push({ x, y });
+                        // Return moves as [row, column] to match original script format
+                        validMoves.push([y, x]);
                     }
                 }
             }
@@ -130,15 +132,16 @@ export async function main(ns) {
         playMove(move) {
             if (this.state.gameOver) return;
 
-            const { x, y } = move;
+            // Move is [row, column] format
+            const [row, col] = move;
             const currentColor = this.state.currentPlayer === 1 ? this.state.ourColor : this.state.opponentColor;
 
-            // Place the stone
-            this.state.board[y][x] = currentColor;
+            // Place the stone - board is indexed as board[row][col]
+            this.state.board[row][col] = currentColor;
             this.state.moveCount++;
 
             // Check for captures
-            this.handleCaptures(x, y, currentColor);
+            this.handleCaptures(col, row, currentColor);
 
             // Switch players
             this.state.currentPlayer = this.state.currentPlayer === 1 ? 2 : 1;
@@ -326,41 +329,43 @@ export async function main(ns) {
         const exploration = 1.41; // Standard UCB1 exploration parameter
         const aiPlayer = new MCTS(game, 1, iterations, exploration);
 
-        ns.tprint("Current board state:");
-        ns.tprint(game.toString());
+        ns.print("Current board state:");
+        ns.print(game.toString());
 
         // Check if we have valid moves
         const validMoves = game.moves();
         if (validMoves.length === 0) {
             ns.print("No valid moves available, passing turn");
             result = await ns.go.passTurn();
-            break;
-        }
-
-        ns.print(`AI analyzing ${validMoves.length} possible moves with ${iterations} MCTS iterations...`);
-
-        // Get AI move
-        const startTime = Date.now();
-        const aiMove = aiPlayer.selectMove();
-        const thinkTime = Date.now() - startTime;
-
-        if (!aiMove) {
-            ns.print("AI couldn't find a move, passing turn");
-            result = await ns.go.passTurn();
         } else {
-            const { x, y } = aiMove;
-            ns.print(`AI selected move: [${y}, ${x}] (thought for ${thinkTime}ms)`);
+            ns.print(`AI analyzing ${validMoves.length} possible moves with ${iterations} MCTS iterations...`);
 
-            // Make the move in Bitburner
-            result = await ns.go.makeMove(y, x);
+            // Get AI move
+            const startTime = Date.now();
+            const aiMove = aiPlayer.selectMove();
+            const thinkTime = Date.now() - startTime;
 
-            if (result?.type === "invalid") {
-                ns.print(`Invalid move attempted: [${y}, ${x}], passing instead`);
+            if (!aiMove) {
+                ns.print("AI couldn't find a move, passing turn");
                 result = await ns.go.passTurn();
+            } else {
+                // aiMove is now [row, col] format like the original script
+                const [row, col] = aiMove;
+                ns.print(`AI selected move: [${row}, ${col}] (thought for ${thinkTime}ms)`);
+
+                // Make the move in Bitburner - use row, column format like original
+                result = await ns.go.makeMove(row, col);
+
+                if (result?.type === "invalid") {
+                    ns.print(`Invalid move attempted: [${row}, ${col}], passing instead`);
+                    result = await ns.go.passTurn();
+                } else {
+                    ns.print(`Move made successfully: [${row}, ${col}]`);
+                }
             }
         }
 
-        // Wait for opponent
+        // Wait for opponent - following the original pattern
         const opponentMove = await ns.go.opponentNextTurn();
 
         if (opponentMove?.type === "pass") {
@@ -369,7 +374,8 @@ export async function main(ns) {
             break;
         }
 
-        await ns.sleep(100); // Small delay to prevent overwhelming the system
+        // Add a small delay like the original
+        await ns.sleep(100);
     } while (result?.type !== "gameOver" && gameCount < 300);
 
     // Start new game
@@ -378,5 +384,5 @@ export async function main(ns) {
     ns.go.resetBoardState(randomOpponent, 13);
 
     // Restart the script
-    ns.exec("techLord/master/ipvgo-improved.js", "home", 1, ...opponents);
+    ns.exec("techLord/master/ipvgo-mcts.js", "home", 1, ...opponents);
 }
