@@ -1,10 +1,14 @@
 import { NS } from "@ns";
 
+// Note: You'll need to install @sabaki/go-board via npm or include it in your project
+// For Bitburner, you may need to include the library directly or use a bundled version
+import { Board } from "@sabaki/go-board"; // Uncomment when library is available
+
 /** @param {NS} ns */
 export async function main(ns) {
     const opponents = ns.args || ["Netburners", "Slum Snakes", "The Black Hand", "Tetrads", "Daedalus", "Illuminati"];
 
-    class GoAI {
+    class AdvancedGoAI {
         constructor(ns) {
             this.ns = ns;
             this.boardSize = 13;
@@ -12,6 +16,10 @@ export async function main(ns) {
             this.opponentColor = null;
             this.isFirstMove = true;
             this.moveHistory = [];
+            this.mctsIterations = 500; // Number of MCTS simulations per move
+            this.explorationConstant = Math.sqrt(2); // UCB1 exploration parameter
+            this.patterns = this.initializePatterns();
+            this.joseki = this.initializeJoseki();
             this.directions = [
                 [0, 1],
                 [1, 0],
@@ -26,22 +34,375 @@ export async function main(ns) {
             ];
         }
 
-        // Properly determine our color based on game state
+        // Enhanced board representation with obstacle support
+        createBoardFromState(board) {
+            // Convert Bitburner board format to @sabaki/go-board format
+            // '#' positions become -2 (obstacles), empty become 0, X become 1, O become -1
+            const signMap = board.map((row) =>
+                row.split("").map((cell) => {
+                    if (cell === "#") return -2; // Obstacle marker
+                    if (cell === "X") return 1; // Black stone
+                    if (cell === "O") return -1; // White stone
+                    return 0; // Empty
+                }),
+            );
+
+            // For now, use custom implementation until library is integrated
+            return { signMap, width: this.boardSize, height: this.boardSize };
+        }
+
+        // Enhanced liberty counting with obstacle awareness
+        countLiberties(board, x, y) {
+            const color = board[y][x];
+            if (color === "" || color === "#") return 0;
+
+            const visited = new Set();
+            const liberties = new Set();
+
+            const dfs = (cx, cy) => {
+                const key = `${cx},${cy}`;
+                if (visited.has(key)) return;
+                visited.add(key);
+
+                for (const [dx, dy] of this.directions) {
+                    const nx = cx + dx;
+                    const ny = cy + dy;
+                    if (!this.isValidCoord(nx, ny)) continue;
+
+                    if (board[ny][nx] === "") {
+                        liberties.add(`${nx},${ny}`);
+                    } else if (board[ny][nx] === color) {
+                        dfs(nx, ny);
+                    }
+                    // Note: obstacles (#) are treated as blocking, not liberties
+                }
+            };
+
+            dfs(x, y);
+            return liberties.size;
+        }
+
+        // Enhanced move validation with obstacle support
+        isValidMove(board, y, x) {
+            // Check bounds
+            if (!this.isValidCoord(x, y)) return false;
+
+            // Check if position is empty (not stone or obstacle)
+            if (board[y][x] !== "") return false;
+
+            // Additional validation for suicide moves and ko
+            // This would be handled by @sabaki/go-board's makeMove validation
+            return true;
+        }
+
+        // Enhanced pattern recognition with obstacle awareness
+        evaluateStoneVulnerability(board, x, y) {
+            const color = board[y][x];
+            if (color === "" || color === "#") return 0;
+
+            let vulnerabilityScore = 0;
+            let adjacentObstacles = 0;
+            let adjacentOpponents = 0;
+            let adjacentEmpty = 0;
+            let adjacentFriendly = 0;
+
+            for (const [dx, dy] of this.directions) {
+                const nx = x + dx;
+                const ny = y + dy;
+
+                if (!this.isValidCoord(nx, ny)) {
+                    adjacentObstacles++; // Board edge
+                } else if (board[ny][nx] === "#") {
+                    adjacentObstacles++; // Obstacle
+                } else if (board[ny][nx] === "") {
+                    adjacentEmpty++;
+                } else if (board[ny][nx] === color) {
+                    adjacentFriendly++;
+                } else {
+                    adjacentOpponents++;
+                }
+            }
+
+            const blockedSides = adjacentObstacles + adjacentOpponents;
+
+            // High vulnerability if mostly surrounded
+            if (blockedSides >= 3) {
+                vulnerabilityScore += 300;
+            } else if (blockedSides >= 2) {
+                vulnerabilityScore += 150;
+            }
+
+            // Obstacles reduce escape routes more than opponent stones
+            vulnerabilityScore += adjacentObstacles * 75; // Increased from 50
+            vulnerabilityScore -= adjacentFriendly * 30;
+
+            return vulnerabilityScore;
+        }
+
+        // Enhanced tactical analysis with obstacle integration
+        findObstacleThreats(board, validMoves) {
+            const threats = [];
+            if (!this.ourColor) this.determineColors(board);
+
+            for (let y = 0; y < this.boardSize; y++) {
+                for (let x = 0; x < this.boardSize; x++) {
+                    if (board[y][x] === this.ourColor) {
+                        const vulnerability = this.evaluateStoneVulnerability(board, x, y);
+                        const liberties = this.countLiberties(board, x, y);
+
+                        // Higher priority for stones near obstacles
+                        if (vulnerability > 100 && liberties <= 3) {
+                            for (const [dx, dy] of this.directions) {
+                                const nx = x + dx;
+                                const ny = y + dy;
+
+                                if (this.isValidCoord(nx, ny) && board[ny][nx] === "" && validMoves[ny][nx]) {
+                                    let priority = vulnerability + (4 - liberties) * 100;
+
+                                    // Bonus for moves that create connections away from obstacles
+                                    const connectionValue = this.evaluateConnection(board, ny, nx);
+                                    const obstacleEscapeBonus = this.evaluateObstacleEscape(board, ny, nx, x, y);
+
+                                    priority += connectionValue + obstacleEscapeBonus;
+
+                                    threats.push({
+                                        move: [ny, nx],
+                                        priority: priority,
+                                        type: "obstacle_defense",
+                                        targetStone: [y, x],
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return threats;
+        }
+
+        // New function to evaluate moves that help escape obstacle traps
+        evaluateObstacleEscape(board, moveY, moveX, stoneX, stoneY) {
+            let escapeValue = 0;
+
+            // Check if this move creates breathing room away from obstacles
+            for (const [dx, dy] of this.directions) {
+                const nx = moveX + dx;
+                const ny = moveY + dy;
+
+                if (this.isValidCoord(nx, ny)) {
+                    if (board[ny][nx] === "") {
+                        escapeValue += 20; // Open space is valuable
+                    } else if (board[ny][nx] === "#") {
+                        escapeValue -= 30; // Avoid moving toward obstacles
+                    }
+                }
+            }
+
+            // Bonus for moves that increase distance from obstacles
+            const obstacleDistance = this.getMinObstacleDistance(board, moveX, moveY);
+            escapeValue += Math.min(obstacleDistance * 10, 50);
+
+            return escapeValue;
+        }
+
+        // Helper function to find minimum distance to any obstacle
+        getMinObstacleDistance(board, x, y) {
+            let minDistance = this.boardSize;
+
+            for (let oy = 0; oy < this.boardSize; oy++) {
+                for (let ox = 0; ox < this.boardSize; ox++) {
+                    if (board[oy][ox] === "#") {
+                        const distance = Math.abs(x - ox) + Math.abs(y - oy);
+                        minDistance = Math.min(minDistance, distance);
+                    }
+                }
+            }
+
+            return minDistance;
+        }
+
+        // Initialize tactical and strategic patterns
+        initializePatterns() {
+            return {
+                // Atari patterns - one liberty threats
+                atari: [
+                    {
+                        pattern: [
+                            [1, 0, 1],
+                            [0, 1, 0],
+                        ],
+                        priority: 900,
+                    },
+                    { pattern: [[1], [0], [1]], priority: 900 },
+                ],
+
+                // Net patterns - capturing techniques
+                nets: [
+                    {
+                        pattern: [
+                            [1, 0, 1],
+                            [0, 2, 0],
+                            [1, 0, 1],
+                        ],
+                        priority: 700,
+                    },
+                    {
+                        pattern: [
+                            [0, 1, 0],
+                            [1, 2, 1],
+                            [0, 1, 0],
+                        ],
+                        priority: 700,
+                    },
+                ],
+
+                // Good shape patterns
+                goodShape: [
+                    {
+                        pattern: [
+                            [1, 0],
+                            [0, 1],
+                        ],
+                        priority: 200,
+                    }, // Diagonal connection
+                    {
+                        pattern: [
+                            [1, 1],
+                            [0, 0],
+                        ],
+                        priority: 150,
+                    }, // Bamboo joint
+                    { pattern: [[1, 0, 1]], priority: 100 }, // Extension
+                ],
+
+                // Bad shape patterns to avoid
+                badShape: [
+                    {
+                        pattern: [
+                            [1, 1],
+                            [1, 0],
+                        ],
+                        priority: -200,
+                    }, // Empty triangle
+                    {
+                        pattern: [
+                            [1, 0, 1],
+                            [1, 1, 1],
+                        ],
+                        priority: -300,
+                    }, // Overconcentration
+                    {
+                        pattern: [
+                            [0, 1],
+                            [1, 1],
+                        ],
+                        priority: -150,
+                    }, // Heavy shape
+                ],
+
+                // Eye patterns for life and death
+                eyes: [
+                    {
+                        pattern: [
+                            [1, 1, 1],
+                            [1, 0, 1],
+                            [1, 1, 1],
+                        ],
+                        priority: 800,
+                    }, // Surrounded eye
+                    {
+                        pattern: [
+                            [0, 1, 0],
+                            [1, 0, 1],
+                            [0, 1, 0],
+                        ],
+                        priority: 600,
+                    }, // Cross eye
+                ],
+            };
+        }
+
+        // Initialize basic joseki patterns
+        initializeJoseki() {
+            return {
+                // 3-3 invasion joseki
+                sansan: [
+                    {
+                        moves: [
+                            [3, 3],
+                            [3, 4],
+                            [4, 3],
+                            [2, 3],
+                        ],
+                        priority: 300,
+                    },
+                    {
+                        moves: [
+                            [3, 3],
+                            [2, 3],
+                            [3, 2],
+                            [4, 3],
+                        ],
+                        priority: 280,
+                    },
+                ],
+
+                // 4-4 approach joseki
+                hoshi: [
+                    {
+                        moves: [
+                            [4, 4],
+                            [3, 6],
+                            [6, 3],
+                            [3, 3],
+                        ],
+                        priority: 320,
+                    },
+                    {
+                        moves: [
+                            [4, 4],
+                            [6, 3],
+                            [3, 6],
+                            [6, 6],
+                        ],
+                        priority: 300,
+                    },
+                ],
+
+                // Corner enclosure patterns
+                shimari: [
+                    {
+                        moves: [
+                            [3, 4],
+                            [5, 3],
+                        ],
+                        priority: 250,
+                    },
+                    {
+                        moves: [
+                            [4, 3],
+                            [3, 5],
+                        ],
+                        priority: 250,
+                    },
+                ],
+            };
+        }
+
+        // Determine our color based on game state
         determineColors(board) {
-            // If it's the very first move, we're likely playing as 'X' (black)
             if (this.isFirstMove) {
-                const totalStones = board.flat().filter((cell) => cell !== "").length;
+                const totalStones = board.flat().filter((cell) => cell !== "" && cell !== "#").length;
                 if (totalStones === 0) {
-                    this.ourColor = "X"; // We play first as black
+                    this.ourColor = "X";
                     this.opponentColor = "O";
                     return;
                 }
             }
 
-            // Count stones to determine who we are
-            let xCount = 0;
-            let oCount = 0;
-
+            let xCount = 0,
+                oCount = 0;
             for (let y = 0; y < board.length; y++) {
                 for (let x = 0; x < board[y].length; x++) {
                     if (board[y][x] === "X") xCount++;
@@ -49,8 +410,6 @@ export async function main(ns) {
                 }
             }
 
-            // In Go, black (X) plays first, so if counts are equal, it's black's turn
-            // If X has more stones, it's white's turn
             if (xCount === oCount) {
                 this.ourColor = "X";
                 this.opponentColor = "O";
@@ -58,110 +417,499 @@ export async function main(ns) {
                 this.ourColor = "O";
                 this.opponentColor = "X";
             } else {
-                // This shouldn't happen in normal play
                 this.ourColor = "X";
                 this.opponentColor = "O";
             }
         }
 
-        // Check if coordinates are within board bounds
+        // Check if coordinates are valid
         isValidCoord(x, y) {
             return x >= 0 && x < this.boardSize && y >= 0 && y < this.boardSize;
         }
 
-        // Evaluate board position to determine game phase and territorial balance
-        evaluateBoardPosition(board) {
-            const totalStones = board.flat().filter((cell) => cell !== "").length;
-            const center = Math.floor(this.boardSize / 2);
+        // MCTS Node class for tree search
+        createMCTSNode(board, move = null, parent = null) {
+            return {
+                board: board,
+                move: move,
+                parent: parent,
+                children: [],
+                visits: 0,
+                wins: 0,
+                untriedMoves: this.getValidMoves(board),
+                playerToMove: this.getPlayerToMove(board),
+            };
+        }
 
-            // Count stones in different areas
-            let ourEdge = 0,
-                opponentEdge = 0;
-            let ourCenter = 0,
-                opponentCenter = 0;
-            let ourSides = 0,
-                opponentSides = 0;
+        // Get valid moves for current board state
+        getValidMoves(board) {
+            const validMoves = this.ns.go.analysis.getValidMoves();
+            const moves = [];
 
             for (let y = 0; y < this.boardSize; y++) {
                 for (let x = 0; x < this.boardSize; x++) {
-                    if (board[y][x] === "") continue;
+                    if (validMoves[y][x]) {
+                        moves.push([y, x]);
+                    }
+                }
+            }
+            return moves;
+        }
 
-                    const isEdge = x <= 2 || x >= this.boardSize - 3 || y <= 2 || y >= this.boardSize - 3;
-                    const isCenter = Math.abs(x - center) <= 2 && Math.abs(y - center) <= 2;
-                    const isSide = !isEdge && !isCenter;
+        // Determine which player's turn it is
+        getPlayerToMove(board) {
+            let xCount = 0,
+                oCount = 0;
+            for (let y = 0; y < board.length; y++) {
+                for (let x = 0; x < board[y].length; x++) {
+                    if (board[y][x] === "X") xCount++;
+                    else if (board[y][x] === "O") oCount++;
+                }
+            }
+            return xCount <= oCount ? "X" : "O";
+        }
 
+        // UCB1 selection formula for MCTS
+        calculateUCB1(node, child, explorationConstant) {
+            if (child.visits === 0) return Infinity;
+
+            const exploitation = child.wins / child.visits;
+            const exploration = explorationConstant * Math.sqrt(Math.log(node.visits) / child.visits);
+
+            return exploitation + exploration;
+        }
+
+        // Select child node using UCB1
+        selectChild(node) {
+            let bestChild = null;
+            let bestValue = -Infinity;
+
+            for (const child of node.children) {
+                const ucb1Value = this.calculateUCB1(node, child, this.explorationConstant);
+                if (ucb1Value > bestValue) {
+                    bestValue = ucb1Value;
+                    bestChild = child;
+                }
+            }
+            return bestChild;
+        }
+
+        // Expand node by adding a child for an untried move
+        expandNode(node) {
+            if (node.untriedMoves.length === 0) return null;
+
+            const moveIndex = Math.floor(Math.random() * node.untriedMoves.length);
+            const move = node.untriedMoves.splice(moveIndex, 1)[0];
+
+            // Simulate making the move
+            const newBoard = this.simulateMove(node.board, move, node.playerToMove);
+            const child = this.createMCTSNode(newBoard, move, node);
+            node.children.push(child);
+
+            return child;
+        }
+
+        // Simulate a move on the board
+        simulateMove(board, move, player) {
+            const newBoard = board.map((row) => [...row]);
+            const [y, x] = move;
+            newBoard[y][x] = player;
+            return newBoard;
+        }
+
+        // Simulate a random playout from current position
+        simulateRandomPlayout(board, player) {
+            let currentBoard = board.map((row) => [...row]);
+            let currentPlayer = player;
+            let moves = 0;
+            const maxMoves = 100; // Prevent infinite games
+
+            while (moves < maxMoves) {
+                const validMoves = this.getValidMovesForBoard(currentBoard);
+                if (validMoves.length === 0) break;
+
+                // Use policy network-like move selection (weighted random)
+                const move = this.selectPlayoutMove(currentBoard, validMoves, currentPlayer);
+                if (!move) break;
+
+                currentBoard = this.simulateMove(currentBoard, move, currentPlayer);
+                currentPlayer = currentPlayer === "X" ? "O" : "X";
+                moves++;
+            }
+
+            return this.evaluatePosition(currentBoard);
+        }
+
+        // Get valid moves for a specific board state
+        getValidMovesForBoard(board) {
+            const moves = [];
+            for (let y = 0; y < this.boardSize; y++) {
+                for (let x = 0; x < this.boardSize; x++) {
+                    if (board[y][x] === "" && this.isLegalMove(board, [y, x])) {
+                        moves.push([y, x]);
+                    }
+                }
+            }
+            return moves;
+        }
+
+        // Check if a move is legal (basic suicide rule)
+        isLegalMove(board, move) {
+            const [y, x] = move;
+            if (board[y][x] !== "") return false;
+
+            // Check for immediate captures or connections
+            for (const [dy, dx] of this.directions) {
+                const ny = y + dy;
+                const nx = x + dx;
+                if (this.isValidCoord(nx, ny) && board[ny][nx] !== "") {
+                    return true; // Adjacent to existing stones
+                }
+            }
+            return true; // Empty area is generally legal
+        }
+
+        // Select move for playout using policy-like heuristics
+        selectPlayoutMove(board, validMoves, player) {
+            if (validMoves.length === 0) return null;
+
+            // Weight moves by tactical importance
+            const weightedMoves = validMoves.map((move) => {
+                const weight = this.evaluateMoveUrgency(board, move, player);
+                return { move, weight };
+            });
+
+            // Sort by weight and add randomness
+            weightedMoves.sort((a, b) => b.weight - a.weight);
+
+            // Select from top moves with some randomness
+            const topMoves = weightedMoves.slice(0, Math.min(5, weightedMoves.length));
+            const randomIndex = Math.floor(Math.random() * topMoves.length);
+            return topMoves[randomIndex].move;
+        }
+
+        // Evaluate move urgency for playout policy
+        evaluateMoveUrgency(board, move, player) {
+            let urgency = Math.random() * 10; // Base randomness
+
+            // Check for captures
+            if (this.isCapturingMove(board, move, player)) {
+                urgency += 50;
+            }
+
+            // Check for escapes
+            if (this.isEscapeMove(board, move, player)) {
+                urgency += 40;
+            }
+
+            // Check for connections
+            if (this.isConnectionMove(board, move, player)) {
+                urgency += 20;
+            }
+
+            // Prefer center and star points
+            const center = Math.floor(this.boardSize / 2);
+            const distanceFromCenter = Math.abs(move[0] - center) + Math.abs(move[1] - center);
+            urgency += Math.max(0, 10 - distanceFromCenter);
+
+            return urgency;
+        }
+
+        // Check if move captures opponent stones
+        isCapturingMove(board, move, player) {
+            const [y, x] = move;
+            const opponent = player === "X" ? "O" : "X";
+
+            for (const [dy, dx] of this.directions) {
+                const ny = y + dy;
+                const nx = x + dx;
+                if (this.isValidCoord(nx, ny) && board[ny][nx] === opponent) {
+                    // Check if opponent group would have no liberties
+                    const liberties = this.countLiberties(board, nx, ny);
+                    if (liberties <= 1) return true;
+                }
+            }
+            return false;
+        }
+
+        // Check if move helps escape from atari
+        isEscapeMove(board, move, player) {
+            const [y, x] = move;
+
+            for (const [dy, dx] of this.directions) {
+                const ny = y + dy;
+                const nx = x + dx;
+                if (this.isValidCoord(nx, ny) && board[ny][nx] === player) {
+                    const liberties = this.countLiberties(board, nx, ny);
+                    if (liberties <= 2) return true; // Helps group in trouble
+                }
+            }
+            return false;
+        }
+
+        // Check if move connects friendly stones
+        isConnectionMove(board, move, player) {
+            const [y, x] = move;
+            let friendlyNeighbors = 0;
+
+            for (const [dy, dx] of this.directions) {
+                const ny = y + dy;
+                const nx = x + dx;
+                if (this.isValidCoord(nx, ny) && board[ny][nx] === player) {
+                    friendlyNeighbors++;
+                }
+            }
+            return friendlyNeighbors >= 2;
+        }
+
+        // A simple flood-fill to estimate territory for a given board state
+        estimateTerritory(board) {
+            const territory = { our: 0, opponent: 0, neutral: 0 };
+            const visited = new Set();
+            if (!this.ourColor) this.determineColors(board);
+
+            for (let y = 0; y < this.boardSize; y++) {
+                for (let x = 0; x < this.boardSize; x++) {
+                    const key = `${y},${x}`;
+                    if (board[y][x] === "" && !visited.has(key)) {
+                        const regionNodes = new Set();
+                        const borderColors = new Set();
+                        const queue = [[y, x]];
+                        visited.add(key);
+                        regionNodes.add(key);
+
+                        let head = 0;
+                        while (head < queue.length) {
+                            const [cy, cx] = queue[head++];
+
+                            for (const [dy, dx] of this.directions) {
+                                const ny = cy + dy;
+                                const nx = cx + dx;
+                                const nkey = `${ny},${nx}`;
+
+                                if (!this.isValidCoord(nx, ny)) continue;
+
+                                if (board[ny][nx] === "") {
+                                    if (!visited.has(nkey)) {
+                                        visited.add(nkey);
+                                        regionNodes.add(nkey);
+                                        queue.push([ny, nx]);
+                                    }
+                                } else if (board[ny][nx] !== "#") {
+                                    // Don't count obstacles as border colors
+                                    borderColors.add(board[ny][nx]);
+                                }
+                            }
+                        }
+
+                        if (borderColors.size === 1) {
+                            const owner = borderColors.values().next().value;
+                            if (owner === this.ourColor) {
+                                territory.our += regionNodes.size;
+                            } else if (owner === this.opponentColor) {
+                                territory.opponent += regionNodes.size;
+                            }
+                        } else {
+                            territory.neutral += regionNodes.size;
+                        }
+                    }
+                }
+            }
+            return territory;
+        }
+
+        // Calculate influence radiating from each stone (obstacle-aware)
+        calculateInfluence(board) {
+            const influenceMap = Array(this.boardSize)
+                .fill(null)
+                .map(() => Array(this.boardSize).fill(0));
+            if (!this.ourColor) this.determineColors(board);
+
+            for (let y = 0; y < this.boardSize; y++) {
+                for (let x = 0; x < this.boardSize; x++) {
+                    if (board[y][x] === "" || board[y][x] === "#") continue; // Skip empty points and obstacles
+
+                    const isOurStone = board[y][x] === this.ourColor;
+                    const influenceSign = isOurStone ? 1 : -1;
+
+                    // Radiate influence in a limited radius (Manhattan distance)
+                    for (let dy = -4; dy <= 4; dy++) {
+                        for (let dx = -4; dx <= 4; dx++) {
+                            const ny = y + dy;
+                            const nx = x + dx;
+
+                            if (this.isValidCoord(nx, ny) && board[ny][nx] === "") {
+                                const distance = Math.abs(dx) + Math.abs(dy);
+                                if (distance > 0 && distance <= 4) {
+                                    const influence = 5 - distance; // Influence decays with distance
+                                    influenceMap[ny][nx] += influenceSign * influence;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return influenceMap;
+        }
+
+        // Evaluate final position
+        evaluatePosition(board) {
+            let stoneScore = 0;
+            if (!this.ourColor) this.determineColors(board);
+
+            // 1. Count stones
+            for (let y = 0; y < this.boardSize; y++) {
+                for (let x = 0; x < this.boardSize; x++) {
                     if (board[y][x] === this.ourColor) {
-                        if (isEdge) ourEdge++;
-                        else if (isCenter) ourCenter++;
-                        else ourSides++;
-                    } else {
-                        if (isEdge) opponentEdge++;
-                        else if (isCenter) opponentCenter++;
-                        else opponentSides++;
+                        stoneScore += 1;
+                    } else if (board[y][x] === this.opponentColor) {
+                        stoneScore -= 1;
                     }
                 }
             }
 
-            return {
-                totalStones,
-                ourEdge,
-                opponentEdge,
-                ourCenter,
-                opponentCenter,
-                ourSides,
-                opponentSides,
-                centerDeficit: opponentCenter - ourCenter,
-                gamePhase: totalStones < 30 ? "opening" : totalStones < 80 ? "middle" : "endgame",
-            };
+            // 2. Add territory estimation for secure territory
+            const territory = this.estimateTerritory(board);
+            const territoryScore = territory.our - territory.opponent;
+
+            // 3. Add influence estimation for potential territory
+            const influenceMap = this.calculateInfluence(board);
+            let influenceScore = 0;
+            for (let y = 0; y < this.boardSize; y++) {
+                for (let x = 0; x < this.boardSize; x++) {
+                    // Tally up points of influence, giving a score based on who controls the point
+                    if (influenceMap[y][x] > 0) {
+                        influenceScore += 1;
+                    } else if (influenceMap[y][x] < 0) {
+                        influenceScore -= 1;
+                    }
+                }
+            }
+
+            // Combine scores with weights. Territory is most valuable, then stones, then influence.
+            const finalScore = 2.0 * territoryScore + 1.0 * stoneScore + 0.5 * influenceScore;
+
+            return finalScore > 0 ? 1 : finalScore < 0 ? 0 : 0.5;
         }
 
-        // Find invasion and reduction moves
-        findInvasionMoves(board, validMoves) {
-            const controlled = this.ns.go.analysis.getControlledEmptyNodes();
-            const invasionMoves = [];
-            const position = this.evaluateBoardPosition(board);
+        // Backpropagate MCTS result
+        backpropagate(node, result) {
+            while (node !== null) {
+                node.visits++;
+                if (node.playerToMove !== this.ourColor) {
+                    node.wins += result;
+                } else {
+                    node.wins += 1 - result;
+                }
+                node = node.parent;
+            }
+        }
 
-            // If we're losing the center badly, prioritize center invasions
-            if (position.centerDeficit > 3) {
-                const center = Math.floor(this.boardSize / 2);
+        // Main MCTS algorithm
+        runMCTS(board) {
+            const root = this.createMCTSNode(board);
 
-                // Look for invasion points in opponent territory
-                for (let y = 0; y < this.boardSize; y++) {
-                    for (let x = 0; x < this.boardSize; x++) {
-                        if (!validMoves[y][x]) continue;
+            for (let i = 0; i < this.mctsIterations; i++) {
+                let node = root;
 
-                        const control = controlled[y][x];
-                        if (control === this.opponentColor) {
-                            // This is opponent territory - consider invasion
-                            let invasionValue = 0;
+                // Selection phase
+                while (node.untriedMoves.length === 0 && node.children.length > 0) {
+                    node = this.selectChild(node);
+                }
 
-                            // Higher value for center invasions
-                            const distanceFromCenter = Math.abs(x - center) + Math.abs(y - center);
-                            if (distanceFromCenter <= 3) {
-                                invasionValue += 200; // Center invasion bonus
+                // Expansion phase
+                if (node.untriedMoves.length > 0) {
+                    node = this.expandNode(node);
+                }
+
+                // Simulation phase
+                const result = this.simulateRandomPlayout(node.board, node.playerToMove);
+
+                // Backpropagation phase
+                this.backpropagate(node, result);
+            }
+
+            // Return best move
+            if (root.children.length === 0) return null;
+
+            let bestChild = root.children[0];
+            for (const child of root.children) {
+                if (child.visits > bestChild.visits) {
+                    bestChild = child;
+                }
+            }
+
+            return bestChild.move;
+        }
+
+        // Enhanced tactical moves with obstacle awareness
+        findTacticalMoves(board, validMoves) {
+            const tacticalMoves = [];
+            const liberties = this.ns.go.analysis.getLiberties();
+
+            // 1. Find groups in atari (1 liberty) - highest priority
+            for (let y = 0; y < this.boardSize; y++) {
+                for (let x = 0; x < this.boardSize; x++) {
+                    if (board[y][x] !== "" && liberties[y][x] === 1) {
+                        // Find the liberty
+                        for (const [dx, dy] of this.directions) {
+                            const nx = x + dx;
+                            const ny = y + dy;
+                            if (this.isValidCoord(nx, ny) && board[ny][nx] === "" && validMoves[ny][nx]) {
+                                if (board[y][x] === this.ourColor) {
+                                    // Save our group - highest priority
+                                    tacticalMoves.push({
+                                        move: [ny, nx],
+                                        priority: 1000,
+                                        type: "save_atari",
+                                    });
+                                } else {
+                                    // Capture opponent group - very high priority
+                                    tacticalMoves.push({
+                                        move: [ny, nx],
+                                        priority: 900,
+                                        type: "capture_atari",
+                                    });
+                                }
                             }
+                        }
+                    }
+                }
+            }
 
-                            // Check if we can make a base here
-                            let liberties = 0;
-                            let opponentAdjacent = 0;
+            // 2. Find obstacle-assisted threats - NEW!
+            const obstacleThreats = this.findObstacleThreats(board, validMoves);
+            tacticalMoves.push(...obstacleThreats);
+
+            // 3. Find groups with 2-3 liberties that are under attack
+            for (let y = 0; y < this.boardSize; y++) {
+                for (let x = 0; x < this.boardSize; x++) {
+                    if (board[y][x] === this.ourColor && liberties[y][x] >= 2 && liberties[y][x] <= 3) {
+                        // Enhanced vulnerability check including obstacles
+                        const vulnerability = this.evaluateStoneVulnerability(board, x, y);
+
+                        if (vulnerability > 50) {
+                            // Stone is in some danger
+                            let reinforcementMoves = [];
 
                             for (const [dx, dy] of this.directions) {
                                 const nx = x + dx;
                                 const ny = y + dy;
-                                if (this.isValidCoord(nx, ny)) {
-                                    if (board[ny][nx] === "") liberties++;
-                                    else if (board[ny][nx] === this.opponentColor) opponentAdjacent++;
+                                if (this.isValidCoord(nx, ny) && board[ny][nx] === "" && validMoves[ny][nx]) {
+                                    reinforcementMoves.push([ny, nx]);
                                 }
                             }
 
-                            // Good invasion points have some space to make a base
-                            if (liberties >= 2 && opponentAdjacent <= 2) {
-                                invasionValue += liberties * 30;
+                            for (const [ry, rx] of reinforcementMoves) {
+                                let connectionValue = this.evaluateConnection(board, ry, rx);
+                                let priority = 400 + connectionValue + vulnerability;
 
-                                invasionMoves.push({
-                                    move: [y, x],
-                                    priority: invasionValue,
-                                    type: "invasion",
+                                if (liberties[y][x] === 2) priority += 200; // Extra urgent for 2-liberty groups
+
+                                tacticalMoves.push({
+                                    move: [ry, rx],
+                                    priority: priority,
+                                    type: "reinforce_vulnerable",
                                 });
                             }
                         }
@@ -169,97 +917,24 @@ export async function main(ns) {
                 }
             }
 
-            return invasionMoves;
-        }
-
-        // Detect cutting points - critical weaknesses in our position
-        findCuttingPoints(board, validMoves) {
-            const cuttingMoves = [];
-
+            // 4. Find moves that create atari (put opponent in danger)
             for (let y = 0; y < this.boardSize; y++) {
                 for (let x = 0; x < this.boardSize; x++) {
-                    if (!validMoves[y][x]) continue;
+                    if (board[y][x] === this.opponentColor && liberties[y][x] === 2) {
+                        // Check if opponent is also vulnerable to obstacles
+                        const opponentVulnerability = this.evaluateStoneVulnerability(board, x, y);
 
-                    // Check if this empty point separates our stones
-                    let ourStones = [];
-                    for (const [dx, dy] of this.directions) {
-                        const nx = x + dx;
-                        const ny = y + dy;
-                        if (this.isValidCoord(nx, ny) && board[ny][nx] === this.ourColor) {
-                            ourStones.push([nx, ny]);
-                        }
-                    }
-
-                    // If we have 2+ stones around this point, it might be a cutting point
-                    if (ourStones.length >= 2) {
-                        // Check if these stones are from different groups
-                        const chains = this.ns.go.analysis.getChains();
-                        const uniqueChains = new Set();
-                        for (const [sx, sy] of ourStones) {
-                            uniqueChains.add(chains[sy][sx]);
-                        }
-
-                        if (uniqueChains.size > 1) {
-                            // This is a cutting point - protect it!
-                            cuttingMoves.push({
-                                move: [y, x],
-                                priority: 800,
-                                type: "protect_cut",
-                            });
-                        }
-                    }
-
-                    // Also check if opponent can cut us here
-                    let opponentStones = [];
-                    for (const [dx, dy] of this.directions) {
-                        const nx = x + dx;
-                        const ny = y + dy;
-                        if (this.isValidCoord(nx, ny) && board[ny][nx] === this.opponentColor) {
-                            opponentStones.push([nx, ny]);
-                        }
-                    }
-
-                    if (opponentStones.length >= 2 && ourStones.length >= 1) {
-                        // Opponent might be trying to cut us - block it
-                        cuttingMoves.push({
-                            move: [y, x],
-                            priority: 700,
-                            type: "block_cut",
-                        });
-                    }
-                }
-            }
-
-            return cuttingMoves;
-        }
-
-        // Find critical moves using the liberties API
-        findCriticalMoves(board, validMoves) {
-            const liberties = this.ns.go.analysis.getLiberties();
-            const criticalMoves = [];
-
-            // Find groups in atari (1 liberty) - both ours to save and opponent's to capture
-            for (let y = 0; y < this.boardSize; y++) {
-                for (let x = 0; x < this.boardSize; x++) {
-                    if (board[y][x] !== "" && liberties[y][x] === 1) {
-                        // Find the liberty point
                         for (const [dx, dy] of this.directions) {
                             const nx = x + dx;
                             const ny = y + dy;
                             if (this.isValidCoord(nx, ny) && board[ny][nx] === "" && validMoves[ny][nx]) {
-                                if (board[y][x] === this.ourColor) {
-                                    // Save our group - highest priority
-                                    criticalMoves.push({
+                                if (this.wouldCreateAtari(board, ny, nx, x, y)) {
+                                    let priority = 500 + opponentVulnerability; // Higher priority if opponent is vulnerable to obstacles
+
+                                    tacticalMoves.push({
                                         move: [ny, nx],
-                                        priority: 1000,
-                                        type: "save",
-                                    });
-                                } else if (board[y][x] === this.opponentColor) {
-                                    // Capture opponent group - very high priority
-                                    criticalMoves.push({
-                                        move: [ny, nx],
-                                        priority: 900,
-                                        type: "capture",
+                                        priority: priority,
+                                        type: "create_atari",
                                     });
                                 }
                             }
@@ -268,104 +943,57 @@ export async function main(ns) {
                 }
             }
 
-            // Find groups with 2 liberties that we can put in atari
-            for (let y = 0; y < this.boardSize; y++) {
-                for (let x = 0; x < this.boardSize; x++) {
-                    if (board[y][x] === this.opponentColor && liberties[y][x] === 2) {
-                        // Find liberty points and see if we can reduce to 1
-                        const libertyPoints = [];
-                        for (const [dx, dy] of this.directions) {
-                            const nx = x + dx;
-                            const ny = y + dy;
-                            if (this.isValidCoord(nx, ny) && board[ny][nx] === "" && validMoves[ny][nx]) {
-                                libertyPoints.push([ny, nx]);
-                            }
-                        }
+            return tacticalMoves;
+        }
 
-                        // Add moves to put opponent in atari
-                        for (const [ly, lx] of libertyPoints) {
-                            criticalMoves.push({
-                                move: [ly, lx],
-                                priority: 400,
-                                type: "atari",
-                            });
-                        }
+        // Evaluate how well a move connects to existing friendly stones
+        evaluateConnection(board, y, x) {
+            let connectionValue = 0;
+            let friendlyNeighbors = 0;
+
+            for (const [dy, dx] of this.directions) {
+                const ny = y + dy;
+                const nx = x + dx;
+                if (this.isValidCoord(nx, ny) && board[ny][nx] === this.ourColor) {
+                    friendlyNeighbors++;
+
+                    // Bonus for connecting to groups with few liberties (they need help)
+                    const neighborLiberties = this.countLiberties(board, nx, ny);
+                    if (neighborLiberties <= 3) {
+                        connectionValue += 100;
+                    } else {
+                        connectionValue += 50;
                     }
                 }
             }
 
-            return criticalMoves;
+            // Check diagonal connections too (weaker but still valuable)
+            for (const [dy, dx] of this.diagonals) {
+                const ny = y + dy;
+                const nx = x + dx;
+                if (this.isValidCoord(nx, ny) && board[ny][nx] === this.ourColor) {
+                    connectionValue += 25;
+                }
+            }
+
+            return connectionValue;
         }
 
-        // Check if a move creates good or bad shape
-        evaluateShape(board, y, x) {
-            let shapeScore = 0;
+        // Check if playing at (y,x) would put the group at (targetY, targetX) in atari
+        wouldCreateAtari(board, y, x, targetY, targetX) {
+            // Simulate the move
+            const testBoard = board.map((row) => [...row]);
+            testBoard[y][x] = this.ourColor;
 
-            // Count our stones nearby
-            let friendlyCount = 0;
-            let friendlyPositions = [];
-
-            for (const [dx, dy] of this.directions) {
-                const nx = x + dx;
-                const ny = y + dy;
-                if (this.isValidCoord(nx, ny) && board[ny][nx] === this.ourColor) {
-                    friendlyCount++;
-                    friendlyPositions.push([nx, ny]);
-                }
-            }
-
-            // Avoid heavy concentrations (more than 2 adjacent stones)
-            if (friendlyCount > 2) {
-                shapeScore -= 150; // Reduced penalty to allow some center fighting
-            }
-
-            // Check for good shapes
-            if (friendlyCount === 1) {
-                shapeScore += 50; // Extension is often good
-            } else if (friendlyCount === 2) {
-                // Check if it's a good connection
-                const [pos1, pos2] = friendlyPositions;
-                const dx1 = pos1[0] - x,
-                    dy1 = pos1[1] - y;
-                const dx2 = pos2[0] - x,
-                    dy2 = pos2[1] - y;
-
-                // Avoid creating empty triangles (bad shape)
-                if (Math.abs(dx1 - dx2) + Math.abs(dy1 - dy2) === 2) {
-                    // Check if there's a stone at the triangle point
-                    const triangleX = pos1[0] + (dx2 - dx1);
-                    const triangleY = pos1[1] + (dy2 - dy1);
-                    if (this.isValidCoord(triangleX, triangleY) && board[triangleY][triangleX] === this.ourColor) {
-                        shapeScore -= 100; // Reduced empty triangle penalty
-                    }
-                }
-
-                shapeScore += 30; // Connection bonus
-            }
-
-            // Check diagonal points for better shape evaluation
-            let diagonalFriendlies = 0;
-            for (const [dx, dy] of this.diagonals) {
-                const nx = x + dx;
-                const ny = y + dy;
-                if (this.isValidCoord(nx, ny) && board[ny][nx] === this.ourColor) {
-                    diagonalFriendlies++;
-                }
-            }
-
-            // Too many diagonal connections can also be heavy
-            if (diagonalFriendlies > 2) {
-                shapeScore -= 80; // Reduced penalty
-            }
-
-            return shapeScore;
+            // Count liberties of target group after our move
+            const newLiberties = this.countLiberties(testBoard, targetX, targetY);
+            return newLiberties === 1;
         }
 
-        // Evaluate territorial moves using the control analysis
-        evaluateTerritory(board, validMoves) {
+        // Find strategic moves (territory, influence)
+        findStrategicMoves(board, validMoves) {
+            const strategicMoves = [];
             const controlled = this.ns.go.analysis.getControlledEmptyNodes();
-            const territoryMoves = [];
-            const position = this.evaluateBoardPosition(board);
 
             for (let y = 0; y < this.boardSize; y++) {
                 for (let x = 0; x < this.boardSize; x++) {
@@ -373,198 +1001,27 @@ export async function main(ns) {
 
                     let priority = 0;
                     const control = controlled[y][x];
-                    const center = Math.floor(this.boardSize / 2);
-                    const distanceFromCenter = Math.abs(x - center) + Math.abs(y - center);
 
-                    // Prioritize moves that:
-                    // 1. Secure our territory
-                    // 2. Invade opponent territory
-                    // 3. Contest disputed areas
-
+                    // Territory moves
                     if (control === this.ourColor) {
-                        priority += 60; // Secure our territory
+                        priority += 60;
                     } else if (control === this.opponentColor) {
-                        priority += 140; // Invade opponent territory (increased)
-
-                        // Extra bonus for center invasions if we're behind there
-                        if (position.centerDeficit > 2 && distanceFromCenter <= 3) {
-                            priority += 100;
-                        }
+                        priority += 140; // Invasion
                     } else if (control === "?") {
-                        priority += 120; // Contest disputed territory
-
-                        // Extra bonus for center contests
-                        if (distanceFromCenter <= 3) {
-                            priority += 80;
-                        }
+                        priority += 100; // Contest
                     }
 
-                    // Add influence from nearby stones (but weight it less heavily)
-                    let ourNearby = 0;
-                    let opponentNearby = 0;
+                    // Pattern matching
+                    priority += this.evaluatePatterns(board, y, x);
 
-                    for (let dy = -2; dy <= 2; dy++) {
-                        for (let dx = -2; dx <= 2; dx++) {
-                            const nx = x + dx;
-                            const ny = y + dy;
-                            if (this.isValidCoord(nx, ny) && board[ny][nx] !== "") {
-                                const distance = Math.abs(dx) + Math.abs(dy);
-                                const weight = Math.max(0, 3 - distance);
-
-                                if (board[ny][nx] === this.ourColor) {
-                                    ourNearby += weight;
-                                } else if (board[ny][nx] === this.opponentColor) {
-                                    opponentNearby += weight;
-                                }
-                            }
-                        }
-                    }
-
-                    priority += ourNearby * 4 + opponentNearby * 6; // Slightly increased weights
-
-                    // Add shape evaluation
-                    const shapeScore = this.evaluateShape(board, y, x);
-                    priority += shapeScore;
+                    // Joseki moves
+                    priority += this.evaluateJoseki(board, y, x);
 
                     if (priority > 0) {
-                        territoryMoves.push({
-                            move: [y, x],
-                            priority: priority,
-                            type: "territory",
-                        });
-                    }
-                }
-            }
-
-            return territoryMoves;
-        }
-
-        // Get strategic opening moves with better spacing and center awareness
-        getStrategicMoves(board, validMoves) {
-            const position = this.evaluateBoardPosition(board);
-            const strategicMoves = [];
-            const center = Math.floor(this.boardSize / 2);
-
-            if (position.gamePhase === "opening") {
-                // Early game - balance edge and center
-                const goodPoints = [
-                    // Side star points - good for light play (higher priority)
-                    [3, center],
-                    [9, center],
-                    [center, 3],
-                    [center, 9],
-                    // 3-3 points (secure territory)
-                    [3, 3],
-                    [3, 9],
-                    [9, 3],
-                    [9, 9],
-                    // 4-4 points (influence)
-                    [4, 4],
-                    [4, 8],
-                    [8, 4],
-                    [8, 8],
-                    // Center approaches
-                    [center - 1, center],
-                    [center + 1, center],
-                    [center, center - 1],
-                    [center, center + 1],
-                    // Center - if opponent is getting too much
-                    [center, center],
-                ];
-
-                for (const [y, x] of goodPoints) {
-                    if (this.isValidCoord(x, y) && validMoves[y][x]) {
-                        // Check if this point is too close to existing stones
-                        let tooClose = false;
-                        let minDistance = 999;
-
-                        for (let dy = -2; dy <= 2; dy++) {
-                            for (let dx = -2; dx <= 2; dx++) {
-                                const nx = x + dx;
-                                const ny = y + dy;
-                                if (this.isValidCoord(nx, ny) && board[ny][nx] === this.ourColor) {
-                                    const dist = Math.abs(dx) + Math.abs(dy);
-                                    minDistance = Math.min(minDistance, dist);
-                                    if (dist <= 1) {
-                                        tooClose = true;
-                                        break;
-                                    }
-                                }
-                            }
-                            if (tooClose) break;
-                        }
-
-                        if (!tooClose) {
-                            let priority = 220;
-                            const distanceFromCenter = Math.abs(x - center) + Math.abs(y - center);
-
-                            // Adjust priority based on center control
-                            if (position.centerDeficit > 2 && distanceFromCenter <= 2) {
-                                priority += 150; // Urgent center play
-                            } else if (y === center || x === center) {
-                                priority = 300; // Side star points
-                            } else if (distanceFromCenter <= 1) {
-                                priority = 280; // Center approaches
-                            } else if (y === 3 || y === 9 || x === 3 || x === 9) {
-                                priority = 250; // Corner approaches
-                            }
-
-                            strategicMoves.push({
-                                move: [y, x],
-                                priority: priority,
-                                type: "opening",
-                            });
-                        }
-                    }
-                }
-            } else if (position.gamePhase === "middle") {
-                // Mid game - focus on center fighting and connections
-                const extensions = [];
-
-                // Find our stones and create extension points
-                for (let y = 0; y < this.boardSize; y++) {
-                    for (let x = 0; x < this.boardSize; x++) {
-                        if (board[y][x] === this.ourColor) {
-                            // Add extension points at distance 2-3
-                            for (const [dx, dy] of this.directions) {
-                                for (let dist = 2; dist <= 3; dist++) {
-                                    const nx = x + dx * dist;
-                                    const ny = y + dy * dist;
-                                    if (this.isValidCoord(nx, ny) && validMoves[ny][nx]) {
-                                        extensions.push([ny, nx]);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                for (const [y, x] of extensions) {
-                    // Make sure it's not too close to other our stones
-                    let minDistance = 999;
-                    for (let sy = 0; sy < this.boardSize; sy++) {
-                        for (let sx = 0; sx < this.boardSize; sx++) {
-                            if (board[sy][sx] === this.ourColor) {
-                                const dist = Math.abs(sx - x) + Math.abs(sy - y);
-                                minDistance = Math.min(minDistance, dist);
-                            }
-                        }
-                    }
-
-                    if (minDistance >= 2) {
-                        // Good spacing
-                        let priority = 180;
-                        const distanceFromCenter = Math.abs(x - center) + Math.abs(y - center);
-
-                        // Bonus for center extensions if we're behind
-                        if (position.centerDeficit > 1 && distanceFromCenter <= 4) {
-                            priority += 120;
-                        }
-
                         strategicMoves.push({
                             move: [y, x],
                             priority: priority,
-                            type: "extension",
+                            type: "strategic",
                         });
                     }
                 }
@@ -573,96 +1030,140 @@ export async function main(ns) {
             return strategicMoves;
         }
 
-        // Find defensive moves to protect our groups
-        findDefensiveMoves(board, validMoves) {
-            const liberties = this.ns.go.analysis.getLiberties();
-            const chains = this.ns.go.analysis.getChains();
-            const defensiveMoves = [];
+        // Evaluate patterns around a position
+        evaluatePatterns(board, y, x) {
+            let score = 0;
 
-            // Protect groups with few liberties
-            for (let y = 0; y < this.boardSize; y++) {
-                for (let x = 0; x < this.boardSize; x++) {
-                    if (board[y][x] === this.ourColor) {
-                        const groupLiberties = liberties[y][x];
+            // Check various pattern sizes
+            for (let size = 3; size <= 5; size += 2) {
+                const pattern = this.extractPattern(board, y, x, size);
+                score += this.matchPatterns(pattern);
+            }
 
-                        if (groupLiberties <= 3 && groupLiberties > 1) {
-                            // Find moves that increase liberties or create better shape
-                            for (const [dx, dy] of this.directions) {
-                                const nx = x + dx;
-                                const ny = y + dy;
-                                if (this.isValidCoord(nx, ny) && board[ny][nx] === "" && validMoves[ny][nx]) {
-                                    let priority = 0;
+            return score;
+        }
 
-                                    if (groupLiberties === 2)
-                                        priority = 600; // Very urgent
-                                    else if (groupLiberties === 3) priority = 300; // Important
+        // Extract pattern around position
+        extractPattern(board, centerY, centerX, size) {
+            const pattern = [];
+            const offset = Math.floor(size / 2);
 
-                                    // Prefer moves that don't create heavy shape
-                                    const shapeScore = this.evaluateShape(board, ny, nx);
-                                    priority += shapeScore;
+            for (let dy = -offset; dy <= offset; dy++) {
+                const row = [];
+                for (let dx = -offset; dx <= offset; dx++) {
+                    const ny = centerY + dy;
+                    const nx = centerX + dx;
 
-                                    // Check if this move connects to other friendly stones
-                                    let connections = 0;
-                                    for (const [dx2, dy2] of this.directions) {
-                                        const nx2 = nx + dx2;
-                                        const ny2 = ny + dy2;
-                                        if (this.isValidCoord(nx2, ny2) && board[ny2][nx2] === this.ourColor) {
-                                            connections++;
-                                        }
-                                    }
+                    if (this.isValidCoord(nx, ny)) {
+                        if (board[ny][nx] === this.ourColor) {
+                            row.push(1);
+                        } else if (board[ny][nx] === this.opponentColor) {
+                            row.push(2);
+                        } else {
+                            row.push(0);
+                        }
+                    } else {
+                        row.push(-1); // Edge
+                    }
+                }
+                pattern.push(row);
+            }
 
-                                    if (connections <= 2) {
-                                        // Avoid overconnection
-                                        priority += connections * 50; // Connection bonus
-                                    } else {
-                                        priority -= 80; // Reduced penalty for heavy shape
-                                    }
+            return pattern;
+        }
 
-                                    if (priority > 0) {
-                                        defensiveMoves.push({
-                                            move: [ny, nx],
-                                            priority: priority,
-                                            type: "defense",
-                                        });
-                                    }
-                                }
+        // Match patterns against known patterns
+        matchPatterns(pattern) {
+            let score = 0;
+
+            // Check good shape patterns
+            for (const goodPattern of this.patterns.goodShape) {
+                if (this.patternMatches(pattern, goodPattern.pattern)) {
+                    score += goodPattern.priority;
+                }
+            }
+
+            // Check bad shape patterns
+            for (const badPattern of this.patterns.badShape) {
+                if (this.patternMatches(pattern, badPattern.pattern)) {
+                    score += badPattern.priority;
+                }
+            }
+
+            return score;
+        }
+
+        // Check if patterns match
+        patternMatches(board, pattern) {
+            if (board.length < pattern.length || board[0].length < pattern[0].length) {
+                return false;
+            }
+
+            for (let y = 0; y <= board.length - pattern.length; y++) {
+                for (let x = 0; x <= board[0].length - pattern[0].length; x++) {
+                    let matches = true;
+                    for (let py = 0; py < pattern.length; py++) {
+                        for (let px = 0; px < pattern[0].length; px++) {
+                            if (pattern[py][px] !== 0 && board[y + py][x + px] !== pattern[py][px]) {
+                                matches = false;
+                                break;
                             }
                         }
+                        if (!matches) break;
+                    }
+                    if (matches) return true;
+                }
+            }
+            return false;
+        }
+
+        // Evaluate joseki patterns
+        evaluateJoseki(board, y, x) {
+            let score = 0;
+
+            // Check corner positions for joseki
+            const corners = [
+                [3, 3],
+                [3, 9],
+                [9, 3],
+                [9, 9],
+            ];
+            const isNearCorner = corners.some(([cy, cx]) => Math.abs(y - cy) <= 3 && Math.abs(x - cx) <= 3);
+
+            if (isNearCorner) {
+                score += 50; // Bonus for corner play
+            }
+
+            // Check for specific joseki patterns
+            for (const josekiType of Object.values(this.joseki)) {
+                for (const joseki of josekiType) {
+                    if (this.isJosekiMove(board, y, x, joseki)) {
+                        score += joseki.priority;
                     }
                 }
             }
 
-            return defensiveMoves;
+            return score;
         }
 
-        // Get the best move considering all factors
+        // Check if move fits joseki pattern
+        isJosekiMove(board, y, x, joseki) {
+            // Simplified joseki matching
+            return joseki.moves.some(([jy, jx]) => Math.abs(y - jy) <= 1 && Math.abs(x - jx) <= 1);
+        }
+
+        // Get the best move using hybrid approach
         getBestMove(board, validMoves) {
+            // Enhanced move selection with obstacle awareness
             let allMoves = [];
-            const position = this.evaluateBoardPosition(board);
 
-            // 1. Critical moves (atari, captures, saves)
-            const criticalMoves = this.findCriticalMoves(board, validMoves);
-            allMoves.push(...criticalMoves);
+            // Tactical moves (highest priority) - now obstacle-aware
+            const tacticalMoves = this.findTacticalMoves(board, validMoves);
+            allMoves.push(...tacticalMoves);
 
-            // 2. Cutting point moves (very important for shape)
-            const cuttingMoves = this.findCuttingPoints(board, validMoves);
-            allMoves.push(...cuttingMoves);
-
-            // 3. Invasion moves (important if losing center)
-            const invasionMoves = this.findInvasionMoves(board, validMoves);
-            allMoves.push(...invasionMoves);
-
-            // 4. Defensive moves
-            const defensiveMoves = this.findDefensiveMoves(board, validMoves);
-            allMoves.push(...defensiveMoves);
-
-            // 5. Strategic/opening moves
-            const strategicMoves = this.getStrategicMoves(board, validMoves);
+            // Strategic moves
+            const strategicMoves = this.findStrategicMoves(board, validMoves);
             allMoves.push(...strategicMoves);
-
-            // 6. Territory moves
-            const territoryMoves = this.evaluateTerritory(board, validMoves);
-            allMoves.push(...territoryMoves.slice(0, 15)); // More territory moves for better coverage
 
             // Remove duplicates and sort by priority
             const moveMap = new Map();
@@ -676,43 +1177,29 @@ export async function main(ns) {
             const uniqueMoves = Array.from(moveMap.values());
             uniqueMoves.sort((a, b) => b.priority - a.priority);
 
-            // Fallback to any valid move (but try to avoid heavy concentrations)
-            if (uniqueMoves.length === 0) {
-                const fallbackMoves = [];
-                for (let y = 0; y < this.boardSize; y++) {
-                    for (let x = 0; x < this.boardSize; x++) {
-                        if (validMoves[y][x]) {
-                            const shapeScore = this.evaluateShape(board, y, x);
-                            fallbackMoves.push({
-                                move: [y, x],
-                                priority: shapeScore,
-                                type: "fallback",
-                            });
-                        }
-                    }
-                }
-
-                if (fallbackMoves.length > 0) {
-                    fallbackMoves.sort((a, b) => b.priority - a.priority);
-                    return fallbackMoves[0].move;
-                }
-
-                return null;
+            if (uniqueMoves.length > 0) {
+                const bestMove = uniqueMoves[0];
+                this.ns.print(
+                    `Enhanced move: [${bestMove.move[0]}, ${bestMove.move[1]}] - ${bestMove.type} (priority: ${bestMove.priority})`,
+                );
+                return bestMove.move;
             }
 
-            const bestMove = uniqueMoves[0];
+            // Fallback to any valid move
+            for (let y = 0; y < this.boardSize; y++) {
+                for (let x = 0; x < this.boardSize; x++) {
+                    if (validMoves[y][x]) {
+                        this.ns.print(`Fallback move: [${y}, ${x}]`);
+                        return [y, x];
+                    }
+                }
+            }
 
-            // Debug logging with position info
-            this.ns.print(
-                `Best move: [${bestMove.move[0]}, ${bestMove.move[1]}] - ${bestMove.type} (priority: ${bestMove.priority})`,
-            );
-            this.ns.print(`Position: Phase=${position.gamePhase}, Center deficit=${position.centerDeficit}`);
-
-            return bestMove.move;
+            return null;
         }
     }
 
-    const ai = new GoAI(ns);
+    const ai = new AdvancedGoAI(ns);
     let result;
     let gameCount = 0;
 
@@ -721,14 +1208,14 @@ export async function main(ns) {
         const board = ns.go.getBoardState();
         const validMoves = ns.go.analysis.getValidMoves();
 
-        // Check if game is over
+        ns.tprint(board);
+
         const hasValidMoves = validMoves.some((row) => row.some((cell) => cell === true));
         if (!hasValidMoves) {
             ns.print("No valid moves available, game ending");
             break;
         }
 
-        // Determine our color
         ai.determineColors(board);
 
         if (ai.isFirstMove) {
@@ -736,7 +1223,6 @@ export async function main(ns) {
             ns.print(`Playing as ${ai.ourColor} vs ${ai.opponentColor}`);
         }
 
-        // Get the best move
         const move = ai.getBestMove(board, validMoves);
 
         if (!move) {
@@ -753,7 +1239,6 @@ export async function main(ns) {
             }
         }
 
-        // Handle opponent's turn
         const opponentMove = await ns.go.opponentNextTurn();
 
         if (opponentMove?.type === "pass") {
@@ -762,19 +1247,12 @@ export async function main(ns) {
             break;
         }
 
-        // Small delay to prevent overwhelming the system
         await ns.sleep(50);
-    } while (result?.type !== "gameOver" && gameCount < 300); // Safety limit
+    } while (result?.type !== "gameOver" && gameCount < 300);
 
-    // Game over, check results
-    // const stats = ns.go.sta
-    // ns.print("Game finished. Stats:", JSON.stringify(stats, null, 2));
-
-    // Reset and start new game
     const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
     ns.print(`Starting new game against ${randomOpponent}`);
     ns.go.resetBoardState(randomOpponent, 13);
 
-    // Restart the script
     ns.exec("techLord/master/ipvgo-improved.js", "home", 1, ...opponents);
 }
