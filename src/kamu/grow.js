@@ -11,4 +11,7 @@ export async function main(ns) {
     } else {
         await ns.grow(server);
     }
+
+    const currentTime = new Date().toISOString().substring(11, 23);
+    ns.tprint("  " + currentTime + " Batch: " + ns.args[4] + " G  Delay: " + ns.args[1]);
 }

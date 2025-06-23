@@ -11,4 +11,6 @@ export async function main(ns) {
     } else {
         await ns.hack(server);
     }
+    const currentTime = new Date().toISOString().substring(11, 23);
+    ns.tprint("  " + currentTime + " Batch: " + ns.args[4] + " H  Delay: " + ns.args[1]);
 }

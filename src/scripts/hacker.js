@@ -9,9 +9,9 @@ const GROW_SCRIPT_RAM_USAGE = 1.75;
 const WEAKEN_SCRIPT_RAM_USAGE = 1.75;
 
 var hackPercentage = 0.5;
-const SCRIPT_DELAY = 1000; // ms delay between scripts
-const DELAY_BETWEEN_BATCHES = 1000; // ms delay between batches
-const TICK_DELAY = 8000; // ms delay between ticks
+const SCRIPT_DELAY = 100; // ms delay between scripts
+const DELAY_BETWEEN_BATCHES = 100; // ms delay between batches
+const TICK_DELAY = 5000; // ms delay between ticks
 // Batch scheduling: Each batch takes (20*3 + 20) = 80ms to schedule
 // In 2000ms tick, we can fit exactly 25 batches (2000/80 = 25)
 // All 25 batches complete before next tick starts
@@ -26,6 +26,8 @@ var executableServers = [];
 var hackableServers = [];
 var ignoreServers = ["b-05"];
 
+let tickCounter = 0;
+
 /**
  * Global server RAM tracking
  * @type {Map<string, number>}
@@ -37,7 +39,6 @@ export async function main(ns) {
     ns.disableLog("ALL");
 
     // Main loop
-    let tickCounter = 0;
     while (true) {
         tickCounter++;
 
@@ -53,6 +54,15 @@ export async function main(ns) {
                 server === "nectar-net"
             ); // TODO: - Testing with faster servers only for faster iteration
         });
+
+        // Copy scripts to all executable servers
+        const scriptsToCopy = [hackScript, growScript, weakenScript];
+        for (const server of executableServers) {
+            if (server !== "home") {
+                // Don't copy to home since scripts are already there
+                ns.scp(scriptsToCopy, server, "home");
+            }
+        }
 
         // Get the total amount of RAM available
         const totalRamAvailable = getTotalAvailableRam(ns);
@@ -81,7 +91,11 @@ export async function main(ns) {
             );
 
             // Skip servers that are already being targeted
-            const isServerAlreadyTargeted = isServerBeingTargeted(ns, highestThroughputServer);
+            const { isTargeted, isPrep, isHgw } = isServerBeingTargeted(ns, highestThroughputServer);
+
+            // ns.print(`${serverIndex}. ${highestThroughputServer}: ${isTargeted ? "TARGETED" : "NOT TARGETED"}`);
+            // ns.print(`${serverIndex}. ${highestThroughputServer}: ${isPrep ? "PREP" : "NOT PREP"}`);
+            // ns.print(`${serverIndex}. ${highestThroughputServer}: ${isHgw ? "HGW" : "NOT HGW"}`);
 
             const serverStats = currentPriorities.get(highestThroughputServer);
             if (!serverStats) {
@@ -94,16 +108,18 @@ export async function main(ns) {
             const currentMoney = serverInfo.moneyAvailable;
             const maxMoney = serverInfo.moneyMax;
 
+            // Continue to next server if it's already being prepped
+            if (isPrep) {
+                processedServers.push(highestThroughputServer);
+                continue;
+            }
+
             // TODO: - Do not weaken if we need to reserve for higher priority servers
             if (
-                currentMoney < maxMoney * PREP_MONEY_THRESHOLD ||
-                securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD
+                (currentMoney < maxMoney * PREP_MONEY_THRESHOLD ||
+                    securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD) &&
+                !isTargeted // Do not prep if it has HGW scripts running on it or prep scripts
             ) {
-                if (isServerAlreadyTargeted) {
-                    processedServers.push(highestThroughputServer);
-                    continue;
-                }
-
                 const prepRamUsed = prepServer(ns, highestThroughputServer, serverIndex);
                 if (prepRamUsed === false) {
                     break; // Exit the inner loop and wait for next cycle
@@ -293,7 +309,7 @@ function getTotalAvailableRam(ns) {
  * Checks if a server is already being targeted by running scripts (either prep or HGW batches).
  * @param {NS} ns - The Netscript API.
  * @param {string} target - The target server to check.
- * @returns {boolean} - True if the server is already being targeted, false otherwise.
+ * @returns {{isTargeted: boolean, isPrep: boolean, isHgw: boolean}} - Object indicating if server is targeted and for what operations.
  */
 function isServerBeingTargeted(ns, target) {
     // Check all executable servers for running scripts targeting this server
@@ -313,12 +329,16 @@ function isServerBeingTargeted(ns, target) {
                 script.args.length > 0 &&
                 script.args[0] === target
             ) {
-                return true;
+                if (script.args.includes("prep")) {
+                    return { isTargeted: true, isPrep: true, isHgw: false };
+                } else if (script.args.includes("hgw")) {
+                    return { isTargeted: true, isPrep: false, isHgw: true };
+                }
             }
         }
     }
 
-    return false;
+    return { isTargeted: false, isPrep: false, isHgw: false };
 }
 
 /**
@@ -578,19 +598,19 @@ function prepServer(ns, target, serverIndex) {
     var totalRamUsed = 0;
 
     if (needsInitialWeaken) {
-        executeWeaken(ns, hosts.weakenHost, target, initialWeakenThreads, 0);
+        executeWeaken(ns, hosts.weakenHost, target, initialWeakenThreads, 0, true);
         totalRamUsed += initialWeakenRam;
     }
 
     if (needsGrow) {
         // Adjust timing based on whether initial weaken was needed
         const growDelay = needsInitialWeaken ? weakenTime - growthTime + SCRIPT_DELAY : 0;
-        executeGrow(ns, hosts.growHost, target, growthThreads, growDelay);
+        executeGrow(ns, hosts.growHost, target, growthThreads, growDelay, false, true);
         totalRamUsed += growRam;
 
         // Adjust timing based on whether initial weaken was needed (2 scripts vs 3)
         const finalWeakenDelay = needsInitialWeaken ? 2 * SCRIPT_DELAY : SCRIPT_DELAY - (weakenTime - growthTime);
-        executeWeaken(ns, hosts.finalWeakenHost, target, finalWeakenThreads, finalWeakenDelay);
+        executeWeaken(ns, hosts.finalWeakenHost, target, finalWeakenThreads, finalWeakenDelay, true);
         totalRamUsed += finalWeakenRam;
     }
 
@@ -665,8 +685,22 @@ function runBatchHack(ns, target, extraDelay, serverStats) {
         serverRamCache.set(hosts.growHost, serverRamCache.get(hosts.growHost) - growRamUsed);
         serverRamCache.set(hosts.weakenHost, serverRamCache.get(hosts.weakenHost) - weakenRamUsed);
 
-        executeHack(ns, hosts.hackHost, target, hackThreads, weakenTime - hackTime - SCRIPT_DELAY * 2 + extraDelay);
-        executeGrow(ns, hosts.growHost, target, growthThreads, weakenTime - growthTime - SCRIPT_DELAY + extraDelay);
+        executeHack(
+            ns,
+            hosts.hackHost,
+            target,
+            hackThreads,
+            weakenTime - hackTime - SCRIPT_DELAY * 2 + extraDelay,
+            false,
+        );
+        executeGrow(
+            ns,
+            hosts.growHost,
+            target,
+            growthThreads,
+            weakenTime - growthTime - SCRIPT_DELAY + extraDelay,
+            false,
+        );
         executeWeaken(ns, hosts.weakenHost, target, weakenThreadsNeeded, extraDelay);
 
         return { success: true, ramUsed: totalRamUsed };
@@ -745,9 +779,10 @@ function findExecutableServersForBatch(ns, hackRamNeeded, growRamNeeded, weakenR
  * @param {string} target
  * @param {number} threads
  * @param {number} sleepTime
+ * @param {boolean} isPrep - Whether the script is being executed for prep.
  */
-function executeWeaken(ns, host, target, threads, sleepTime) {
-    const pid = ns.exec(weakenScript, host, threads, target, sleepTime);
+function executeWeaken(ns, host, target, threads, sleepTime, isPrep = false) {
+    const pid = ns.exec(weakenScript, host, threads, target, sleepTime, isPrep ? "prep" : "hgw", tickCounter);
     if (!pid) {
         ns.tprint(`WARN Failed to execute weaken script on ${target}`);
     }
@@ -761,9 +796,10 @@ function executeWeaken(ns, host, target, threads, sleepTime) {
  * @param {number} threads
  * @param {number} sleepTime
  * @param {boolean} stockArg - Whether to influence stock or not.
+ * @param {boolean} isPrep - Whether the script is being executed for prep.
  */
-function executeGrow(ns, host, target, threads, sleepTime, stockArg = false) {
-    const pid = ns.exec(growScript, host, threads, target, sleepTime, stockArg);
+function executeGrow(ns, host, target, threads, sleepTime, stockArg = false, isPrep = false) {
+    const pid = ns.exec(growScript, host, threads, target, sleepTime, stockArg, isPrep ? "prep" : "hgw", tickCounter);
     if (!pid) {
         ns.tprint(`WARN Failed to execute grow script on ${target}`);
     }
@@ -777,9 +813,10 @@ function executeGrow(ns, host, target, threads, sleepTime, stockArg = false) {
  * @param {number} threads
  * @param {number} sleepTime
  * @param {boolean} stockArg - Whether to influence stock or not.
+ * @param {boolean} isPrep - Whether the script is being executed for prep.
  */
-function executeHack(ns, host, target, threads, sleepTime, stockArg = false) {
-    const pid = ns.exec(hackScript, host, threads, target, sleepTime);
+function executeHack(ns, host, target, threads, sleepTime, stockArg = false, isPrep = false) {
+    const pid = ns.exec(hackScript, host, threads, target, sleepTime, stockArg, isPrep ? "prep" : "hgw", tickCounter);
     if (!pid) {
         ns.tprint(`WARN Failed to execute hack script on ${target}`);
     }
