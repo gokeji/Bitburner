@@ -28,7 +28,7 @@ const timeBetweenAttacks = 500;
 const homeReservedRam = 560;
 
 // Ignore servers
-const ignoreServers = ["b-24"];
+const ignoreServers = ["b-05"];
 
 // XP weaken threshold (how much free ram percentage is left to begin running xp weaken)
 const xpWeakenThreshold = 0.2;
@@ -731,6 +731,7 @@ function getHackable(ns, servers) {
     var sortedServers = [...servers.values()]
         .filter(
             (server) =>
+                ns.hasRootAccess(server) &&
                 ns.getServerMaxMoney(server) > 100000 &&
                 ns.getServerRequiredHackingLevel(server) <= ns.getHackingLevel() &&
                 ns.getServerGrowth(server) > 1 &&

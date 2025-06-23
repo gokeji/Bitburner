@@ -110,14 +110,23 @@ function startDistributedHackIfNotRunning(ns) {
 
 export function startIpvgoIfNotRunning(ns) {
     // Check if "master/ipvgo.js" is running on HOST_NAME (different check script name)
-    let ipvgoRunning = isScriptRunning(ns, "techLord/master/ipvgo.js", HOST_NAME);
+    let ipvgoRunning = isScriptRunning(ns, "ipvgo-smart.js", HOST_NAME);
 
     if (ipvgoRunning) {
-        ns.tprint("techLord/master/ipvgo.js is already running");
+        ns.tprint("ipvgo-smart.js is already running");
         return;
     }
 
-    const result = startScriptIfNotRunning(ns, "techLord/master/auto-play-ipvgo.js");
+    const opponents = [
+        // "Netburners", // increased hacknet production
+        // "Slum Snakes", // crime success rate
+        // "The Black Hand", // hacking money
+        // "Tetrads", // strength, defense, dexterity, and agility levels
+        "Daedalus", // reputation gain
+        "Illuminati", // faster hack(), grow(), and weaken()
+    ];
+
+    startScriptIfNotRunning(ns, "ipvgo-smart.js", HOST_NAME, 1, ...opponents);
     // Note: This function checks for a different script name than what it starts
 }
 
@@ -171,7 +180,7 @@ function launchStatsMonitoring(ns) {
 }
 
 function startShareAllRamIfNotRunning(ns) {
-    startScriptIfNotRunning(ns, "scripts/share-all-free-ram.js", HOST_NAME, 1, "b-24");
+    startScriptIfNotRunning(ns, "scripts/share-all-free-ram.js", HOST_NAME, 1, SERVER_TO_START_SHARING_RAM_ON);
 }
 
 function printAllFactionServerPaths(ns) {
