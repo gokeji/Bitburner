@@ -2,7 +2,10 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    await ns.sleep(ns.args[1]);
+    const hackTime = ns.args[5];
+    const startTime = Date.now();
+    const delay = ns.args[1];
+    await ns.sleep(delay);
 
     const server = ns.args[0];
 
@@ -12,5 +15,19 @@ export async function main(ns) {
         await ns.hack(server);
     }
     const currentTime = new Date().toISOString().substring(11, 23);
-    ns.tprint("  " + currentTime + " Batch: " + ns.args[4] + " H  Delay: " + ns.args[1]);
+    const expectedFinishTime = startTime + hackTime + delay;
+    const timeDifference = Date.now() - expectedFinishTime;
+    const sign = timeDifference >= 0 ? "+" : "";
+    ns.tprint(
+        "  " +
+            currentTime +
+            " Batch: " +
+            ns.args[4] +
+            " H  Delay: " +
+            ns.formatNumber(delay) +
+            " Timing: " +
+            sign +
+            ns.formatNumber(timeDifference) +
+            "ms",
+    );
 }

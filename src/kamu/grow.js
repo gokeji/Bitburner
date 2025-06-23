@@ -2,7 +2,10 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    await ns.sleep(ns.args[1]);
+    const growTime = ns.args[5];
+    const startTime = Date.now();
+    const delay = ns.args[1];
+    await ns.sleep(delay);
 
     const server = ns.args[0];
 
@@ -13,5 +16,19 @@ export async function main(ns) {
     }
 
     const currentTime = new Date().toISOString().substring(11, 23);
-    ns.tprint("  " + currentTime + " Batch: " + ns.args[4] + " G  Delay: " + ns.args[1]);
+    const expectedFinishTime = startTime + growTime + delay;
+    const timeDifference = Date.now() - expectedFinishTime;
+    const sign = timeDifference >= 0 ? "+" : "";
+    ns.tprint(
+        "  " +
+            currentTime +
+            " Batch: " +
+            ns.args[4] +
+            " G  Delay: " +
+            ns.formatNumber(delay) +
+            " Timing: " +
+            sign +
+            ns.formatNumber(timeDifference) +
+            "ms",
+    );
 }

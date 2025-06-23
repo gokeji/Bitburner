@@ -2,10 +2,26 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    await ns.sleep(ns.args[1]);
+    const weakenTime = ns.args[4];
+    const startTime = Date.now();
+    const delay = ns.args[1];
+    await ns.sleep(delay);
 
     await ns.weaken(ns.args[0]);
 
     const currentTime = new Date().toISOString().substring(11, 23);
-    ns.tprint(currentTime + " Batch: " + ns.args[3] + " W  Delay: " + ns.args[1]);
+    const expectedFinishTime = startTime + weakenTime + delay;
+    const timeDifference = Date.now() - expectedFinishTime;
+    const sign = timeDifference >= 0 ? "+" : "";
+    ns.tprint(
+        currentTime +
+            " Batch: " +
+            ns.args[3] +
+            " W  Delay: " +
+            ns.formatNumber(delay) +
+            " Timing: " +
+            sign +
+            ns.formatNumber(timeDifference) +
+            "ms",
+    );
 }

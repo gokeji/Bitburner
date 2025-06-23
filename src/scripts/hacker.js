@@ -598,19 +598,19 @@ function prepServer(ns, target, serverIndex) {
     var totalRamUsed = 0;
 
     if (needsInitialWeaken) {
-        executeWeaken(ns, hosts.weakenHost, target, initialWeakenThreads, 0, true);
+        executeWeaken(ns, hosts.weakenHost, target, initialWeakenThreads, 0, true, weakenTime);
         totalRamUsed += initialWeakenRam;
     }
 
     if (needsGrow) {
         // Adjust timing based on whether initial weaken was needed
         const growDelay = needsInitialWeaken ? weakenTime - growthTime + SCRIPT_DELAY : 0;
-        executeGrow(ns, hosts.growHost, target, growthThreads, growDelay, false, true);
+        executeGrow(ns, hosts.growHost, target, growthThreads, growDelay, false, true, growthTime);
         totalRamUsed += growRam;
 
         // Adjust timing based on whether initial weaken was needed (2 scripts vs 3)
         const finalWeakenDelay = needsInitialWeaken ? 2 * SCRIPT_DELAY : SCRIPT_DELAY - (weakenTime - growthTime);
-        executeWeaken(ns, hosts.finalWeakenHost, target, finalWeakenThreads, finalWeakenDelay, true);
+        executeWeaken(ns, hosts.finalWeakenHost, target, finalWeakenThreads, finalWeakenDelay, true, weakenTime);
         totalRamUsed += finalWeakenRam;
     }
 
@@ -685,23 +685,22 @@ function runBatchHack(ns, target, extraDelay, serverStats) {
         serverRamCache.set(hosts.growHost, serverRamCache.get(hosts.growHost) - growRamUsed);
         serverRamCache.set(hosts.weakenHost, serverRamCache.get(hosts.weakenHost) - weakenRamUsed);
 
-        executeHack(
-            ns,
-            hosts.hackHost,
-            target,
-            hackThreads,
-            weakenTime - hackTime - SCRIPT_DELAY * 2 + extraDelay,
-            false,
-        );
-        executeGrow(
-            ns,
-            hosts.growHost,
-            target,
-            growthThreads,
-            weakenTime - growthTime - SCRIPT_DELAY + extraDelay,
-            false,
-        );
-        executeWeaken(ns, hosts.weakenHost, target, weakenThreadsNeeded, extraDelay);
+        const hackDelay = weakenTime + extraDelay - 2 * SCRIPT_DELAY - hackTime;
+        const growDelay = weakenTime + extraDelay - SCRIPT_DELAY - growthTime;
+        const weakenDelay = extraDelay;
+
+        // Validate delays are not negative (which would cause timing issues)
+        if (hackDelay < 0 || growDelay < 0 || weakenDelay < 0) {
+            ns.print(`ERROR: Negative delays detected! H=${hackDelay}, G=${growDelay}, W=${weakenDelay}`);
+            ns.print(
+                `Times: hackTime=${hackTime}, growthTime=${growthTime}, weakenTime=${weakenTime}, extraDelay=${extraDelay}`,
+            );
+            return { success: false, ramUsed: 0 };
+        }
+
+        executeHack(ns, hosts.hackHost, target, hackThreads, hackDelay, false, false, hackTime);
+        executeGrow(ns, hosts.growHost, target, growthThreads, growDelay, false, false, growthTime);
+        executeWeaken(ns, hosts.weakenHost, target, weakenThreadsNeeded, weakenDelay, false, weakenTime);
 
         return { success: true, ramUsed: totalRamUsed };
     } else {
@@ -780,9 +779,19 @@ function findExecutableServersForBatch(ns, hackRamNeeded, growRamNeeded, weakenR
  * @param {number} threads
  * @param {number} sleepTime
  * @param {boolean} isPrep - Whether the script is being executed for prep.
+ * @param {number} weakenTime - The time the weaken script should finish at.
  */
-function executeWeaken(ns, host, target, threads, sleepTime, isPrep = false) {
-    const pid = ns.exec(weakenScript, host, threads, target, sleepTime, isPrep ? "prep" : "hgw", tickCounter);
+function executeWeaken(ns, host, target, threads, sleepTime, isPrep = false, weakenTime = 0) {
+    const pid = ns.exec(
+        weakenScript,
+        host,
+        threads,
+        target,
+        sleepTime,
+        isPrep ? "prep" : "hgw",
+        tickCounter,
+        weakenTime,
+    );
     if (!pid) {
         ns.tprint(`WARN Failed to execute weaken script on ${target}`);
     }
@@ -797,9 +806,20 @@ function executeWeaken(ns, host, target, threads, sleepTime, isPrep = false) {
  * @param {number} sleepTime
  * @param {boolean} stockArg - Whether to influence stock or not.
  * @param {boolean} isPrep - Whether the script is being executed for prep.
+ * @param {number} growTime - The time the grow script should finish at.
  */
-function executeGrow(ns, host, target, threads, sleepTime, stockArg = false, isPrep = false) {
-    const pid = ns.exec(growScript, host, threads, target, sleepTime, stockArg, isPrep ? "prep" : "hgw", tickCounter);
+function executeGrow(ns, host, target, threads, sleepTime, stockArg = false, isPrep = false, growTime = 0) {
+    const pid = ns.exec(
+        growScript,
+        host,
+        threads,
+        target,
+        sleepTime,
+        stockArg,
+        isPrep ? "prep" : "hgw",
+        tickCounter,
+        growTime,
+    );
     if (!pid) {
         ns.tprint(`WARN Failed to execute grow script on ${target}`);
     }
@@ -814,9 +834,20 @@ function executeGrow(ns, host, target, threads, sleepTime, stockArg = false, isP
  * @param {number} sleepTime
  * @param {boolean} stockArg - Whether to influence stock or not.
  * @param {boolean} isPrep - Whether the script is being executed for prep.
+ * @param {number} hackTime - The time the hack script should finish at.
  */
-function executeHack(ns, host, target, threads, sleepTime, stockArg = false, isPrep = false) {
-    const pid = ns.exec(hackScript, host, threads, target, sleepTime, stockArg, isPrep ? "prep" : "hgw", tickCounter);
+function executeHack(ns, host, target, threads, sleepTime, stockArg = false, isPrep = false, hackTime = 0) {
+    const pid = ns.exec(
+        hackScript,
+        host,
+        threads,
+        target,
+        sleepTime,
+        stockArg,
+        isPrep ? "prep" : "hgw",
+        tickCounter,
+        hackTime,
+    );
     if (!pid) {
         ns.tprint(`WARN Failed to execute hack script on ${target}`);
     }
