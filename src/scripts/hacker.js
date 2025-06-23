@@ -9,9 +9,9 @@ const GROW_SCRIPT_RAM_USAGE = 1.75;
 const WEAKEN_SCRIPT_RAM_USAGE = 1.75;
 
 var hackPercentage = 0.5;
-const SCRIPT_DELAY = 20; // ms delay between scripts
-const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
-const TICK_DELAY = 2000; // ms delay between ticks
+const SCRIPT_DELAY = 1000; // ms delay between scripts
+const DELAY_BETWEEN_BATCHES = 1000; // ms delay between batches
+const TICK_DELAY = 8000; // ms delay between ticks
 // Batch scheduling: Each batch takes (20*3 + 20) = 80ms to schedule
 // In 2000ms tick, we can fit exactly 25 batches (2000/80 = 25)
 // All 25 batches complete before next tick starts
@@ -214,13 +214,14 @@ function getServerHackStats(ns, server, useFormulas = false) {
     }
 
     const hackThreads = Math.ceil(hackPercentage / hackPercentageFromOneThread);
+    const actualHackPercentage = hackThreads * hackPercentageFromOneThread; // Actual amount we'll hack
     const hackSecurityChange = ns.hackAnalyzeSecurity(hackThreads, server);
 
     let growthThreads;
     if (useFormulas) {
-        // Use formulas API to calculate threads needed to grow from hackPercentage back to 100%
+        // Use formulas API to calculate threads needed to grow from ACTUAL hack amount back to 100%
         const targetMoney = maxMoney;
-        const currentMoneyAfterHack = maxMoney * (1 - hackThreads * hackPercentageFromOneThread);
+        const currentMoneyAfterHack = maxMoney * (1 - actualHackPercentage); // Use actual hack amount
         const currentSecurityAfterHack = minSecurityLevel + hackSecurityChange;
         growthThreads = Math.ceil(
             ns.formulas.hacking.growThreads(
@@ -231,7 +232,9 @@ function getServerHackStats(ns, server, useFormulas = false) {
             ),
         );
     } else {
-        growthThreads = Math.ceil(ns.growthAnalyze(server, 1 / hackPercentage, cpuCores));
+        // Use actual hack amount for grow calculation
+        const growthMultiplier = 1 / (1 - actualHackPercentage);
+        growthThreads = Math.ceil(ns.growthAnalyze(server, growthMultiplier, cpuCores));
     }
 
     const growthSecurityChange = ns.growthAnalyzeSecurity(growthThreads, server, cpuCores);
@@ -247,6 +250,7 @@ function getServerHackStats(ns, server, useFormulas = false) {
         hackChance,
         hackPercentageFromOneThread,
         hackThreads,
+        actualHackPercentage,
         hackSecurityChange,
         hackTime,
         weakenTime,
@@ -335,12 +339,20 @@ function calculateTargetServerPriorities(ns, excludeServers = []) {
         const serverInfo = ns.getServer(server);
         const maxMoney = serverInfo.moneyMax;
 
-        const { hackChance, hackThreads, growthThreads, weakenThreadsNeeded, weakenTime, hackTime, growthTime } =
-            getServerHackStats(
-                ns,
-                server,
-                true, // Set to true to use formulas API with optimal conditions
-            );
+        const {
+            hackChance,
+            hackThreads,
+            growthThreads,
+            weakenThreadsNeeded,
+            weakenTime,
+            hackTime,
+            growthTime,
+            actualHackPercentage,
+        } = getServerHackStats(
+            ns,
+            server,
+            true, // Set to true to use formulas API with optimal conditions
+        );
 
         const theoreticalBatchLimit = weakenTime / (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES);
         const ramNeededPerBatch =
@@ -348,8 +360,8 @@ function calculateTargetServerPriorities(ns, excludeServers = []) {
             growthThreads * GROW_SCRIPT_RAM_USAGE +
             weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
 
-        // Calculate actual throughput (money per second)
-        const moneyPerBatch = hackPercentage * maxMoney * hackChance;
+        // Calculate actual throughput (money per second) using ACTUAL hack percentage
+        const moneyPerBatch = actualHackPercentage * maxMoney * hackChance;
         const actualBatchLimit = Math.min(maxRamAvailable / ramNeededPerBatch, theoreticalBatchLimit);
         const throughput = (actualBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
 
