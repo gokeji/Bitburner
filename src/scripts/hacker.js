@@ -11,6 +11,9 @@ const WEAKEN_SCRIPT_RAM_USAGE = 1.75;
 var hackPercentage = 0.5;
 const SCRIPT_DELAY = 20; // ms delay between scripts
 const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
+const TICK_DELAY = 2000; // ms delay between ticks
+const MAX_BATCHES_PER_TICK = Math.floor(TICK_DELAY / (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES)); // max batches to schedule per tick
+
 const HOME_SERVER_RESERVED_RAM = 30; // GB reserved for home server
 
 let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
@@ -46,7 +49,7 @@ export async function main(ns) {
         const totalRamAvailable = getTotalAvailableRam(ns);
         ns.print(`Total RAM Available: ${ns.formatRam(totalRamAvailable)}`);
 
-        const { prioritiesMap } = calculateTargetServerPriorities(ns, totalRamAvailable);
+        const { prioritiesMap } = calculateTargetServerPriorities(ns);
 
         // Send throughput data to port 4 for get_stats.js
         var throughputPortHandle = ns.getPortHandle(4);
@@ -61,14 +64,10 @@ export async function main(ns) {
         const processedServers = []; // Track servers already processed this tick
 
         while (totalRamUsed < totalRamAvailable && serverIndex <= prioritiesMap.size) {
-            serverIndex++;
-            const remainingRam = totalRamAvailable - totalRamUsed;
-
             // Find the server with the highest priority that has enough RAM available
             // Exclude servers that have already been processed this tick
             const { prioritiesMap: currentPriorities, highestThroughputServer } = calculateTargetServerPriorities(
                 ns,
-                remainingRam,
                 processedServers,
             );
 
@@ -98,6 +97,8 @@ export async function main(ns) {
                 const prepRamUsed = prepServer(ns, highestThroughputServer, serverIndex);
                 if (prepRamUsed === false) {
                     break; // Exit the inner loop and wait for next cycle
+                } else {
+                    serverIndex++;
                 }
                 totalRamUsed += prepRamUsed;
                 processedServers.push(highestThroughputServer); // Add to processed list
@@ -108,7 +109,7 @@ export async function main(ns) {
             const ramUsedForBatches = scheduleBatchHackCycles(
                 ns,
                 highestThroughputServer,
-                serverStats.actualBatchLimit,
+                Math.min(serverStats.actualBatchLimit, MAX_BATCHES_PER_TICK),
                 serverIndex,
                 serverStats,
             );
@@ -116,6 +117,8 @@ export async function main(ns) {
             // Ensure we made progress to avoid infinite loop
             if (ramUsedForBatches <= 0) {
                 break;
+            } else {
+                serverIndex++;
             }
 
             totalRamUsed += ramUsedForBatches;
@@ -297,7 +300,8 @@ function isServerBeingTargeted(ns, target) {
  * @param {string[]} excludeServers - Array of server names to exclude from calculations.
  * @returns {{prioritiesMap: Map<string, {priority: number, ramNeededPerBatch: number, throughput: number, weakenTime: number, hackThreads: number, growthThreads: number, weakenThreadsNeeded: number, hackChance: number}>, highestThroughputServer: string}}
  */
-function calculateTargetServerPriorities(ns, availableRam, excludeServers = []) {
+function calculateTargetServerPriorities(ns, excludeServers = []) {
+    const maxRamAvailable = executableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
     const servers = hackableServers.filter((server) => !excludeServers.includes(server));
     const prioritiesMap = new Map();
     var highestThroughputServer = null;
@@ -320,7 +324,7 @@ function calculateTargetServerPriorities(ns, availableRam, excludeServers = []) 
 
         // Calculate actual throughput (money per second)
         const moneyPerBatch = hackPercentage * maxMoney * hackChance;
-        const actualBatchLimit = Math.min(availableRam / ramNeededPerBatch, theoreticalBatchLimit);
+        const actualBatchLimit = Math.min(maxRamAvailable / ramNeededPerBatch, theoreticalBatchLimit);
         const throughput = (actualBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
 
         prioritiesMap.set(server, {
@@ -571,9 +575,11 @@ function scheduleBatchHackCycles(ns, target, batches, serverIndex, serverStats) 
     }
 
     // Display batch scheduling results
-    ns.print(
-        `${serverIndex}. ${target}: HGW ${successfulBatches}/${totalBatches} batches, ${ns.formatRam(totalRamUsed)} (${serverStats.hackThreads}H ${serverStats.growthThreads}G ${serverStats.weakenThreadsNeeded}W per batch)`,
-    );
+    if (successfulBatches > 0) {
+        ns.print(
+            `${serverIndex}. ${target}: HGW ${successfulBatches}/${totalBatches} batches, ${ns.formatRam(totalRamUsed)} (${serverStats.hackThreads}H ${serverStats.growthThreads}G ${serverStats.weakenThreadsNeeded}W per batch)`,
+        );
+    }
 
     return totalRamUsed;
 }
