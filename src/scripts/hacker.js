@@ -38,7 +38,9 @@ export async function main(ns) {
     ns.print(`Current Money: ${currentMoney}`);
     ns.print(`Max Money: ${maxMoney}`);
 
-    calculateTargetServerPriorities(ns);
+    const totalRamAvailable = getTotalAvailableRam(ns);
+
+    calculateTargetServerPriorities(ns, totalRamAvailable);
     const sortedServers = Array.from(serverPriorityMap.entries()).sort((a, b) => b[1].priority - a[1].priority);
     for (const [server, stats] of sortedServers) {
         ns.print(
@@ -161,16 +163,28 @@ function getServerHackStats(ns, server, useFormulas = false) {
 }
 
 /**
+ * Gets the total available RAM across all executable servers.
+ * @param {NS} ns - The Netscript API.
+ * @returns {number} - Total available RAM in GB.
+ */
+function getTotalAvailableRam(ns) {
+    const executableServers = get_servers(ns, "executableOnly");
+    return executableServers.reduce((acc, server) => acc + ns.getServerAvailableRam(server), 0);
+}
+
+/**
  * Calculates the priority of each server based on throughput (money per second).
  * @param {NS} ns - The Netscript API.
+ * @param {number} availableRam - The amount of RAM available for allocation.
+ * @param {string[]} excludeServers - Array of server names to exclude from calculations.
  * @returns {void}
  */
-function calculateTargetServerPriorities(ns) {
-    const executableServers = get_servers(ns, "executableOnly");
-    const totalRamAvailable = executableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
-    ns.print(`Total RAM Available: ${ns.formatRam(totalRamAvailable)}`);
+function calculateTargetServerPriorities(ns, availableRam, excludeServers = []) {
+    ns.print(`Available RAM for allocation: ${ns.formatRam(availableRam)}`);
 
-    const servers = get_servers(ns, "hackableOnly");
+    const servers = get_servers(ns, "hackableOnly").filter((server) => !excludeServers.includes(server));
+    serverPriorityMap.clear(); // Clear previous calculations
+
     for (const server of servers) {
         const serverInfo = ns.getServer(server);
         const maxMoney = serverInfo.moneyMax;
@@ -186,7 +200,7 @@ function calculateTargetServerPriorities(ns) {
 
         // Calculate actual throughput (money per second)
         const moneyPerBatch = hackPercentage * maxMoney * hackChance;
-        const actualBatchLimit = Math.min(totalRamAvailable / ramNeededPerBatch, theoreticalBatchLimit);
+        const actualBatchLimit = Math.min(availableRam / ramNeededPerBatch, theoreticalBatchLimit);
         const throughput = (actualBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
 
         serverPriorityMap.set(server, {
@@ -318,8 +332,8 @@ function prepServer(ns, target) {
     }
 }
 
-function scheduleBatchHackCycles(ns, target, cycles) {
-    for (let i = 0; i < cycles; i++) {
+function scheduleBatchHackCycles(ns, target, batches) {
+    for (let i = 0; i < batches; i++) {
         ns.print(`+++++ Batch ${i + 1} +++++`);
         runBatchHack(ns, target, (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES) * i);
     }
