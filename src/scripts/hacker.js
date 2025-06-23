@@ -20,6 +20,12 @@ var executableServers = [];
 var hackableServers = [];
 var ignoreServers = ["b-05"];
 
+/**
+ * Global server RAM tracking
+ * @type {Map<string, number>}
+ */
+var serverRamCache = new Map();
+
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog("ALL");
@@ -43,10 +49,7 @@ export async function main(ns) {
         const totalRamAvailable = getTotalAvailableRam(ns);
         ns.print(`Total RAM Available: ${ns.formatRam(totalRamAvailable)}`);
 
-        const { prioritiesMap, highestThroughputServer } = calculateTargetServerPriorities(
-            ns,
-            getTotalAvailableRam(ns),
-        );
+        const { prioritiesMap, highestThroughputServer } = calculateTargetServerPriorities(ns, totalRamAvailable);
 
         // Send throughput data to port 4 for get_stats.js
         var throughputPortHandle = ns.getPortHandle(4);
@@ -198,19 +201,29 @@ function getServerHackStats(ns, server, useFormulas = false) {
 
 /**
  * Gets the total available RAM across all executable servers.
+ * Updates the global server RAM cache on every call.
  * @param {NS} ns - The Netscript API.
  * @returns {number} - Total available RAM in GB.
  */
 function getTotalAvailableRam(ns) {
-    return (
-        executableServers.reduce((acc, server) => {
-            if (ignoreServers.includes(server)) {
-                return acc;
-            }
-            const serverInfo = ns.getServer(server);
-            return acc + serverInfo.maxRam - serverInfo.ramUsed;
-        }, 0) - HOME_SERVER_RESERVED_RAM
-    );
+    // Calculate total from the cache
+    let totalRam = 0;
+    serverRamCache.clear();
+
+    // Initialize available RAM for each server
+    for (const server of executableServers) {
+        if (ignoreServers.includes(server)) {
+            continue;
+        }
+        const serverInfo = ns.getServer(server);
+        const availableRam = serverInfo.maxRam - serverInfo.ramUsed;
+        if (availableRam > 0) {
+            serverRamCache.set(server, availableRam);
+            totalRam += availableRam;
+        }
+    }
+
+    return totalRam - HOME_SERVER_RESERVED_RAM;
 }
 
 /**
@@ -397,7 +410,13 @@ function prepServer(ns, target) {
 function scheduleBatchHackCycles(ns, target, batches) {
     for (let i = 0; i < batches; i++) {
         ns.print(`+++++ Batch ${i + 1} +++++`);
-        runBatchHack(ns, target, (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES) * i);
+        const success = runBatchHack(ns, target, (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES) * i);
+        if (!success) {
+            ns.print(
+                `WARN Failed to run batch ${i + 1} on ${target}. Success rate: ${((i / batches) * 100).toFixed(2)}% (${i + 1}/${batches})`,
+            );
+            break;
+        }
     }
 }
 
@@ -440,43 +459,113 @@ function runBatchHack(ns, target, extraDelay) {
     ns.print(`Hack Threads: ${hackThreads}`);
     ns.print(`Hack Security Change: ${hackSecurityChange}`);
     ns.print(`Hack Time: ${hackTime}ms`);
-    const hackHost = findExecutableServerWithAvailableRam(ns, hackThreads * HACK_SCRIPT_RAM_USAGE);
-    executeHack(ns, hackHost, target, hackThreads, weakenTime - hackTime - SCRIPT_DELAY * 2 + extraDelay, false);
 
     ns.print(`=== Growing 2X back to 100% ===`);
     ns.print(`Growth Threads: ${growthThreads}`);
     ns.print(`Growth Security Change: ${growthSecurityChange}`);
     ns.print(`Growth Time: ${growthTime}ms`);
     ns.print(`Growth Factor: ${growthFactor}`);
-    const growHost = findExecutableServerWithAvailableRam(ns, growthThreads * GROW_SCRIPT_RAM_USAGE);
-    executeGrow(ns, growHost, target, growthThreads, weakenTime - growthTime - SCRIPT_DELAY + extraDelay, true);
 
     ns.print(`=== Weakening to min security level ===`);
     ns.print(`Weaken Target: ${weakenTarget}`);
     ns.print(`Weaken Threads Needed: ${weakenThreadsNeeded}`);
     ns.print(`Weaken Amount: ${weakenAmount}`);
     ns.print(`Weaken Time: ${weakenTime}ms`);
-    const weakenHost = findExecutableServerWithAvailableRam(ns, weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE);
-    executeWeaken(ns, weakenHost, target, weakenThreadsNeeded, extraDelay);
+
+    // Find servers for all three operations with proper RAM accounting
+    const hosts = findExecutableServersForBatch(
+        ns,
+        hackThreads * HACK_SCRIPT_RAM_USAGE,
+        growthThreads * GROW_SCRIPT_RAM_USAGE,
+        weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE,
+    );
+
+    // If not enough RAM to run H G and W, return false
+    if (hosts) {
+        executeHack(
+            ns,
+            hosts.hackHost,
+            target,
+            hackThreads,
+            weakenTime - hackTime - SCRIPT_DELAY * 2 + extraDelay,
+            false,
+        );
+        executeGrow(
+            ns,
+            hosts.growHost,
+            target,
+            growthThreads,
+            weakenTime - growthTime - SCRIPT_DELAY + extraDelay,
+            true,
+        );
+        executeWeaken(ns, hosts.weakenHost, target, weakenThreadsNeeded, extraDelay);
+        return true;
+    } else {
+        return false; // Not enough RAM to run H G and W
+    }
 }
 
 /**
- * Finds an executable server with enough available RAM to run a script.
+ * Finds executable servers with enough available RAM to run hack, grow, and weaken scripts.
+ * Ensures RAM is properly accounted for across all three operations.
  * @param {NS} ns - The Netscript API.
- * @param {number} ramNeeded - The amount of RAM needed to run the script.
- * @returns {string} - The name of the server with enough available RAM.
+ * @param {number} hackRamNeeded - RAM needed for hack script.
+ * @param {number} growRamNeeded - RAM needed for grow script.
+ * @param {number} weakenRamNeeded - RAM needed for weaken script.
+ * @returns {{hackHost: string, growHost: string, weakenHost: string} | false} - Host servers for each operation or false if not enough RAM.
  */
-function findExecutableServerWithAvailableRam(ns, ramNeeded) {
-    for (const server of executableServers) {
-        if (ignoreServers.includes(server)) {
-            continue;
-        }
-        const serverInfo = ns.getServer(server);
-        if (serverInfo.maxRam - serverInfo.ramUsed >= ramNeeded) {
-            return server;
+function findExecutableServersForBatch(ns, hackRamNeeded, growRamNeeded, weakenRamNeeded) {
+    // Create a copy of server RAM availability to track allocations for this batch
+    const serverRamAvailable = new Map(serverRamCache);
+
+    // Try to allocate servers for hack, grow, and weaken
+    let hackHost = null;
+    let growHost = null;
+    let weakenHost = null;
+
+    // Find server for hack
+    for (const [server, availableRam] of serverRamAvailable) {
+        if (availableRam >= hackRamNeeded) {
+            hackHost = server;
+            serverRamAvailable.set(server, availableRam - hackRamNeeded);
+            break;
         }
     }
-    return null;
+
+    if (!hackHost) {
+        return false;
+    }
+
+    // Find server for grow
+    for (const [server, availableRam] of serverRamAvailable) {
+        if (availableRam >= growRamNeeded) {
+            growHost = server;
+            serverRamAvailable.set(server, availableRam - growRamNeeded);
+            break;
+        }
+    }
+
+    if (!growHost) {
+        return false;
+    }
+
+    // Find server for weaken
+    for (const [server, availableRam] of serverRamAvailable) {
+        if (availableRam >= weakenRamNeeded) {
+            weakenHost = server;
+            break;
+        }
+    }
+
+    if (!weakenHost) {
+        return false;
+    }
+
+    return {
+        hackHost: hackHost,
+        growHost: growHost,
+        weakenHost: weakenHost,
+    };
 }
 
 /**
