@@ -105,7 +105,7 @@ function startScriptIfNotRunning(ns, scriptName, hostname = HOST_NAME, threads =
 }
 
 function startDistributedHackIfNotRunning(ns) {
-    startScriptIfNotRunning(ns, "kamu/distributed-hack.js");
+    startScriptIfNotRunning(ns, "kamu/distributed-hack.js", HOST_NAME, 1, SERVER_TO_START_SHARING_RAM_ON);
 }
 
 export function startIpvgoIfNotRunning(ns) {

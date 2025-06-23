@@ -28,7 +28,7 @@ const timeBetweenAttacks = 500;
 const homeReservedRam = 560;
 
 // Ignore servers
-const ignoreServers = ["b-05"];
+var ignoreServers = ["b-05"];
 
 // XP weaken threshold (how much free ram percentage is left to begin running xp weaken)
 const xpWeakenThreshold = 0.2;
@@ -79,6 +79,10 @@ var profitsm = new Map();
 export async function main(ns) {
     // Disable default Logging
     ns.disableLog("ALL");
+
+    if (ns.args.length > 0) {
+        ignoreServers = ns.args;
+    }
 
     // automatically backdoor these servers. Requires singularity functions.
     var backdoorServers = new Set([
