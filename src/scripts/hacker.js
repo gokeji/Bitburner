@@ -73,10 +73,7 @@ export async function main(ns) {
             );
 
             // Skip servers that are already being targeted
-            if (isServerBeingTargeted(ns, highestThroughputServer)) {
-                processedServers.push(highestThroughputServer);
-                continue;
-            }
+            const isServerAlreadyTargeted = isServerBeingTargeted(ns, highestThroughputServer);
 
             const serverStats = currentPriorities.get(highestThroughputServer);
             if (!serverStats) {
@@ -93,6 +90,11 @@ export async function main(ns) {
                 currentMoney < maxMoney * PREP_MONEY_THRESHOLD ||
                 securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD
             ) {
+                if (isServerAlreadyTargeted) {
+                    processedServers.push(highestThroughputServer);
+                    continue;
+                }
+
                 const prepRamUsed = prepServer(ns, highestThroughputServer, serverIndex);
                 if (prepRamUsed === false) {
                     break; // Exit the inner loop and wait for next cycle
