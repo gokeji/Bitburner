@@ -12,6 +12,9 @@ var hackPercentage = 0.5;
 const SCRIPT_DELAY = 20; // ms delay between scripts
 const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
 const TICK_DELAY = 2000; // ms delay between ticks
+// Batch scheduling: Each batch takes (20*3 + 20) = 80ms to schedule
+// In 2000ms tick, we can fit exactly 25 batches (2000/80 = 25)
+// All 25 batches complete before next tick starts
 const MAX_BATCHES_PER_TICK = Math.floor(TICK_DELAY / (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES)); // max batches to schedule per tick
 
 const HOME_SERVER_RESERVED_RAM = 30; // GB reserved for home server
@@ -43,7 +46,13 @@ export async function main(ns) {
 
         // Get all servers
         executableServers = getServers(ns, "executableOnly");
-        hackableServers = getServers(ns, "hackableOnly");
+        hackableServers = getServers(ns, "hackableOnly").filter((server) => {
+            return (
+                !ignoreServers.includes(server) &&
+                ns.getServer(server).requiredHackingSkill <= 100 &&
+                server === "nectar-net"
+            ); // TODO: - Testing with faster servers only for faster iteration
+        });
 
         // Get the total amount of RAM available
         const totalRamAvailable = getTotalAvailableRam(ns);
@@ -98,9 +107,8 @@ export async function main(ns) {
                 const prepRamUsed = prepServer(ns, highestThroughputServer, serverIndex);
                 if (prepRamUsed === false) {
                     break; // Exit the inner loop and wait for next cycle
-                } else {
-                    serverIndex++;
                 }
+                serverIndex++;
                 totalRamUsed += prepRamUsed;
                 processedServers.push(highestThroughputServer); // Add to processed list
                 continue;
@@ -134,10 +142,9 @@ export async function main(ns) {
             // Ensure we made progress to avoid infinite loop
             if (ramUsedForBatches <= 0) {
                 break;
-            } else {
-                serverIndex++;
             }
 
+            serverIndex++;
             totalRamUsed += ramUsedForBatches;
             processedServers.push(highestThroughputServer); // Add to processed list
         }
@@ -146,7 +153,7 @@ export async function main(ns) {
             ns.print("No servers could be processed this tick");
         }
 
-        await ns.sleep(1000);
+        await ns.sleep(TICK_DELAY);
     }
 }
 
@@ -213,10 +220,11 @@ function getServerHackStats(ns, server, useFormulas = false) {
     if (useFormulas) {
         // Use formulas API to calculate threads needed to grow from hackPercentage back to 100%
         const targetMoney = maxMoney;
-        const currentMoneyAfterHack = maxMoney * (1 - hackPercentage);
+        const currentMoneyAfterHack = maxMoney * (1 - hackThreads * hackPercentageFromOneThread);
+        const currentSecurityAfterHack = minSecurityLevel + hackSecurityChange;
         growthThreads = Math.ceil(
             ns.formulas.hacking.growThreads(
-                { ...calcServer, moneyAvailable: currentMoneyAfterHack },
+                { ...calcServer, moneyAvailable: currentMoneyAfterHack, hackDifficulty: currentSecurityAfterHack },
                 player,
                 targetMoney,
                 cpuCores,
@@ -327,11 +335,12 @@ function calculateTargetServerPriorities(ns, excludeServers = []) {
         const serverInfo = ns.getServer(server);
         const maxMoney = serverInfo.moneyMax;
 
-        const { hackChance, hackThreads, growthThreads, weakenThreadsNeeded, weakenTime } = getServerHackStats(
-            ns,
-            server,
-            true, // Set to true to use formulas API with optimal conditions
-        );
+        const { hackChance, hackThreads, growthThreads, weakenThreadsNeeded, weakenTime, hackTime, growthTime } =
+            getServerHackStats(
+                ns,
+                server,
+                true, // Set to true to use formulas API with optimal conditions
+            );
 
         const theoreticalBatchLimit = weakenTime / (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES);
         const ramNeededPerBatch =
@@ -349,6 +358,8 @@ function calculateTargetServerPriorities(ns, excludeServers = []) {
             ramNeededPerBatch: ramNeededPerBatch,
             throughput: throughput,
             weakenTime: weakenTime,
+            hackTime: hackTime,
+            growthTime: growthTime,
             hackThreads: hackThreads,
             growthThreads: growthThreads,
             weakenThreadsNeeded: weakenThreadsNeeded,
@@ -583,7 +594,7 @@ function scheduleBatchHackCycles(ns, target, batches, serverIndex, serverStats) 
     const totalBatches = Math.floor(batches);
 
     for (let i = 0; i < totalBatches; i++) {
-        const batchResult = runBatchHack(ns, target, (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES) * i);
+        const batchResult = runBatchHack(ns, target, (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES) * i, serverStats);
         if (!batchResult.success) {
             break;
         }
@@ -608,30 +619,20 @@ function scheduleBatchHackCycles(ns, target, batches, serverIndex, serverStats) 
  * @param {NS} ns - The Netscript API.
  * @param {string} target - The target server to hack.
  * @param {number} extraDelay - Extra delay to add to the scripts.
+ * @param {Object} serverStats - Pre-calculated server stats from prioritiesMap
  * @returns {{success: boolean, ramUsed: number}} - Success status and RAM used for this batch
  */
-function runBatchHack(ns, target, extraDelay) {
-    const cpuCores = 1; // TODO: - Add way to optimize cpuCores
+function runBatchHack(ns, target, extraDelay, serverStats) {
+    // Use pre-calculated values from serverStats instead of recalculating
+    const hackThreads = serverStats.hackThreads;
+    const growthThreads = serverStats.growthThreads;
+    const weakenThreadsNeeded = serverStats.weakenThreadsNeeded;
 
-    const serverInfo = ns.getServer(target);
-    const maxMoney = serverInfo.moneyMax;
-
-    const weakenAmount = ns.weakenAnalyze(1, cpuCores);
-    const weakenTime = ns.getWeakenTime(target);
-    const growthTime = ns.getGrowTime(target);
-
-    const hackChance = ns.hackAnalyzeChance(target);
-    const hackPercentageFromOneThread = ns.hackAnalyze(target);
-    const hackThreads = Math.ceil(hackPercentage / hackPercentageFromOneThread);
-    const hackSecurityChange = ns.hackAnalyzeSecurity(hackThreads, target);
-    const hackTime = ns.getHackTime(target);
-
-    const growthThreads = Math.ceil(ns.growthAnalyze(target, 1 / hackPercentage, cpuCores));
-    const growthSecurityChange = ns.growthAnalyzeSecurity(growthThreads, target, cpuCores);
-    const growthFactor = ns.getServerGrowth(target);
-
-    const weakenTarget = hackSecurityChange + growthSecurityChange;
-    const weakenThreadsNeeded = Math.ceil(weakenTarget / weakenAmount);
+    // CRITICAL FIX: Use original timing calculations from serverStats
+    // DO NOT recalculate timing as server security changes between batches
+    const weakenTime = serverStats.weakenTime;
+    const growthTime = serverStats.growthTime;
+    const hackTime = serverStats.hackTime;
 
     // Find servers for all three operations with proper RAM accounting
     const hosts = findExecutableServersForBatch(

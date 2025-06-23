@@ -1,5 +1,7 @@
 import { NS } from "@ns";
 
+const REFRESH_RATE = 30;
+
 /**
  * @param {NS} ns
  **/
@@ -185,16 +187,16 @@ function get_server_data(ns, server, useFormulas = true) {
     var priority = get_hacking_priority(ns, server); // Get hacking priority
     var weakenTimeMs = ns.getWeakenTime(server); // Get weaken time (batch time)
 
-    if (useFormulas) {
-        // Create optimal server state for formulas API calculations
-        const calcServer = {
-            ...ns.getServer(server),
-            hackDifficulty: ns.getServer(server).minDifficulty,
-            moneyAvailable: ns.getServer(server).moneyMax,
-        };
-        const player = ns.getPlayer();
-        weakenTimeMs = ns.formulas.hacking.weakenTime(calcServer, player);
-    }
+    // if (useFormulas) {
+    //     // Create optimal server state for formulas API calculations
+    //     const calcServer = {
+    //         ...ns.getServer(server),
+    //         hackDifficulty: ns.getServer(server).minDifficulty,
+    //         moneyAvailable: ns.getServer(server).moneyMax,
+    //     };
+    //     const player = ns.getPlayer();
+    //     weakenTimeMs = ns.formulas.hacking.weakenTime(calcServer, player);
+    // }
 
     // Format money with M suffix for millions
     var formatMoney = (amount, digits = 0) => {
@@ -300,7 +302,6 @@ export async function main(ns) {
 
     // Check for chart mode argument
     const isChartMode = ns.args.includes("--chart") || ns.args.includes("-c");
-    const refreshRate = 200;
 
     const charsWidth = 128; // Updated to include 8-char priority column + 6-char batch column + separators
 
@@ -357,7 +358,7 @@ export async function main(ns) {
             ns.print(separator);
             ns.print(footer);
 
-            await ns.sleep(refreshRate);
+            await ns.sleep(REFRESH_RATE);
         }
     } else {
         // Normal mode: single output with formatted table

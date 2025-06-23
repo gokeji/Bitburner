@@ -2,11 +2,11 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    let karma = ns.getPlayer().karma;
-    ns.tprint(`Karma: ${karma}`);
-    // ns.print(favorToRep(150));
-    // ns.print(repToFavor(300000));
-    // ns.print(calculateFavorAfterResetting(80, 400000));
+    // let karma = ns.getPlayer().karma;
+    // ns.tprint(`Karma: ${karma}`);
+    ns.print(favorToRep(34));
+    ns.print(repToFavor(300000));
+    ns.print(calculateFavorAfterResetting(34, 300000));
 }
 
 export const MaxFavor = 35331;
