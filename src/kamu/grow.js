@@ -5,15 +5,14 @@ export async function main(ns) {
     const growTime = ns.args[5];
     const startTime = Date.now();
     const delay = ns.args[1];
-    await ns.sleep(delay);
 
     const server = ns.args[0];
 
-    if (ns.args.length >= 3) {
-        await ns.grow(server, { stock: ns.args[2] });
-    } else {
-        await ns.grow(server);
-    }
+    const hgwOptions = {
+        stock: ns.args[2] ? true : false,
+        additionalMsec: delay,
+    };
+    await ns.grow(server, hgwOptions);
 
     const currentTime = new Date().toISOString().substring(11, 23);
     const expectedFinishTime = startTime + growTime + delay;

@@ -5,9 +5,13 @@ export async function main(ns) {
     const weakenTime = ns.args[4];
     const startTime = Date.now();
     const delay = ns.args[1];
-    await ns.sleep(delay);
 
-    await ns.weaken(ns.args[0]);
+    const server = ns.args[0];
+
+    const hgwOptions = {
+        additionalMsec: delay,
+    };
+    await ns.weaken(server, hgwOptions);
 
     const currentTime = new Date().toISOString().substring(11, 23);
     const expectedFinishTime = startTime + weakenTime + delay;
