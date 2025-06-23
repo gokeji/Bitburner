@@ -3,6 +3,7 @@ import { NS } from "@ns";
 const HOST_NAME = "home";
 const MAX_SERVER_VALUE = 120000000000; // 120 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
+const SERVER_TO_START_SHARING_RAM_ON = "b-05";
 
 export function autocomplete(data, args) {
     return ["--share", "--faction", "--low-ram"];
@@ -53,8 +54,8 @@ export async function main(ns) {
     ns.tprint("INFO Waiting for stock trader and share ram to start");
 
     while (!startedStockTrader || !sharedRam) {
-        // Start stock trader and also share ram after we purchase server b-24
-        if (ns.serverExists("b-24")) {
+        // Start stock trader and also share ram after we purchase the server to share ram on
+        if (ns.serverExists(SERVER_TO_START_SHARING_RAM_ON)) {
             startStockTraderIfNotRunning(ns);
             if (shouldShare) {
                 startShareAllRamIfNotRunning(ns);

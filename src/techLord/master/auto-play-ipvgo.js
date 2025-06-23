@@ -15,7 +15,7 @@ export async function main(ns) {
             // "The Black Hand", // hacking money
             // "Tetrads", // strength, defense, dexterity, and agility levels
             "Daedalus", // reputation gain
-            // "Illuminati", // faster hack(), grow(), and weaken()
+            "Illuminati", // faster hack(), grow(), and weaken()
         ];
         const randomOpponent = opponents[Math.floor(Math.random() * opponents.length)];
 
