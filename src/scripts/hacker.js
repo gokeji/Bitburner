@@ -58,14 +58,17 @@ export async function main(ns) {
         // Start allocating batches to servers until we run out of RAM
         var totalRamUsed = 0;
         let serverIndex = 1;
+        const processedServers = []; // Track servers already processed this tick
 
         while (totalRamUsed < totalRamAvailable && serverIndex <= prioritiesMap.size) {
             const remainingRam = totalRamAvailable - totalRamUsed;
 
             // Find the server with the highest priority that has enough RAM available
+            // Exclude servers that have already been processed this tick
             const { prioritiesMap: currentPriorities, highestThroughputServer } = calculateTargetServerPriorities(
                 ns,
                 remainingRam,
+                processedServers,
             );
 
             const serverStats = currentPriorities.get(highestThroughputServer);
@@ -88,6 +91,7 @@ export async function main(ns) {
                     break; // Exit the inner loop and wait for next cycle
                 }
                 totalRamUsed += prepRamUsed;
+                processedServers.push(highestThroughputServer); // Add to processed list
                 serverIndex++;
                 continue;
             }
@@ -107,6 +111,7 @@ export async function main(ns) {
             }
 
             totalRamUsed += ramUsedForBatches;
+            processedServers.push(highestThroughputServer); // Add to processed list
             serverIndex++;
         }
 
