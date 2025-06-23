@@ -48,11 +48,7 @@ export async function main(ns) {
         // Get all servers
         executableServers = getServers(ns, "executableOnly");
         hackableServers = getServers(ns, "hackableOnly").filter((server) => {
-            return (
-                !ignoreServers.includes(server) &&
-                ns.getServer(server).requiredHackingSkill <= 100 &&
-                server === "nectar-net"
-            ); // TODO: - Testing with faster servers only for faster iteration
+            return !ignoreServers.includes(server); // TODO: - Testing with faster servers only for faster iteration
         });
 
         // Copy scripts to all executable servers
@@ -604,12 +600,12 @@ function prepServer(ns, target, serverIndex) {
 
     if (needsGrow) {
         // Adjust timing based on whether initial weaken was needed
-        const growDelay = needsInitialWeaken ? weakenTime - growthTime + SCRIPT_DELAY : 0;
+        const growDelay = needsInitialWeaken ? weakenTime - growthTime - SCRIPT_DELAY : 0;
         executeGrow(ns, hosts.growHost, target, growthThreads, growDelay, false, true, growthTime);
         totalRamUsed += growRam;
 
         // Adjust timing based on whether initial weaken was needed (2 scripts vs 3)
-        const finalWeakenDelay = needsInitialWeaken ? 2 * SCRIPT_DELAY : SCRIPT_DELAY - (weakenTime - growthTime);
+        const finalWeakenDelay = needsInitialWeaken ? 2 * SCRIPT_DELAY : 0;
         executeWeaken(ns, hosts.finalWeakenHost, target, finalWeakenThreads, finalWeakenDelay, true, weakenTime);
         totalRamUsed += finalWeakenRam;
     }
