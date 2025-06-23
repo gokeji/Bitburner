@@ -78,7 +78,14 @@ export async function main(ns) {
                 currentMoney < maxMoney * PREP_MONEY_THRESHOLD ||
                 securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD
             ) {
-                totalRamUsed += prepServer(ns, highestThroughputServer);
+                const prepRamUsed = prepServer(ns, highestThroughputServer);
+                if (prepRamUsed === false) {
+                    ns.print(
+                        `WARN: Not enough RAM available to prep ${highestThroughputServer}. Skipping prep and continuing with next cycle.`,
+                    );
+                    break; // Exit the inner loop and wait for next cycle
+                }
+                totalRamUsed += prepRamUsed;
                 continue;
             } else {
                 ns.print(`Server is already prepped, skipping prep`);
@@ -337,18 +344,84 @@ function getServers(ns, getServerOptions) {
 }
 
 /**
+ * Finds executable servers with enough available RAM to run server prep operations.
+ * @param {NS} ns - The Netscript API.
+ * @param {number} weakenRamNeeded - RAM needed for weaken script.
+ * @param {number} growRamNeeded - RAM needed for grow script (0 if not needed).
+ * @param {number} finalWeakenRamNeeded - RAM needed for final weaken script (0 if not needed).
+ * @returns {{weakenHost: string, growHost: string, finalWeakenHost: string} | false} - Host servers for each operation or false if not enough RAM.
+ */
+function findExecutableServersForServerPrep(ns, weakenRamNeeded, growRamNeeded, finalWeakenRamNeeded) {
+    // Create a copy of server RAM availability to track allocations for this prep
+    const serverRamAvailable = new Map(serverRamCache);
+
+    // Try to allocate servers for weaken, grow, and final weaken
+    let weakenHost = null;
+    let growHost = null;
+    let finalWeakenHost = null;
+
+    // Find server for initial weaken (if needed)
+    if (weakenRamNeeded > 0) {
+        for (const [server, availableRam] of serverRamAvailable) {
+            if (availableRam >= weakenRamNeeded) {
+                weakenHost = server;
+                serverRamAvailable.set(server, availableRam - weakenRamNeeded);
+                break;
+            }
+        }
+
+        if (!weakenHost) {
+            return false;
+        }
+    }
+
+    // Find server for grow (if needed)
+    if (growRamNeeded > 0) {
+        for (const [server, availableRam] of serverRamAvailable) {
+            if (availableRam >= growRamNeeded) {
+                growHost = server;
+                serverRamAvailable.set(server, availableRam - growRamNeeded);
+                break;
+            }
+        }
+
+        if (!growHost) {
+            return false;
+        }
+    }
+
+    // Find server for final weaken (if needed)
+    if (finalWeakenRamNeeded > 0) {
+        for (const [server, availableRam] of serverRamAvailable) {
+            if (availableRam >= finalWeakenRamNeeded) {
+                finalWeakenHost = server;
+                break;
+            }
+        }
+
+        if (!finalWeakenHost) {
+            return false;
+        }
+    }
+
+    return {
+        weakenHost: weakenHost,
+        growHost: growHost,
+        finalWeakenHost: finalWeakenHost,
+    };
+}
+
+/**
  * Prepares the target server for hacking, get it to the min security level and grow it to max money.
  * Do a WGW batch of 3 scripts, weaken, grow, weaken.
  * Or if already at min security level, just do GW batch of 2 scripts, grow, weaken.
  * @param {NS} ns - The Netscript API.
  * @param {string} target - The target server to prep.
- * @returns {number} - Total RAM used to prep the server.
+ * @returns {number | false} - Total RAM used to prep the server, or false if not enough RAM available.
  */
 function prepServer(ns, target) {
     // TODO: - Add way to optimize cpuCores
     const cpuCores = 1;
-
-    var totalRamUsed = 0;
 
     const serverInfo = ns.getServer(target);
     const securityLevel = serverInfo.hackDifficulty;
@@ -360,47 +433,60 @@ function prepServer(ns, target) {
     const weakenTime = ns.getWeakenTime(target);
     const growthTime = ns.getGrowTime(target);
 
-    ns.print(`=== Prepping for hack ===`);
-
     // Check if server is already at min security level
     const needsInitialWeaken = securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD;
     const needsGrow = currentMoney < maxMoney * PREP_MONEY_THRESHOLD;
 
+    // Calculate thread requirements
+    const initialWeakenThreads = Math.ceil((securityLevel - minSecurityLevel) / weakenAmount);
+
+    const growthAmount = maxMoney / currentMoney;
+    const growthThreads = Math.ceil(ns.growthAnalyze(target, growthAmount, cpuCores));
+    const growthSecurityChange = ns.growthAnalyzeSecurity(growthThreads, target, cpuCores);
+    const finalWeakenThreads = Math.ceil(growthSecurityChange / weakenAmount);
+
+    // Calculate RAM requirements for prep operations
+    const initialWeakenRam = initialWeakenThreads * WEAKEN_SCRIPT_RAM_USAGE;
+    const growRam = growthThreads * GROW_SCRIPT_RAM_USAGE;
+    const finalWeakenRam = finalWeakenThreads * WEAKEN_SCRIPT_RAM_USAGE;
+
+    // Find servers for prep operations with proper RAM accounting
+    const hosts = findExecutableServersForServerPrep(ns, initialWeakenRam, growRam, finalWeakenRam);
+
+    if (!hosts) {
+        return false; // Not enough RAM to run prep operations
+    }
+
+    // Update the server RAM cache to reflect the RAM that will be used
+    if (initialWeakenRam > 0) {
+        serverRamCache.set(hosts.weakenHost, serverRamCache.get(hosts.weakenHost) - initialWeakenRam);
+    }
+    if (growRam > 0) {
+        serverRamCache.set(hosts.growHost, serverRamCache.get(hosts.growHost) - growRam);
+    }
+    if (finalWeakenRam > 0) {
+        serverRamCache.set(hosts.finalWeakenHost, serverRamCache.get(hosts.finalWeakenHost) - finalWeakenRam);
+    }
+
+    var totalRamUsed = 0;
+
     if (needsInitialWeaken) {
-        // ns.print(`=== Weaken to min security level ===`);
-        // ns.print(`Weaken Target: ${minSecurityLevel}`);
-        // ns.print(`Weaken Amount: ${weakenAmount}`);
-        // ns.print(`Weaken Threads Needed: ${Math.ceil((securityLevel - minSecurityLevel) / weakenAmount)}`);
-        // ns.print(`Weaken Time: ${weakenTime}ms`);
-        const weakenThreadsNeeded = Math.ceil((securityLevel - minSecurityLevel) / weakenAmount);
-        executeWeaken(ns, "home", target, weakenThreadsNeeded, 0);
-        totalRamUsed += weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
+        executeWeaken(ns, hosts.weakenHost, target, initialWeakenThreads, 0);
+        totalRamUsed += initialWeakenRam;
     } else {
-        ns.print(`=== Server already at min security level, skipping initial weaken ===`);
+        ns.print(`WARN: Server already at min security level, skipping initial weaken (this should not happen)`);
     }
 
     if (needsGrow) {
-        // ns.print(`=== Grow to max money ===`);
-        const growthAmount = maxMoney / currentMoney;
-        const growthThreads = Math.ceil(ns.growthAnalyze(target, growthAmount, cpuCores));
-        const growthSecurityChange = ns.growthAnalyzeSecurity(growthThreads, target, cpuCores);
-        // ns.print(`Grow Amount: ${growthAmount}`);
-        // ns.print(`Grow Threads Needed: ${growthThreads}`);
-        // ns.print(`Grow Time: ${growthTime}ms`);
-
         // Adjust timing based on whether initial weaken was needed
         const growDelay = needsInitialWeaken ? weakenTime - growthTime + SCRIPT_DELAY : 0;
-        executeGrow(ns, "home", target, growthThreads, growDelay);
-        totalRamUsed += growthThreads * GROW_SCRIPT_RAM_USAGE;
-        // ns.print(`=== Weaken to min security level again after growing ===`);
-        const weakenThreadsNeeded = Math.ceil(growthSecurityChange / weakenAmount);
-        // ns.print(`Weaken Threads Needed: ${weakenThreadsNeeded}`);
-        // ns.print(`Weaken Time: ${weakenTime}ms`);
+        executeGrow(ns, hosts.growHost, target, growthThreads, growDelay);
+        totalRamUsed += growRam;
 
         // Adjust timing based on whether initial weaken was needed (2 scripts vs 3)
         const finalWeakenDelay = needsInitialWeaken ? 2 * SCRIPT_DELAY : SCRIPT_DELAY - (weakenTime - growthTime);
-        executeWeaken(ns, "home", target, weakenThreadsNeeded, finalWeakenDelay);
-        totalRamUsed += weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
+        executeWeaken(ns, hosts.finalWeakenHost, target, finalWeakenThreads, finalWeakenDelay);
+        totalRamUsed += finalWeakenRam;
     }
 
     ns.print(`Total RAM Used to prep ${target}: ${ns.formatRam(totalRamUsed)}`);
@@ -409,7 +495,7 @@ function prepServer(ns, target) {
 
 function scheduleBatchHackCycles(ns, target, batches) {
     for (let i = 0; i < batches; i++) {
-        ns.print(`+++++ Batch ${i + 1} +++++`);
+        // ns.print(`+++++ Batch ${i + 1} +++++`);
         const success = runBatchHack(ns, target, (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES) * i);
         if (!success) {
             ns.print(
@@ -482,6 +568,15 @@ function runBatchHack(ns, target, extraDelay) {
 
     // If not enough RAM to run H G and W, return false
     if (hosts) {
+        // Update the server RAM cache to reflect the RAM that will be used
+        const hackRamUsed = hackThreads * HACK_SCRIPT_RAM_USAGE;
+        const growRamUsed = growthThreads * GROW_SCRIPT_RAM_USAGE;
+        const weakenRamUsed = weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
+
+        serverRamCache.set(hosts.hackHost, serverRamCache.get(hosts.hackHost) - hackRamUsed);
+        serverRamCache.set(hosts.growHost, serverRamCache.get(hosts.growHost) - growRamUsed);
+        serverRamCache.set(hosts.weakenHost, serverRamCache.get(hosts.weakenHost) - weakenRamUsed);
+
         executeHack(
             ns,
             hosts.hackHost,
