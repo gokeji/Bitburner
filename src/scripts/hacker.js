@@ -12,8 +12,8 @@ let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much mo
 let SECURITY_LEVEL_THRESHOLD = 0; // Prep servers to be within minSecurityLevel + this amount
 
 /**
- * Map of server name to priority value.
- * @type {Map<string, number>}
+ * Map of server name to server stats including priority (throughput).
+ * @type {Map<string, {priority: number, ramNeededPerBatch: number, throughput: number, weakenTime: number, hackThreads: number, growthThreads: number, weakenThreadsNeeded: number, hackChance: number}>}
  */
 let serverPriorityMap = new Map();
 
@@ -38,38 +38,11 @@ export async function main(ns) {
     ns.print(`Current Money: ${currentMoney}`);
     ns.print(`Max Money: ${maxMoney}`);
 
-    const executableServers = get_servers(ns, "executableOnly");
-    const totalRamAvailable = executableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
-    ns.print(`Total RAM Available: ${ns.formatNumber(totalRamAvailable)}`);
-
     calculateTargetServerPriorities(ns);
-    const sortedServers = Array.from(serverPriorityMap.entries()).sort((a, b) => b[1] - a[1]);
-    for (const [server, priority] of sortedServers) {
-        const { weakenTime, hackThreads, growthThreads, weakenThreadsNeeded, hackChance } = getServerHackStats(
-            ns,
-            server,
-            true,
-        );
-        const theoreticalBatchLimit = weakenTime / (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES);
-        const ramNeededPerBatch = hackThreads * 1.7 + growthThreads * 1.75 + weakenThreadsNeeded * 1.75;
-        const batchLimitByRam = ns.formatNumber(totalRamAvailable / ramNeededPerBatch);
-
-        // Calculate actual throughput (money per second)
-        const serverInfo = ns.getServer(server);
-        const maxMoney = serverInfo.moneyMax;
-        const moneyPerBatch = hackPercentage * maxMoney * hackChance;
-        const actualBatchLimit = Math.min(totalRamAvailable / ramNeededPerBatch, theoreticalBatchLimit);
-        const throughput = (actualBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
-        const throughputPerRam = throughput / (actualBatchLimit * ramNeededPerBatch); // throughput per RAM ratio
-
-        // Dynamic scheduling priority - considers both efficiency and opportunity cost
-        const cycleTimeMinutes = weakenTime / 60000;
-        const immediateROI = moneyPerBatch / ramNeededPerBatch; // money per GB
-        const timeEfficiency = immediateROI / cycleTimeMinutes; // money per GB per minute
-        const dynamicPriority = timeEfficiency * Math.min(1, 300 / weakenTime); // bonus for shorter cycles
-
+    const sortedServers = Array.from(serverPriorityMap.entries()).sort((a, b) => b[1].priority - a[1].priority);
+    for (const [server, stats] of sortedServers) {
         ns.print(
-            `${server.padEnd(20)}: ROI:${ns.formatNumber(immediateROI).padStart(8)} Eff:${ns.formatNumber(timeEfficiency).padStart(8)} DynPri:${ns.formatNumber(dynamicPriority).padStart(8)} ${ns.formatNumber(ramNeededPerBatch).padStart(9)}G ${cycleTimeMinutes.toFixed(1)}m $${ns.formatNumber(throughput).padStart(8)}/s`,
+            `${server.padEnd(20)}: ${ns.formatRam(stats.ramNeededPerBatch).padStart(9)} ${`$${ns.formatNumber(stats.throughput)}/s`.padStart(12)} ${ns.formatNumber(stats.actualBatchLimit).padStart(8)}/${ns.formatNumber(stats.theoreticalBatchLimit).padStart(8)} ${convertMsToTime(stats.weakenTime).padStart(6)}`,
         );
     }
 
@@ -84,6 +57,12 @@ export async function main(ns) {
     // scheduleBatchHackCycles(ns, target, 10);
 
     return;
+}
+
+function convertMsToTime(ms) {
+    const seconds = Math.floor((ms / 1000) % 60);
+    const minutes = Math.floor((ms / (1000 * 60)) % 60);
+    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
 }
 
 /**
@@ -182,11 +161,15 @@ function getServerHackStats(ns, server, useFormulas = false) {
 }
 
 /**
- * Calculates the priority of each server based on the money and security level.
+ * Calculates the priority of each server based on throughput (money per second).
  * @param {NS} ns - The Netscript API.
  * @returns {void}
  */
 function calculateTargetServerPriorities(ns) {
+    const executableServers = get_servers(ns, "executableOnly");
+    const totalRamAvailable = executableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
+    ns.print(`Total RAM Available: ${ns.formatRam(totalRamAvailable)}`);
+
     const servers = get_servers(ns, "hackableOnly");
     for (const server of servers) {
         const serverInfo = ns.getServer(server);
@@ -198,10 +181,26 @@ function calculateTargetServerPriorities(ns) {
             true, // Set to true to use formulas API with optimal conditions
         );
 
-        var profitPerRam =
-            (hackPercentage * maxMoney * hackChance) / (hackThreads + growthThreads + weakenThreadsNeeded);
+        const theoreticalBatchLimit = weakenTime / (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES);
+        const ramNeededPerBatch = hackThreads * 1.7 + growthThreads * 1.75 + weakenThreadsNeeded * 1.75;
 
-        serverPriorityMap.set(server, profitPerRam);
+        // Calculate actual throughput (money per second)
+        const moneyPerBatch = hackPercentage * maxMoney * hackChance;
+        const actualBatchLimit = Math.min(totalRamAvailable / ramNeededPerBatch, theoreticalBatchLimit);
+        const throughput = (actualBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
+
+        serverPriorityMap.set(server, {
+            priority: throughput,
+            ramNeededPerBatch: ramNeededPerBatch,
+            throughput: throughput,
+            weakenTime: weakenTime,
+            hackThreads: hackThreads,
+            growthThreads: growthThreads,
+            weakenThreadsNeeded: weakenThreadsNeeded,
+            hackChance: hackChance,
+            actualBatchLimit: actualBatchLimit,
+            theoreticalBatchLimit: theoreticalBatchLimit,
+        });
     }
 }
 
