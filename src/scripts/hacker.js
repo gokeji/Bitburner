@@ -91,14 +91,14 @@ export async function main(ns) {
                 ns.print(`Server is already prepped, skipping prep`);
             }
 
-            // Schedule a batch of hacks
-            scheduleBatchHackCycles(
+            // Schedule all available batches for the highest priority server
+            const ramUsedForBatches = scheduleBatchHackCycles(
                 ns,
                 highestThroughputServer,
                 prioritiesMap.get(highestThroughputServer).actualBatchLimit,
             );
 
-            totalRamUsed += prioritiesMap.get(highestThroughputServer).ramNeededPerBatch;
+            totalRamUsed += ramUsedForBatches;
         }
 
         await ns.sleep(1000);
@@ -494,16 +494,23 @@ function prepServer(ns, target) {
 }
 
 function scheduleBatchHackCycles(ns, target, batches) {
+    let totalRamUsed = 0;
+    let successfulBatches = 0;
+
     for (let i = 0; i < batches; i++) {
         // ns.print(`+++++ Batch ${i + 1} +++++`);
-        const success = runBatchHack(ns, target, (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES) * i);
-        if (!success) {
+        const batchResult = runBatchHack(ns, target, (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES) * i);
+        if (!batchResult.success) {
             ns.print(
-                `WARN Failed to run batch ${i + 1} on ${target}. Success rate: ${((i / batches) * 100).toFixed(2)}% (${i + 1}/${batches})`,
+                `WARN Failed to run batch ${i + 1} on ${target}. Success rate: ${((successfulBatches / batches) * 100).toFixed(2)}% (${successfulBatches}/${batches})`,
             );
             break;
         }
+        totalRamUsed += batchResult.ramUsed;
+        successfulBatches++;
     }
+
+    return totalRamUsed;
 }
 
 /**
@@ -513,7 +520,7 @@ function scheduleBatchHackCycles(ns, target, batches) {
  * @param {NS} ns - The Netscript API.
  * @param {string} target - The target server to hack.
  * @param {number} extraDelay - Extra delay to add to the scripts.
- * @returns {void}
+ * @returns {{success: boolean, ramUsed: number}} - Success status and RAM used for this batch
  */
 function runBatchHack(ns, target, extraDelay) {
     const cpuCores = 1; // TODO: - Add way to optimize cpuCores
@@ -566,12 +573,13 @@ function runBatchHack(ns, target, extraDelay) {
         weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE,
     );
 
-    // If not enough RAM to run H G and W, return false
+    // If not enough RAM to run H G and W, return failure
     if (hosts) {
         // Update the server RAM cache to reflect the RAM that will be used
         const hackRamUsed = hackThreads * HACK_SCRIPT_RAM_USAGE;
         const growRamUsed = growthThreads * GROW_SCRIPT_RAM_USAGE;
         const weakenRamUsed = weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
+        const totalRamUsed = hackRamUsed + growRamUsed + weakenRamUsed;
 
         serverRamCache.set(hosts.hackHost, serverRamCache.get(hosts.hackHost) - hackRamUsed);
         serverRamCache.set(hosts.growHost, serverRamCache.get(hosts.growHost) - growRamUsed);
@@ -580,9 +588,9 @@ function runBatchHack(ns, target, extraDelay) {
         executeHack(ns, hosts.hackHost, target, hackThreads, weakenTime - hackTime - SCRIPT_DELAY * 2 + extraDelay);
         executeGrow(ns, hosts.growHost, target, growthThreads, weakenTime - growthTime - SCRIPT_DELAY + extraDelay);
         executeWeaken(ns, hosts.weakenHost, target, weakenThreadsNeeded, extraDelay);
-        return true;
+        return { success: true, ramUsed: totalRamUsed };
     } else {
-        return false; // Not enough RAM to run H G and W
+        return { success: false, ramUsed: 0 }; // Not enough RAM to run H G and W
     }
 }
 
