@@ -11,54 +11,63 @@ let DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
 let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
 let SECURITY_LEVEL_THRESHOLD = 0; // Prep servers to be within minSecurityLevel + this amount
 
-/**
- * Map of server name to server stats including priority (throughput).
- * @type {Map<string, {priority: number, ramNeededPerBatch: number, throughput: number, weakenTime: number, hackThreads: number, growthThreads: number, weakenThreadsNeeded: number, hackChance: number}>}
- */
-let serverPriorityMap = new Map();
-
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog("ALL");
-    // Test printing all the hack grow and weaken stats for n00dles as a test
-    const target = "n00dles";
 
-    // Get the current stats
-
-    const serverInfo = ns.getServer(target);
-    const securityLevel = serverInfo.hackDifficulty;
-    const minSecurityLevel = serverInfo.minDifficulty;
-    const currentMoney = serverInfo.moneyAvailable;
-    const maxMoney = serverInfo.moneyMax;
-
-    ns.print("\n\n\n\n\n\n");
-    ns.print(`${target}`);
-    ns.print(`Security Level: ${securityLevel}`);
-    ns.print(`Min Security Level: ${minSecurityLevel}`);
-    ns.print(`Current Money: ${currentMoney}`);
-    ns.print(`Max Money: ${maxMoney}`);
-
-    const totalRamAvailable = getTotalAvailableRam(ns);
-
-    calculateTargetServerPriorities(ns, totalRamAvailable);
-    const sortedServers = Array.from(serverPriorityMap.entries()).sort((a, b) => b[1].priority - a[1].priority);
+    // Overview of all servers and their throughput
+    const { prioritiesMap, highestThroughputServer } = calculateTargetServerPriorities(ns, getTotalAvailableRam(ns));
+    const sortedServers = Array.from(prioritiesMap.entries()).sort((a, b) => b[1].priority - a[1].priority);
     for (const [server, stats] of sortedServers) {
         ns.print(
             `${server.padEnd(20)}: ${ns.formatRam(stats.ramNeededPerBatch).padStart(9)} ${`$${ns.formatNumber(stats.throughput)}/s`.padStart(12)} ${ns.formatNumber(stats.actualBatchLimit).padStart(8)}/${ns.formatNumber(stats.theoreticalBatchLimit).padStart(8)} ${convertMsToTime(stats.weakenTime).padStart(6)}`,
         );
     }
 
-    // if (currentMoney < maxMoney * PREP_MONEY_THRESHOLD || securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD) {
-    //     prepServer(ns, target);
+    // Main loop
+    while (true) {
+        // Get the total amount of RAM available
+        const totalRamAvailable = getTotalAvailableRam(ns);
+        ns.print(`Total RAM Available: ${ns.formatRam(totalRamAvailable)}`);
 
-    //     ns.sleep(10000);
-    // } else {
-    //     ns.print(`Server is already prepped, skipping prep`);
-    // }
+        // Start allocating batches to servers until we run out of RAM
+        var totalRamUsed = 0;
 
-    // scheduleBatchHackCycles(ns, target, 10);
+        while (totalRamUsed < totalRamAvailable) {
+            // Find the server with the highest priority that has enough RAM available
+            const { prioritiesMap, highestThroughputServer } = calculateTargetServerPriorities(
+                ns,
+                totalRamAvailable - totalRamUsed,
+            );
 
-    return;
+            const serverInfo = ns.getServer(highestThroughputServer);
+            const securityLevel = serverInfo.hackDifficulty;
+            const minSecurityLevel = serverInfo.minDifficulty;
+            const currentMoney = serverInfo.moneyAvailable;
+            const maxMoney = serverInfo.moneyMax;
+
+            if (
+                currentMoney < maxMoney * PREP_MONEY_THRESHOLD ||
+                securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD
+            ) {
+                totalRamUsed += prepServer(ns, highestThroughputServer);
+                continue;
+            } else {
+                ns.print(`Server is already prepped, skipping prep`);
+            }
+
+            // Schedule a batch of hacks
+            scheduleBatchHackCycles(
+                ns,
+                highestThroughputServer,
+                prioritiesMap.get(highestThroughputServer).actualBatchLimit,
+            );
+
+            totalRamUsed += prioritiesMap.get(highestThroughputServer).ramNeededPerBatch;
+        }
+
+        ns.sleep(1000);
+    }
 }
 
 function convertMsToTime(ms) {
@@ -177,13 +186,14 @@ function getTotalAvailableRam(ns) {
  * @param {NS} ns - The Netscript API.
  * @param {number} availableRam - The amount of RAM available for allocation.
  * @param {string[]} excludeServers - Array of server names to exclude from calculations.
- * @returns {void}
+ * @returns {{prioritiesMap: Map<string, {priority: number, ramNeededPerBatch: number, throughput: number, weakenTime: number, hackThreads: number, growthThreads: number, weakenThreadsNeeded: number, hackChance: number}>, highestThroughputServer: string}}
  */
 function calculateTargetServerPriorities(ns, availableRam, excludeServers = []) {
     ns.print(`Available RAM for allocation: ${ns.formatRam(availableRam)}`);
 
     const servers = get_servers(ns, "hackableOnly").filter((server) => !excludeServers.includes(server));
-    serverPriorityMap.clear(); // Clear previous calculations
+    const prioritiesMap = new Map();
+    var highestThroughputServer = null;
 
     for (const server of servers) {
         const serverInfo = ns.getServer(server);
@@ -203,7 +213,7 @@ function calculateTargetServerPriorities(ns, availableRam, excludeServers = []) 
         const actualBatchLimit = Math.min(availableRam / ramNeededPerBatch, theoreticalBatchLimit);
         const throughput = (actualBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
 
-        serverPriorityMap.set(server, {
+        prioritiesMap.set(server, {
             priority: throughput,
             ramNeededPerBatch: ramNeededPerBatch,
             throughput: throughput,
@@ -215,7 +225,13 @@ function calculateTargetServerPriorities(ns, availableRam, excludeServers = []) 
             actualBatchLimit: actualBatchLimit,
             theoreticalBatchLimit: theoreticalBatchLimit,
         });
+
+        if (highestThroughputServer === null || throughput > highestThroughputServer.throughput) {
+            highestThroughputServer = server;
+        }
     }
+
+    return { prioritiesMap, highestThroughputServer };
 }
 
 /**
@@ -275,11 +291,13 @@ function get_servers(ns, getServerOptions) {
  * Or if already at min security level, just do GW batch of 2 scripts, grow, weaken.
  * @param {NS} ns - The Netscript API.
  * @param {string} target - The target server to prep.
- * @returns {void}
+ * @returns {number} - Total RAM used to prep the server.
  */
 function prepServer(ns, target) {
     // TODO: - Add way to optimize cpuCores
     const cpuCores = 1;
+
+    var totalRamUsed = 0;
 
     const serverInfo = ns.getServer(target);
     const securityLevel = serverInfo.hackDifficulty;
@@ -298,38 +316,44 @@ function prepServer(ns, target) {
     const needsGrow = currentMoney < maxMoney * PREP_MONEY_THRESHOLD;
 
     if (needsInitialWeaken) {
-        ns.print(`=== Weaken to min security level ===`);
-        ns.print(`Weaken Target: ${minSecurityLevel}`);
-        ns.print(`Weaken Amount: ${weakenAmount}`);
-        ns.print(`Weaken Threads Needed: ${Math.ceil((securityLevel - minSecurityLevel) / weakenAmount)}`);
-        ns.print(`Weaken Time: ${weakenTime}ms`);
-        executeWeaken(ns, "home", target, Math.ceil((securityLevel - minSecurityLevel) / weakenAmount), 0);
+        // ns.print(`=== Weaken to min security level ===`);
+        // ns.print(`Weaken Target: ${minSecurityLevel}`);
+        // ns.print(`Weaken Amount: ${weakenAmount}`);
+        // ns.print(`Weaken Threads Needed: ${Math.ceil((securityLevel - minSecurityLevel) / weakenAmount)}`);
+        // ns.print(`Weaken Time: ${weakenTime}ms`);
+        const weakenThreadsNeeded = Math.ceil((securityLevel - minSecurityLevel) / weakenAmount);
+        executeWeaken(ns, "home", target, weakenThreadsNeeded, 0);
+        totalRamUsed += weakenThreadsNeeded * 1.75;
     } else {
         ns.print(`=== Server already at min security level, skipping initial weaken ===`);
     }
 
     if (needsGrow) {
-        ns.print(`=== Grow to max money ===`);
+        // ns.print(`=== Grow to max money ===`);
         const growthAmount = maxMoney / currentMoney;
         const growthThreads = Math.ceil(ns.growthAnalyze(target, growthAmount, cpuCores));
         const growthSecurityChange = ns.growthAnalyzeSecurity(growthThreads, target, cpuCores);
-        ns.print(`Grow Amount: ${growthAmount}`);
-        ns.print(`Grow Threads Needed: ${growthThreads}`);
-        ns.print(`Grow Time: ${growthTime}ms`);
+        // ns.print(`Grow Amount: ${growthAmount}`);
+        // ns.print(`Grow Threads Needed: ${growthThreads}`);
+        // ns.print(`Grow Time: ${growthTime}ms`);
 
         // Adjust timing based on whether initial weaken was needed
         const growDelay = needsInitialWeaken ? weakenTime - growthTime + SCRIPT_DELAY : 0;
         executeGrow(ns, "home", target, growthThreads, growDelay);
-
-        ns.print(`=== Weaken to min security level again after growing ===`);
+        totalRamUsed += growthThreads * 1.75;
+        // ns.print(`=== Weaken to min security level again after growing ===`);
         const weakenThreadsNeeded = Math.ceil(growthSecurityChange / weakenAmount);
-        ns.print(`Weaken Threads Needed: ${weakenThreadsNeeded}`);
-        ns.print(`Weaken Time: ${weakenTime}ms`);
+        // ns.print(`Weaken Threads Needed: ${weakenThreadsNeeded}`);
+        // ns.print(`Weaken Time: ${weakenTime}ms`);
 
         // Adjust timing based on whether initial weaken was needed (2 scripts vs 3)
         const finalWeakenDelay = needsInitialWeaken ? 2 * SCRIPT_DELAY : SCRIPT_DELAY - (weakenTime - growthTime);
         executeWeaken(ns, "home", target, weakenThreadsNeeded, finalWeakenDelay);
+        totalRamUsed += weakenThreadsNeeded * 1.75;
     }
+
+    ns.print(`Total RAM Used to prep ${target}: ${ns.formatRam(totalRamUsed)}`);
+    return totalRamUsed;
 }
 
 function scheduleBatchHackCycles(ns, target, batches) {
