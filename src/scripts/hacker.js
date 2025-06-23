@@ -62,11 +62,12 @@ export async function main(ns) {
         var totalRamUsed = 0;
 
         while (totalRamUsed < totalRamAvailable) {
+            const remainingRam = totalRamAvailable - totalRamUsed;
+
             // Find the server with the highest priority that has enough RAM available
-            const { prioritiesMap, highestThroughputServer } = calculateTargetServerPriorities(
-                ns,
-                totalRamAvailable - totalRamUsed,
-            );
+            const { prioritiesMap, highestThroughputServer } = calculateTargetServerPriorities(ns, remainingRam);
+
+            const serverStats = prioritiesMap.get(highestThroughputServer);
 
             const serverInfo = ns.getServer(highestThroughputServer);
             const securityLevel = serverInfo.hackDifficulty;
@@ -95,8 +96,13 @@ export async function main(ns) {
             const ramUsedForBatches = scheduleBatchHackCycles(
                 ns,
                 highestThroughputServer,
-                prioritiesMap.get(highestThroughputServer).actualBatchLimit,
+                serverStats.actualBatchLimit,
             );
+
+            // Ensure we made progress to avoid infinite loop
+            if (ramUsedForBatches <= 0) {
+                break;
+            }
 
             totalRamUsed += ramUsedForBatches;
         }
@@ -281,7 +287,7 @@ function calculateTargetServerPriorities(ns, availableRam, excludeServers = []) 
             theoreticalBatchLimit: theoreticalBatchLimit,
         });
 
-        if (highestThroughputServer === null || throughput > highestThroughputServer.throughput) {
+        if (highestThroughputServer === null || throughput > prioritiesMap.get(highestThroughputServer).throughput) {
             highestThroughputServer = server;
         }
     }
