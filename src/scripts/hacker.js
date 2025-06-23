@@ -12,13 +12,10 @@ var hackPercentage = 0.5;
 const SCRIPT_DELAY = 1000; // ms delay between scripts
 const DELAY_BETWEEN_BATCHES = 1000; // ms delay between batches
 const TICK_DELAY = 8000; // ms delay between ticks
-// Batch scheduling: Each batch takes (1000*3 + 1000) = 4000ms to schedule
-// In 8000ms tick, we can fit exactly 2 batches (8000/4000 = 2)
-// All batches complete before next tick starts
+// Batch scheduling: Each batch takes (20*3 + 20) = 80ms to schedule
+// In 2000ms tick, we can fit exactly 25 batches (2000/80 = 25)
+// All 25 batches complete before next tick starts
 const MAX_BATCHES_PER_TICK = Math.floor(TICK_DELAY / (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES)); // max batches to schedule per tick
-
-// DEBUG MODE: Set to true to run only 1 batch with detailed logging
-const DEBUG_SINGLE_BATCH = true;
 
 const HOME_SERVER_RESERVED_RAM = 30; // GB reserved for home server
 
@@ -129,7 +126,7 @@ export async function main(ns) {
             const maxAffordableBatches = Math.floor(availableRamForServer / serverStats.ramNeededPerBatch);
             const batchesToSchedule = Math.min(
                 serverStats.actualBatchLimit,
-                DEBUG_SINGLE_BATCH ? 1 : MAX_BATCHES_PER_TICK,
+                MAX_BATCHES_PER_TICK,
                 maxAffordableBatches,
             );
 
@@ -154,22 +151,6 @@ export async function main(ns) {
 
         if (serverIndex === 1) {
             ns.print("No servers could be processed this tick");
-        }
-
-        // DEBUG: Monitor batch results
-        if (DEBUG_SINGLE_BATCH && serverIndex > 1) {
-            const highestThroughputServer = Array.from(prioritiesMap.keys())[0];
-            if (highestThroughputServer) {
-                const serverStats = prioritiesMap.get(highestThroughputServer);
-                const monitorTime = Math.ceil(serverStats.weakenTime / 1000) + 2; // seconds
-
-                ns.print(`\n⏰ CHECK RESULTS IN ${monitorTime} SECONDS:`);
-                ns.print(`Run this command to check batch results:`);
-                ns.print(`  home; run src/scripts/check_batch_results.js ${highestThroughputServer}`);
-
-                // Exit after first batch in debug mode
-                return;
-            }
         }
 
         await ns.sleep(TICK_DELAY);
@@ -261,9 +242,7 @@ function getServerHackStats(ns, server, useFormulas = false) {
     const growthSecurityChange = growthThreads * 0.004;
 
     const weakenTarget = hackSecurityChange + growthSecurityChange;
-    // Add a small buffer to ensure we fully compensate for security increase
-    // This accounts for floating point precision issues
-    const weakenThreadsNeeded = Math.ceil(weakenTarget / weakenAmount + 0.001);
+    const weakenThreadsNeeded = Math.ceil(weakenTarget / weakenAmount);
 
     return {
         securityLevel,
@@ -274,14 +253,11 @@ function getServerHackStats(ns, server, useFormulas = false) {
         hackPercentageFromOneThread,
         hackThreads,
         actualHackPercentage,
-        hackSecurityChange,
         hackTime,
         weakenTime,
         weakenThreadsNeeded,
         growthThreads,
-        growthSecurityChange,
         growthFactor,
-        weakenAmount,
         growthTime,
     };
 }
@@ -371,9 +347,6 @@ function calculateTargetServerPriorities(ns, excludeServers = []) {
             hackTime,
             growthTime,
             actualHackPercentage,
-            hackSecurityChange,
-            growthSecurityChange,
-            weakenAmount,
         } = getServerHackStats(
             ns,
             server,
@@ -402,10 +375,6 @@ function calculateTargetServerPriorities(ns, excludeServers = []) {
             growthThreads: growthThreads,
             weakenThreadsNeeded: weakenThreadsNeeded,
             hackChance: hackChance,
-            actualHackPercentage: actualHackPercentage,
-            hackSecurityChange: hackSecurityChange,
-            growthSecurityChange: growthSecurityChange,
-            weakenAmount: weakenAmount,
             actualBatchLimit: actualBatchLimit,
             theoreticalBatchLimit: theoreticalBatchLimit,
         });
@@ -676,88 +645,6 @@ function runBatchHack(ns, target, extraDelay, serverStats) {
     const growthTime = serverStats.growthTime;
     const hackTime = serverStats.hackTime;
 
-    // DEBUG: Log server state BEFORE batch execution
-    if (DEBUG_SINGLE_BATCH) {
-        const serverInfo = ns.getServer(target);
-        ns.print(`\n=== BATCH DEBUG: ${target} ===`);
-        ns.print(`BEFORE BATCH:`);
-        ns.print(
-            `  Money: ${ns.formatNumber(serverInfo.moneyAvailable)} / ${ns.formatNumber(serverInfo.moneyMax)} (${((serverInfo.moneyAvailable / serverInfo.moneyMax) * 100).toFixed(1)}%)`,
-        );
-        ns.print(
-            `  Security: ${serverInfo.hackDifficulty.toFixed(2)} / ${serverInfo.minDifficulty.toFixed(2)} (+${(serverInfo.hackDifficulty - serverInfo.minDifficulty).toFixed(2)})`,
-        );
-
-        ns.print(`BATCH PLAN:`);
-        ns.print(
-            `  Hack Threads: ${hackThreads} (${((serverStats.actualHackPercentage || 0) * 100).toFixed(1)}% of max money)`,
-        );
-        ns.print(`  Grow Threads: ${growthThreads}`);
-        ns.print(`  Weaken Threads: ${weakenThreadsNeeded}`);
-
-        ns.print(`EXPECTED SECURITY CHANGES:`);
-        ns.print(`  Hack Security +: ${(serverStats.hackSecurityChange || 0).toFixed(3)}`);
-        ns.print(`  Grow Security +: ${(serverStats.growthSecurityChange || 0).toFixed(3)}`);
-        ns.print(
-            `  Total Security +: ${((serverStats.hackSecurityChange || 0) + (serverStats.growthSecurityChange || 0)).toFixed(3)}`,
-        );
-        ns.print(`  Weaken Security -: ${(weakenThreadsNeeded * (serverStats.weakenAmount || 0)).toFixed(3)}`);
-        ns.print(
-            `  Net Security Change: ${((serverStats.hackSecurityChange || 0) + (serverStats.growthSecurityChange || 0) - weakenThreadsNeeded * (serverStats.weakenAmount || 0)).toFixed(3)}`,
-        );
-
-        // Additional debug info
-        ns.print(`DETAILED CALCULATIONS:`);
-        ns.print(`  Weaken per thread: ${(serverStats.weakenAmount || 0).toFixed(6)}`);
-        ns.print(
-            `  Security to remove: ${((serverStats.hackSecurityChange || 0) + (serverStats.growthSecurityChange || 0)).toFixed(6)}`,
-        );
-        ns.print(`  Weaken threads needed: ${weakenThreadsNeeded}`);
-        ns.print(`  Actual weaken amount: ${(weakenThreadsNeeded * (serverStats.weakenAmount || 0)).toFixed(6)}`);
-
-        // Validate our security calculations against expected constants
-        const expectedHackSecurity = hackThreads * 0.002;
-        const expectedGrowSecurity = growthThreads * 0.004;
-        const expectedWeakenAmount = 0.05;
-
-        ns.print(`VALIDATION (Expected vs Calculated):`);
-        ns.print(
-            `  Hack security: ${expectedHackSecurity.toFixed(6)} vs ${(serverStats.hackSecurityChange || 0).toFixed(6)}`,
-        );
-        ns.print(
-            `  Grow security: ${expectedGrowSecurity.toFixed(6)} vs ${(serverStats.growthSecurityChange || 0).toFixed(6)}`,
-        );
-        ns.print(
-            `  Weaken amount: ${expectedWeakenAmount.toFixed(6)} vs ${(serverStats.weakenAmount || 0).toFixed(6)}`,
-        );
-
-        const shortfall =
-            (serverStats.hackSecurityChange || 0) +
-            (serverStats.growthSecurityChange || 0) -
-            weakenThreadsNeeded * (serverStats.weakenAmount || 0);
-        if (Math.abs(shortfall) > 0.001) {
-            ns.print(
-                `  ⚠️  SECURITY SHORTFALL: ${shortfall.toFixed(6)} (${shortfall > 0 ? "insufficient weaken" : "excess weaken"})`,
-            );
-        } else {
-            ns.print(`  ✅ SECURITY BALANCED: ${shortfall.toFixed(6)}`);
-        }
-
-        ns.print(`TIMING:`);
-        ns.print(`  Hack Time: ${hackTime}ms, Delay: ${weakenTime - hackTime - SCRIPT_DELAY * 2 + extraDelay}ms`);
-        ns.print(`  Grow Time: ${growthTime}ms, Delay: ${weakenTime - growthTime - SCRIPT_DELAY + extraDelay}ms`);
-        ns.print(`  Weaken Time: ${weakenTime}ms, Delay: ${extraDelay}ms`);
-
-        const hackFinish = Date.now() + (weakenTime - hackTime - SCRIPT_DELAY * 2 + extraDelay) + hackTime;
-        const growFinish = Date.now() + (weakenTime - growthTime - SCRIPT_DELAY + extraDelay) + growthTime;
-        const weakenFinish = Date.now() + extraDelay + weakenTime;
-
-        ns.print(`EXPECTED COMPLETION ORDER:`);
-        ns.print(`  Hack completes at: ${new Date(hackFinish).toLocaleTimeString()}`);
-        ns.print(`  Grow completes at: ${new Date(growFinish).toLocaleTimeString()}`);
-        ns.print(`  Weaken completes at: ${new Date(weakenFinish).toLocaleTimeString()}`);
-    }
-
     // Find servers for all three operations with proper RAM accounting
     const hosts = findExecutableServersForBatch(
         ns,
@@ -778,21 +665,9 @@ function runBatchHack(ns, target, extraDelay, serverStats) {
         serverRamCache.set(hosts.growHost, serverRamCache.get(hosts.growHost) - growRamUsed);
         serverRamCache.set(hosts.weakenHost, serverRamCache.get(hosts.weakenHost) - weakenRamUsed);
 
-        if (DEBUG_SINGLE_BATCH) {
-            ns.print(`EXECUTING ON HOSTS:`);
-            ns.print(`  Hack: ${hosts.hackHost} (${ns.formatRam(hackRamUsed)})`);
-            ns.print(`  Grow: ${hosts.growHost} (${ns.formatRam(growRamUsed)})`);
-            ns.print(`  Weaken: ${hosts.weakenHost} (${ns.formatRam(weakenRamUsed)})`);
-            ns.print(`  Total RAM: ${ns.formatRam(totalRamUsed)}`);
-        }
-
         executeHack(ns, hosts.hackHost, target, hackThreads, weakenTime - hackTime - SCRIPT_DELAY * 2 + extraDelay);
         executeGrow(ns, hosts.growHost, target, growthThreads, weakenTime - growthTime - SCRIPT_DELAY + extraDelay);
         executeWeaken(ns, hosts.weakenHost, target, weakenThreadsNeeded, extraDelay);
-
-        if (DEBUG_SINGLE_BATCH) {
-            ns.print(`SCRIPTS LAUNCHED! Check back in ${Math.ceil(weakenTime / 1000)} seconds for results.`);
-        }
 
         return { success: true, ramUsed: totalRamUsed };
     } else {
@@ -948,11 +823,6 @@ function calculateReservedRam(ns, prioritiesMap, targetServer) {
         // Calculate RAM needed for these batches
         const ramForThisServer = totalBatchesWanted * serverStats.ramNeededPerBatch;
         totalReservedRam += ramForThisServer;
-
-        // Optional: Add debug logging
-        ns.print(
-            `DEBUG: Reserving ${ns.formatRam(ramForThisServer)} for ${serverName} (${totalBatchesWanted} batches over ${ticksInReservationPeriod} ticks)`,
-        );
     }
 
     return totalReservedRam;
@@ -969,10 +839,6 @@ function calculateReservedRam(ns, prioritiesMap, targetServer) {
 function calculateAvailableRamForServer(ns, prioritiesMap, targetServer, totalRamAvailable) {
     const reservedRam = calculateReservedRam(ns, prioritiesMap, targetServer);
     const availableRam = Math.max(0, totalRamAvailable - reservedRam);
-
-    ns.print(
-        `Available RAM for ${targetServer}: ${ns.formatRam(availableRam)} (${ns.formatRam(totalRamAvailable)} total - ${ns.formatRam(reservedRam)} reserved)`,
-    );
 
     return availableRam;
 }
