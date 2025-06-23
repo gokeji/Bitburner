@@ -61,6 +61,7 @@ export async function main(ns) {
         const processedServers = []; // Track servers already processed this tick
 
         while (totalRamUsed < totalRamAvailable && serverIndex <= prioritiesMap.size) {
+            serverIndex++;
             const remainingRam = totalRamAvailable - totalRamUsed;
 
             // Find the server with the highest priority that has enough RAM available
@@ -70,6 +71,12 @@ export async function main(ns) {
                 remainingRam,
                 processedServers,
             );
+
+            // Skip servers that are already being targeted
+            if (isServerBeingTargeted(ns, highestThroughputServer)) {
+                processedServers.push(highestThroughputServer);
+                continue;
+            }
 
             const serverStats = currentPriorities.get(highestThroughputServer);
             if (!serverStats) {
@@ -92,7 +99,6 @@ export async function main(ns) {
                 }
                 totalRamUsed += prepRamUsed;
                 processedServers.push(highestThroughputServer); // Add to processed list
-                serverIndex++;
                 continue;
             }
 
@@ -112,7 +118,6 @@ export async function main(ns) {
 
             totalRamUsed += ramUsedForBatches;
             processedServers.push(highestThroughputServer); // Add to processed list
-            serverIndex++;
         }
 
         if (serverIndex === 1) {
@@ -249,6 +254,38 @@ function getTotalAvailableRam(ns) {
     }
 
     return totalRam - HOME_SERVER_RESERVED_RAM;
+}
+
+/**
+ * Checks if a server is already being targeted by running scripts (either prep or HGW batches).
+ * @param {NS} ns - The Netscript API.
+ * @param {string} target - The target server to check.
+ * @returns {boolean} - True if the server is already being targeted, false otherwise.
+ */
+function isServerBeingTargeted(ns, target) {
+    // Check all executable servers for running scripts targeting this server
+    for (const server of executableServers) {
+        const runningScripts = ns.ps(server);
+
+        for (const script of runningScripts) {
+            // Check if any of our hack/grow/weaken scripts are running with this target
+            // Use more specific matching to avoid false positives
+            if (
+                (script.filename === hackScript ||
+                    script.filename === growScript ||
+                    script.filename === weakenScript ||
+                    script.filename === "kamu/hack.js" ||
+                    script.filename === "kamu/grow.js" ||
+                    script.filename === "kamu/weaken.js") &&
+                script.args.length > 0 &&
+                script.args[0] === target
+            ) {
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 /**
@@ -519,7 +556,10 @@ function scheduleBatchHackCycles(ns, target, batches, serverIndex, serverStats) 
     let totalRamUsed = 0;
     let successfulBatches = 0;
 
-    for (let i = 0; i < batches; i++) {
+    // Ensure we only attempt whole batches to avoid floating point precision issues
+    const totalBatches = Math.floor(batches);
+
+    for (let i = 0; i < totalBatches; i++) {
         const batchResult = runBatchHack(ns, target, (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES) * i);
         if (!batchResult.success) {
             break;
@@ -529,7 +569,6 @@ function scheduleBatchHackCycles(ns, target, batches, serverIndex, serverStats) 
     }
 
     // Display batch scheduling results
-    const totalBatches = Math.floor(batches);
     ns.print(
         `${serverIndex}. ${target}: HGW ${successfulBatches}/${totalBatches} batches, ${ns.formatRam(totalRamUsed)} (${serverStats.hackThreads}H ${serverStats.growthThreads}G ${serverStats.weakenThreadsNeeded}W per batch)`,
     );
