@@ -1,3 +1,5 @@
+import { NS } from "@ns";
+
 /**
  * @param {NS} ns
  **/
@@ -164,7 +166,12 @@ function pad_str(string, len) {
     return String(pad + string).slice(-len);
 }
 
-function get_server_data(ns, server) {
+/**
+ * @param {NS} ns
+ * @param {string} server
+ * @returns {string}
+ */
+function get_server_data(ns, server, useFormulas = true) {
     /*
 	Creates the info text for each server. Currently gets money, security, RAM, distributed attack info, priority, and batch time.
 	*/
@@ -177,6 +184,17 @@ function get_server_data(ns, server) {
     var attackInfo = get_distributed_attack_info(ns, server); // Get distributed attack info
     var priority = get_hacking_priority(ns, server); // Get hacking priority
     var weakenTimeMs = ns.getWeakenTime(server); // Get weaken time (batch time)
+
+    if (useFormulas) {
+        // Create optimal server state for formulas API calculations
+        const calcServer = {
+            ...ns.getServer(server),
+            hackDifficulty: ns.getServer(server).minDifficulty,
+            moneyAvailable: ns.getServer(server).moneyMax,
+        };
+        const player = ns.getPlayer();
+        weakenTimeMs = ns.formulas.hacking.weakenTime(calcServer, player);
+    }
 
     // Format money with M suffix for millions
     var formatMoney = (amount, digits = 0) => {

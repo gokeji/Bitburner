@@ -30,17 +30,14 @@ var serverRamCache = new Map();
 export async function main(ns) {
     ns.disableLog("ALL");
 
-    // // Overview of all servers and their throughput
-    // const { prioritiesMap, highestThroughputServer } = calculateTargetServerPriorities(ns, getTotalAvailableRam(ns));
-    // const sortedServers = Array.from(prioritiesMap.entries()).sort((a, b) => b[1].priority - a[1].priority);
-    // for (const [server, stats] of sortedServers) {
-    //     ns.print(
-    //         `${server.padEnd(20)}: ${ns.formatRam(stats.ramNeededPerBatch).padStart(9)} ${`$${ns.formatNumber(stats.throughput)}/s`.padStart(12)} ${ns.formatNumber(stats.actualBatchLimit).padStart(8)}/${ns.formatNumber(stats.theoreticalBatchLimit).padStart(8)} ${convertMsToTime(stats.weakenTime).padStart(6)}`,
-    //     );
-    // }
-
     // Main loop
+    let tickCounter = 0;
     while (true) {
+        tickCounter++;
+
+        // Clear terminal and start new tick
+        ns.print(`\n=== Tick ${tickCounter} ===`);
+
         // Get all servers
         executableServers = getServers(ns, "executableOnly");
         hackableServers = getServers(ns, "hackableOnly");
@@ -49,7 +46,7 @@ export async function main(ns) {
         const totalRamAvailable = getTotalAvailableRam(ns);
         ns.print(`Total RAM Available: ${ns.formatRam(totalRamAvailable)}`);
 
-        const { prioritiesMap, highestThroughputServer } = calculateTargetServerPriorities(ns, totalRamAvailable);
+        const { prioritiesMap } = calculateTargetServerPriorities(ns, totalRamAvailable);
 
         // Send throughput data to port 4 for get_stats.js
         var throughputPortHandle = ns.getPortHandle(4);
@@ -60,14 +57,21 @@ export async function main(ns) {
 
         // Start allocating batches to servers until we run out of RAM
         var totalRamUsed = 0;
+        let serverIndex = 1;
 
-        while (totalRamUsed < totalRamAvailable) {
+        while (totalRamUsed < totalRamAvailable && serverIndex <= prioritiesMap.size) {
             const remainingRam = totalRamAvailable - totalRamUsed;
 
             // Find the server with the highest priority that has enough RAM available
-            const { prioritiesMap, highestThroughputServer } = calculateTargetServerPriorities(ns, remainingRam);
+            const { prioritiesMap: currentPriorities, highestThroughputServer } = calculateTargetServerPriorities(
+                ns,
+                remainingRam,
+            );
 
-            const serverStats = prioritiesMap.get(highestThroughputServer);
+            const serverStats = currentPriorities.get(highestThroughputServer);
+            if (!serverStats) {
+                break; // No viable servers left
+            }
 
             const serverInfo = ns.getServer(highestThroughputServer);
             const securityLevel = serverInfo.hackDifficulty;
@@ -79,17 +83,13 @@ export async function main(ns) {
                 currentMoney < maxMoney * PREP_MONEY_THRESHOLD ||
                 securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD
             ) {
-                const prepRamUsed = prepServer(ns, highestThroughputServer);
+                const prepRamUsed = prepServer(ns, highestThroughputServer, serverIndex);
                 if (prepRamUsed === false) {
-                    ns.print(
-                        `WARN: Not enough RAM available to prep ${highestThroughputServer}. Skipping prep and continuing with next cycle.`,
-                    );
                     break; // Exit the inner loop and wait for next cycle
                 }
                 totalRamUsed += prepRamUsed;
+                serverIndex++;
                 continue;
-            } else {
-                ns.print(`Server is already prepped, skipping prep`);
             }
 
             // Schedule all available batches for the highest priority server
@@ -97,6 +97,8 @@ export async function main(ns) {
                 ns,
                 highestThroughputServer,
                 serverStats.actualBatchLimit,
+                serverIndex,
+                serverStats,
             );
 
             // Ensure we made progress to avoid infinite loop
@@ -105,6 +107,11 @@ export async function main(ns) {
             }
 
             totalRamUsed += ramUsedForBatches;
+            serverIndex++;
+        }
+
+        if (serverIndex === 1) {
+            ns.print("No servers could be processed this tick");
         }
 
         await ns.sleep(1000);
@@ -247,8 +254,6 @@ function getTotalAvailableRam(ns) {
  * @returns {{prioritiesMap: Map<string, {priority: number, ramNeededPerBatch: number, throughput: number, weakenTime: number, hackThreads: number, growthThreads: number, weakenThreadsNeeded: number, hackChance: number}>, highestThroughputServer: string}}
  */
 function calculateTargetServerPriorities(ns, availableRam, excludeServers = []) {
-    ns.print(`Available RAM for allocation: ${ns.formatRam(availableRam)}`);
-
     const servers = hackableServers.filter((server) => !excludeServers.includes(server));
     const prioritiesMap = new Map();
     var highestThroughputServer = null;
@@ -425,7 +430,7 @@ function findExecutableServersForServerPrep(ns, weakenRamNeeded, growRamNeeded, 
  * @param {string} target - The target server to prep.
  * @returns {number | false} - Total RAM used to prep the server, or false if not enough RAM available.
  */
-function prepServer(ns, target) {
+function prepServer(ns, target, serverIndex) {
     // TODO: - Add way to optimize cpuCores
     const cpuCores = 1;
 
@@ -460,8 +465,17 @@ function prepServer(ns, target) {
     const hosts = findExecutableServersForServerPrep(ns, initialWeakenRam, growRam, finalWeakenRam);
 
     if (!hosts) {
-        return false; // Not enough RAM to run prep operations
+        return false;
     }
+
+    // Display prep information
+    const prepOperations = [];
+    if (needsInitialWeaken) prepOperations.push(`${initialWeakenThreads}W`);
+    if (needsGrow) prepOperations.push(`${growthThreads}G`);
+    if (needsGrow) prepOperations.push(`${finalWeakenThreads}W`);
+
+    const totalPrepRam = initialWeakenRam + growRam + finalWeakenRam;
+    ns.print(`${serverIndex}. ${target}: PREP ${ns.formatRam(totalPrepRam)} for ${prepOperations.join(" + ")}`);
 
     // Update the server RAM cache to reflect the RAM that will be used
     if (initialWeakenRam > 0) {
@@ -479,8 +493,6 @@ function prepServer(ns, target) {
     if (needsInitialWeaken) {
         executeWeaken(ns, hosts.weakenHost, target, initialWeakenThreads, 0);
         totalRamUsed += initialWeakenRam;
-    } else {
-        ns.print(`WARN: Server already at min security level, skipping initial weaken (this should not happen)`);
     }
 
     if (needsGrow) {
@@ -495,26 +507,27 @@ function prepServer(ns, target) {
         totalRamUsed += finalWeakenRam;
     }
 
-    ns.print(`Total RAM Used to prep ${target}: ${ns.formatRam(totalRamUsed)}`);
     return totalRamUsed;
 }
 
-function scheduleBatchHackCycles(ns, target, batches) {
+function scheduleBatchHackCycles(ns, target, batches, serverIndex, serverStats) {
     let totalRamUsed = 0;
     let successfulBatches = 0;
 
     for (let i = 0; i < batches; i++) {
-        // ns.print(`+++++ Batch ${i + 1} +++++`);
         const batchResult = runBatchHack(ns, target, (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES) * i);
         if (!batchResult.success) {
-            ns.print(
-                `WARN Failed to run batch ${i + 1} on ${target}. Success rate: ${((successfulBatches / batches) * 100).toFixed(2)}% (${successfulBatches}/${batches})`,
-            );
             break;
         }
         totalRamUsed += batchResult.ramUsed;
         successfulBatches++;
     }
+
+    // Display batch scheduling results
+    const totalBatches = Math.floor(batches);
+    ns.print(
+        `${serverIndex}. ${target}: HGW ${successfulBatches}/${totalBatches} batches, ${ns.formatRam(totalRamUsed)} (${serverStats.hackThreads}H ${serverStats.growthThreads}G ${serverStats.weakenThreadsNeeded}W per batch)`,
+    );
 
     return totalRamUsed;
 }
@@ -550,26 +563,6 @@ function runBatchHack(ns, target, extraDelay) {
 
     const weakenTarget = hackSecurityChange + growthSecurityChange;
     const weakenThreadsNeeded = Math.ceil(weakenTarget / weakenAmount);
-
-    ns.print(`=== Hacking 50% of max money ===`);
-    ns.print(`Hack Chance: ${hackChance}`);
-    ns.print(`Hack Percentage From One Thread: ${hackPercentageFromOneThread}`);
-    ns.print(`Hack Amount: ${hackPercentage * maxMoney}`);
-    ns.print(`Hack Threads: ${hackThreads}`);
-    ns.print(`Hack Security Change: ${hackSecurityChange}`);
-    ns.print(`Hack Time: ${hackTime}ms`);
-
-    ns.print(`=== Growing 2X back to 100% ===`);
-    ns.print(`Growth Threads: ${growthThreads}`);
-    ns.print(`Growth Security Change: ${growthSecurityChange}`);
-    ns.print(`Growth Time: ${growthTime}ms`);
-    ns.print(`Growth Factor: ${growthFactor}`);
-
-    ns.print(`=== Weakening to min security level ===`);
-    ns.print(`Weaken Target: ${weakenTarget}`);
-    ns.print(`Weaken Threads Needed: ${weakenThreadsNeeded}`);
-    ns.print(`Weaken Amount: ${weakenAmount}`);
-    ns.print(`Weaken Time: ${weakenTime}ms`);
 
     // Find servers for all three operations with proper RAM accounting
     const hosts = findExecutableServersForBatch(
@@ -672,14 +665,9 @@ function findExecutableServersForBatch(ns, hackRamNeeded, growRamNeeded, weakenR
  * @param {number} sleepTime
  */
 function executeWeaken(ns, host, target, threads, sleepTime) {
-    if (sleepTime < 0) {
-        ns.print(`WARN Sleep time is negative for weaken script on ${target}`);
-    }
     const pid = ns.exec(weakenScript, host, threads, target, sleepTime);
     if (!pid) {
         ns.tprint(`WARN Failed to execute weaken script on ${target}`);
-    } else {
-        ns.print(`SUCCESS Weakened ${target} with ${threads} threads`);
     }
 }
 
@@ -693,14 +681,9 @@ function executeWeaken(ns, host, target, threads, sleepTime) {
  * @param {boolean} stockArg - Whether to influence stock or not.
  */
 function executeGrow(ns, host, target, threads, sleepTime, stockArg = false) {
-    if (sleepTime < 0) {
-        ns.print(`WARN Sleep time is negative for grow script on ${target}`);
-    }
     const pid = ns.exec(growScript, host, threads, target, sleepTime, stockArg);
     if (!pid) {
         ns.tprint(`WARN Failed to execute grow script on ${target}`);
-    } else {
-        ns.print(`SUCCESS Grew ${target} with ${threads} threads`);
     }
 }
 
@@ -714,13 +697,8 @@ function executeGrow(ns, host, target, threads, sleepTime, stockArg = false) {
  * @param {boolean} stockArg - Whether to influence stock or not.
  */
 function executeHack(ns, host, target, threads, sleepTime, stockArg = false) {
-    if (sleepTime < 0) {
-        ns.print(`WARN Sleep time is negative for hack script on ${target}`);
-    }
     const pid = ns.exec(hackScript, host, threads, target, sleepTime);
     if (!pid) {
         ns.tprint(`WARN Failed to execute hack script on ${target}`);
-    } else {
-        ns.print(`SUCCESS Hacked ${target} with ${threads} threads`);
     }
 }
