@@ -46,13 +46,11 @@ async function cleanup_home_assist_processes(ns) {
 }
 
 function cleanScriptOnAllServers(ns, script, servers) {
-    const assistanceServers = ["home", ...servers];
-
     let totalKilled = 0;
     const killReport = [];
 
-    for (const assistServer of assistanceServers) {
-        const processes = ns.ps(assistServer).filter((p) => p.filename === script);
+    for (const server of servers) {
+        const processes = ns.ps(server).filter((p) => p.filename === script);
         let killedOnServer = 0;
 
         processes.forEach((p) => {
@@ -62,7 +60,7 @@ function cleanScriptOnAllServers(ns, script, servers) {
         });
 
         if (killedOnServer > 0) {
-            killReport.push(`${assistServer}: ${killedOnServer} processes`);
+            killReport.push(`${server}: ${killedOnServer} processes`);
         }
     }
 
@@ -75,7 +73,7 @@ function cleanScriptOnAllServers(ns, script, servers) {
 export async function main(ns) {
     disable_logs(ns);
 
-    const { totalKilled, killReport } = cleanup_home_assist_processes(ns);
+    const { totalKilled, killReport } = await cleanup_home_assist_processes(ns);
 
     if (totalKilled > 0) {
         ns.tprint(`Successfully killed ${totalKilled} direct action HGW processes:`);
