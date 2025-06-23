@@ -180,7 +180,7 @@ function get_server_data(ns, server) {
 
     // Format money with M suffix for millions
     var formatMoney = (amount, digits = 0) => {
-        if (isNaN(amount)) return "amount";
+        if (isNaN(amount)) return amount;
         if (amount === null) return "--";
         if (amount === 0) return "0";
 

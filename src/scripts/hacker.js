@@ -55,7 +55,7 @@ export async function main(ns) {
         var throughputPortHandle = ns.getPortHandle(4);
         throughputPortHandle.clear(); // Clear old data
         for (let [server, stats] of prioritiesMap.entries()) {
-            throughputPortHandle.write(JSON.stringify({ server: server, throughput: stats.throughput }));
+            throughputPortHandle.write(JSON.stringify({ server: server, profit: stats.throughput }));
         }
 
         // Start allocating batches to servers until we run out of RAM
@@ -101,7 +101,7 @@ export async function main(ns) {
             totalRamUsed += prioritiesMap.get(highestThroughputServer).ramNeededPerBatch;
         }
 
-        ns.sleep(1000);
+        await ns.sleep(1000);
     }
 }
 
@@ -577,22 +577,8 @@ function runBatchHack(ns, target, extraDelay) {
         serverRamCache.set(hosts.growHost, serverRamCache.get(hosts.growHost) - growRamUsed);
         serverRamCache.set(hosts.weakenHost, serverRamCache.get(hosts.weakenHost) - weakenRamUsed);
 
-        executeHack(
-            ns,
-            hosts.hackHost,
-            target,
-            hackThreads,
-            weakenTime - hackTime - SCRIPT_DELAY * 2 + extraDelay,
-            false,
-        );
-        executeGrow(
-            ns,
-            hosts.growHost,
-            target,
-            growthThreads,
-            weakenTime - growthTime - SCRIPT_DELAY + extraDelay,
-            true,
-        );
+        executeHack(ns, hosts.hackHost, target, hackThreads, weakenTime - hackTime - SCRIPT_DELAY * 2 + extraDelay);
+        executeGrow(ns, hosts.growHost, target, growthThreads, weakenTime - growthTime - SCRIPT_DELAY + extraDelay);
         executeWeaken(ns, hosts.weakenHost, target, weakenThreadsNeeded, extraDelay);
         return true;
     } else {
@@ -692,7 +678,7 @@ function executeWeaken(ns, host, target, threads, sleepTime) {
  * @param {number} sleepTime
  * @param {boolean} stockArg - Whether to influence stock or not.
  */
-function executeGrow(ns, host, target, threads, sleepTime, stockArg) {
+function executeGrow(ns, host, target, threads, sleepTime, stockArg = false) {
     if (sleepTime < 0) {
         ns.print(`WARN Sleep time is negative for grow script on ${target}`);
     }
@@ -713,7 +699,7 @@ function executeGrow(ns, host, target, threads, sleepTime, stockArg) {
  * @param {number} sleepTime
  * @param {boolean} stockArg - Whether to influence stock or not.
  */
-function executeHack(ns, host, target, threads, sleepTime, stockArg) {
+function executeHack(ns, host, target, threads, sleepTime, stockArg = false) {
     if (sleepTime < 0) {
         ns.print(`WARN Sleep time is negative for hack script on ${target}`);
     }
