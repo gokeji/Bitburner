@@ -85,6 +85,7 @@ export async function main(ns) {
             const currentMoney = serverInfo.moneyAvailable;
             const maxMoney = serverInfo.moneyMax;
 
+            // TODO: - Do not weaken if we need to reserve for higher priority servers
             if (
                 currentMoney < maxMoney * PREP_MONEY_THRESHOLD ||
                 securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD
@@ -105,11 +106,27 @@ export async function main(ns) {
                 continue;
             }
 
-            // Schedule all available batches for the highest priority server
+            // Calculate available RAM for this server after reserving for higher priority servers
+            const availableRamForServer = calculateAvailableRamForServer(
+                ns,
+                currentPriorities,
+                highestThroughputServer,
+                totalRamAvailable - totalRamUsed,
+            );
+
+            // Calculate maximum batches we can afford with available RAM
+            const maxAffordableBatches = Math.floor(availableRamForServer / serverStats.ramNeededPerBatch);
+            const batchesToSchedule = Math.min(
+                serverStats.actualBatchLimit,
+                MAX_BATCHES_PER_TICK,
+                maxAffordableBatches,
+            );
+
+            // Schedule batches for the highest priority server
             const ramUsedForBatches = scheduleBatchHackCycles(
                 ns,
                 highestThroughputServer,
-                Math.min(serverStats.actualBatchLimit, MAX_BATCHES_PER_TICK),
+                batchesToSchedule,
                 serverIndex,
                 serverStats,
             );
@@ -753,4 +770,71 @@ function executeHack(ns, host, target, threads, sleepTime, stockArg = false) {
     if (!pid) {
         ns.tprint(`WARN Failed to execute hack script on ${target}`);
     }
+}
+
+/**
+ * Calculates how much RAM should be reserved for higher priority servers during the target server's batch cycle.
+ * This ensures higher priority servers can maintain continuous batch streams without being starved by lower priority allocations.
+ * @param {NS} ns - The Netscript API.
+ * @param {Map} prioritiesMap - Map of server stats sorted by priority.
+ * @param {string} targetServer - The server we're considering scheduling batches for.
+ * @returns {number} - Total RAM that should be reserved for higher priority servers (in GB).
+ */
+function calculateReservedRam(ns, prioritiesMap, targetServer) {
+    const targetStats = prioritiesMap.get(targetServer);
+    if (!targetStats) {
+        return 0;
+    }
+
+    // Calculate the reservation period (target server's cycle duration)
+    const reservationPeriod = targetStats.weakenTime + TICK_DELAY; // ms
+    const ticksInReservationPeriod = Math.ceil(reservationPeriod / TICK_DELAY);
+
+    // Get all servers sorted by priority (throughput) descending
+    const sortedServers = Array.from(prioritiesMap.entries()).sort((a, b) => b[1].throughput - a[1].throughput);
+
+    let totalReservedRam = 0;
+
+    // For each higher priority server, calculate how much RAM they'll need
+    for (const [serverName, serverStats] of sortedServers) {
+        // Stop when we reach the target server (all remaining servers have lower priority)
+        if (serverName === targetServer) {
+            break;
+        }
+
+        // Calculate how many batches this higher priority server could want during the reservation period
+        // Each tick, they can schedule up to MAX_BATCHES_PER_TICK or their actualBatchLimit, whichever is lower
+        const maxBatchesPerTick = Math.min(serverStats.actualBatchLimit, MAX_BATCHES_PER_TICK);
+        const totalBatchesWanted = maxBatchesPerTick * ticksInReservationPeriod;
+
+        // Calculate RAM needed for these batches
+        const ramForThisServer = totalBatchesWanted * serverStats.ramNeededPerBatch;
+        totalReservedRam += ramForThisServer;
+
+        // Optional: Add debug logging
+        ns.print(
+            `DEBUG: Reserving ${ns.formatRam(ramForThisServer)} for ${serverName} (${totalBatchesWanted} batches over ${ticksInReservationPeriod} ticks)`,
+        );
+    }
+
+    return totalReservedRam;
+}
+
+/**
+ * Calculates how much RAM is available for the target server after reserving RAM for higher priority servers.
+ * @param {NS} ns - The Netscript API.
+ * @param {Map} prioritiesMap - Map of server stats sorted by priority.
+ * @param {string} targetServer - The server we're considering scheduling batches for.
+ * @param {number} totalRamAvailable - Total RAM available across all servers.
+ * @returns {number} - RAM available for the target server after reservations (in GB).
+ */
+function calculateAvailableRamForServer(ns, prioritiesMap, targetServer, totalRamAvailable) {
+    const reservedRam = calculateReservedRam(ns, prioritiesMap, targetServer);
+    const availableRam = Math.max(0, totalRamAvailable - reservedRam);
+
+    ns.print(
+        `Available RAM for ${targetServer}: ${ns.formatRam(availableRam)} (${ns.formatRam(totalRamAvailable)} total - ${ns.formatRam(reservedRam)} reserved)`,
+    );
+
+    return availableRam;
 }
