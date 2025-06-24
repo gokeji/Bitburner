@@ -1,6 +1,15 @@
 import { NS } from "@ns";
 
-const REFRESH_RATE = 30;
+const REFRESH_RATE = 1000;
+const CACHE_EXPIRY_MS = 10000; // Cache server list for 10 seconds
+const PROCESS_CACHE_EXPIRY_MS = 5000; // Cache process data for 5 seconds
+
+// Global caches to reduce expensive operations
+let serverListCache = null;
+let serverListCacheTime = 0;
+let allServersCache = null;
+let allServersCacheTime = 0;
+let processCache = new Map(); // server -> {processes, timestamp}
 
 /**
  * @param {NS} ns
@@ -10,6 +19,17 @@ function get_servers(ns, all = false) {
 	Scans and iterates through all servers.
 	If all is false, only servers with root access and have money are returned.
 	*/
+    const now = Date.now();
+    const cacheKey = all ? "all" : "hackable";
+
+    // Check if we have a valid cache
+    if (cacheKey === "all" && allServersCache && now - allServersCacheTime < CACHE_EXPIRY_MS) {
+        return allServersCache;
+    }
+    if (cacheKey === "hackable" && serverListCache && now - serverListCacheTime < CACHE_EXPIRY_MS) {
+        return serverListCache;
+    }
+
     var servers = ["home"];
     var result = ["home"];
 
@@ -35,11 +55,53 @@ function get_servers(ns, all = false) {
         }
         i += 1;
     }
+
+    // Cache the results
+    if (all) {
+        allServersCache = result;
+        allServersCacheTime = now;
+    } else {
+        serverListCache = result;
+        serverListCacheTime = now;
+    }
+
     return result;
 }
 
+// Cached process lookup to avoid expensive ns.ps() calls
+function getCachedProcesses(ns, server) {
+    const now = Date.now();
+    const cached = processCache.get(server);
+
+    if (cached && now - cached.timestamp < PROCESS_CACHE_EXPIRY_MS) {
+        return cached.processes;
+    }
+
+    // Only get processes if we have root access
+    if (!ns.hasRootAccess(server)) {
+        return [];
+    }
+
+    const processes = ns.ps(server);
+    processCache.set(server, { processes, timestamp: now });
+    return processes;
+}
+
+// Cache for attack info to avoid recalculating expensive process lookups
+let attackInfoCache = new Map();
+let attackInfoCacheTime = 0;
+const ATTACK_INFO_CACHE_EXPIRY = 3000; // Cache for 3 seconds
+
 // Updated: Count total threads attacking a server from distributed-hack.js system
 function get_distributed_attack_info(ns, targetServer) {
+    const now = Date.now();
+    const cacheKey = targetServer;
+
+    // Check cache first
+    if (attackInfoCache.has(cacheKey) && now - attackInfoCacheTime < ATTACK_INFO_CACHE_EXPIRY) {
+        return attackInfoCache.get(cacheKey);
+    }
+
     const allServers = get_servers(ns, true);
     const kamuScripts = {
         "kamu/weaken.js": "weaken",
@@ -64,9 +126,7 @@ function get_distributed_attack_info(ns, targetServer) {
 
     // Check all servers for kamu scripts targeting this server
     for (const server of allServers) {
-        if (!ns.hasRootAccess(server)) continue;
-
-        const processes = ns.ps(server);
+        const processes = getCachedProcesses(ns, server);
         for (const process of processes) {
             // Check if it's a kamu script targeting our server
             if (kamuScripts[process.filename] && process.args.length >= 1 && process.args[0] === targetServer) {
@@ -80,7 +140,14 @@ function get_distributed_attack_info(ns, targetServer) {
 
     // ns.tprint(`${targetServer}: ${totalThreads}`)
 
-    if (totalThreads === 0) return null;
+    if (totalThreads === 0) {
+        const result = null;
+        attackInfoCache.set(cacheKey, result);
+        if (now - attackInfoCacheTime > ATTACK_INFO_CACHE_EXPIRY) {
+            attackInfoCacheTime = now;
+        }
+        return result;
+    }
 
     // Build the display string based on which actions are present
     let displayParts = [];
@@ -122,7 +189,15 @@ function get_distributed_attack_info(ns, targetServer) {
     const totalThreadsStr = `[${ns.formatNumber(totalThreads, 1)}-${ns.formatNumber(totalScriptCount, 0)}]`;
     const paddedTotal = totalThreadsStr.padStart(12);
 
-    return `${threadParts.join(":")} ${paddedTotal}`;
+    const result = `${threadParts.join(":")} ${paddedTotal}`;
+
+    // Cache the result
+    attackInfoCache.set(cacheKey, result);
+    if (now - attackInfoCacheTime > ATTACK_INFO_CACHE_EXPIRY) {
+        attackInfoCacheTime = now;
+    }
+
+    return result;
 }
 
 // Global variable to store profit data from distributed-hack.js
@@ -267,6 +342,37 @@ function get_server_data(ns, server, useFormulas = true) {
     return result;
 }
 
+// Cache for server max money (never changes) and server order
+let serverMaxMoneyCache = new Map();
+let serverOrderCache = null;
+let lastServerList = null;
+
+function getCachedServerMaxMoney(ns, server) {
+    if (!serverMaxMoneyCache.has(server)) {
+        serverMaxMoneyCache.set(server, ns.getServerMaxMoney(server));
+    }
+    return serverMaxMoneyCache.get(server);
+}
+
+function getSortedServerOrder(ns, servers) {
+    // Convert servers array to string for comparison
+    const currentServerList = servers.join(",");
+
+    // Only recalculate order if server list has changed
+    if (serverOrderCache === null || lastServerList !== currentServerList) {
+        // Cache max money for any new servers
+        for (const server of servers) {
+            getCachedServerMaxMoney(ns, server);
+        }
+
+        // Sort servers by max money
+        serverOrderCache = [...servers].sort((a, b) => serverMaxMoneyCache.get(a) - serverMaxMoneyCache.get(b));
+        lastServerList = currentServerList;
+    }
+
+    return serverOrderCache;
+}
+
 // NEW: Function to generate chart data for dynamic updates
 function generate_chart_data(ns, servers) {
     var stats = {};
@@ -274,17 +380,34 @@ function generate_chart_data(ns, servers) {
     for (var server of servers) {
         stats[server] = get_server_data(ns, server);
     }
-    // Sort each server based on how much money it holds.
-    var keys = Object.keys(stats);
-    keys.sort((a, b) => ns.getServerMaxMoney(a) - ns.getServerMaxMoney(b));
+
+    // Get sorted server order (cached unless server list changed)
+    var sortedServers = getSortedServerOrder(ns, servers);
 
     // Return sorted data for chart display
-    return keys.map((key) => stats[key]);
+    return sortedServers.map((server) => stats[server]);
 }
 
 // Add table header function that matches exact column spacing
 function get_table_header() {
     return `${pad_str("Server", 18)}|${pad_str("Money Available/Max (%)", 24)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 5)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Batch", 6)}|${pad_str("Attack Threads", 24)}`;
+}
+
+// Cleanup old cache entries to prevent memory leaks
+function cleanupCaches() {
+    const now = Date.now();
+
+    // Clean process cache
+    for (const [server, data] of processCache.entries()) {
+        if (now - data.timestamp > PROCESS_CACHE_EXPIRY_MS * 3) {
+            processCache.delete(server);
+        }
+    }
+
+    // Clean attack info cache
+    if (now - attackInfoCacheTime > ATTACK_INFO_CACHE_EXPIRY * 3) {
+        attackInfoCache.clear();
+    }
 }
 
 export async function main(ns) {
@@ -313,11 +436,19 @@ export async function main(ns) {
         ns.ui.resizeTail(charsWidth * 10, 400);
         ns.ui.moveTail(320, 0);
 
+        let cleanupCounter = 0;
         while (true) {
             // Update profit data from distributed-hack.js
             update_distributed_hack_profits(ns);
 
-            // Rescan for servers on each iteration to detect new servers
+            // Cleanup caches every 30 seconds to prevent memory leaks
+            cleanupCounter++;
+            if (cleanupCounter % Math.floor(30000 / REFRESH_RATE) === 0) {
+                // Every 30 seconds
+                cleanupCaches();
+            }
+
+            // Rescan for servers on each iteration, but use cache to reduce overhead
             var servers = get_servers(ns, false);
 
             // Dynamically adjust window size based on current server count
