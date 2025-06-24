@@ -4,11 +4,18 @@ const hackScript = "/kamu/hack.js";
 const growScript = "/kamu/grow.js";
 const weakenScript = "/kamu/weaken.js";
 
+// Backdoor script hooked in (requires singularity functions SF4.1)
+const singularityFunctionsAvailable = true;
+const backdoorScript = "/kamu/backdoor.js";
+
+// Solve Contract Script hooked in
+const solveContractsScript = "/kamu/solve-contracts.js";
+
 const HACK_SCRIPT_RAM_USAGE = 1.7;
 const GROW_SCRIPT_RAM_USAGE = 1.75;
 const WEAKEN_SCRIPT_RAM_USAGE = 1.75;
 
-var hackPercentage = 0.5;
+var hackPercentage = 0.9;
 const SCRIPT_DELAY = 100; // ms delay between scripts
 const DELAY_BETWEEN_BATCHES = 100; // ms delay between batches
 const TICK_DELAY = 5000; // ms delay between ticks
@@ -28,6 +35,20 @@ var ignoreServers = ["b-05"];
 
 let tickCounter = 0;
 
+// automatically backdoor these servers. Requires singularity functions.
+var backdoorServers = new Set([
+    "CSEC",
+    "I.I.I.I",
+    "avmnite-02h",
+    "run4theh111z",
+    "clarkinc",
+    "nwo",
+    "omnitek",
+    "fulcrumtech",
+    "fulcrumassets",
+    "w0r1d_d43m0n",
+]);
+
 /**
  * Global server RAM tracking
  * @type {Map<string, number>}
@@ -37,6 +58,10 @@ var serverRamCache = new Map();
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog("ALL");
+
+    if (ns.args.length > 0) {
+        ignoreServers = ns.args;
+    }
 
     // Main loop
     while (true) {
@@ -48,8 +73,11 @@ export async function main(ns) {
         // Get all servers
         executableServers = getServers(ns, "executableOnly");
         hackableServers = getServers(ns, "hackableOnly").filter((server) => {
-            return !ignoreServers.includes(server); // TODO: - Testing with faster servers only for faster iteration
+            return !ignoreServers.includes(server);
         });
+
+        // Run contract solving script each tick
+        runSolveContractsScript(ns);
 
         // Copy scripts to all executable servers
         const scriptsToCopy = [hackScript, growScript, weakenScript];
@@ -88,10 +116,6 @@ export async function main(ns) {
 
             // Skip servers that are already being targeted
             const { isTargeted, isPrep, isHgw } = isServerBeingTargeted(ns, highestThroughputServer);
-
-            // ns.print(`${serverIndex}. ${highestThroughputServer}: ${isTargeted ? "TARGETED" : "NOT TARGETED"}`);
-            // ns.print(`${serverIndex}. ${highestThroughputServer}: ${isPrep ? "PREP" : "NOT PREP"}`);
-            // ns.print(`${serverIndex}. ${highestThroughputServer}: ${isHgw ? "HGW" : "NOT HGW"}`);
 
             const serverStats = currentPriorities.get(highestThroughputServer);
             if (!serverStats) {
@@ -404,7 +428,80 @@ function calculateTargetServerPriorities(ns, excludeServers = []) {
 }
 
 /**
+ * Attempts to nuke a server if we don't have root access yet
+ * @param {NS} ns - The Netscript API
+ * @param {string} server - Server name to nuke
+ */
+function nukeServerIfNeeded(ns, server) {
+    if (ns.hasRootAccess(server) || server.startsWith("hacknet-node") || ignoreServers.includes(server)) {
+        return;
+    }
+
+    var portOpened = 0;
+    if (ns.fileExists("BruteSSH.exe")) {
+        ns.brutessh(server);
+        portOpened++;
+    }
+    if (ns.fileExists("FTPCrack.exe")) {
+        ns.ftpcrack(server);
+        portOpened++;
+    }
+    if (ns.fileExists("HTTPWorm.exe")) {
+        ns.httpworm(server);
+        portOpened++;
+    }
+    if (ns.fileExists("relaySMTP.exe")) {
+        ns.relaysmtp(server);
+        portOpened++;
+    }
+    if (ns.fileExists("SQLInject.exe")) {
+        ns.sqlinject(server);
+        portOpened++;
+    }
+    if (ns.getServerNumPortsRequired(server) <= portOpened) {
+        ns.nuke(server);
+    }
+}
+
+/**
+ * Attempts to backdoor a faction server if needed
+ * @param {NS} ns - The Netscript API
+ * @param {string} server - Server name to backdoor
+ */
+function backdoorIfNeeded(ns, server) {
+    if (!singularityFunctionsAvailable || !backdoorServers.has(server) || !ns.hasRootAccess(server)) {
+        return;
+    }
+
+    if (ns.getServerRequiredHackingLevel(server) <= ns.getHackingLevel()) {
+        // Check if backdoor is already installed
+        if (ns.getServer(server).backdoorInstalled) {
+            backdoorServers.delete(server);
+        } else if (!ns.isRunning(backdoorScript, "home", server)) {
+            const backdoorSuccess = ns.exec(backdoorScript, "home", 1, server);
+            if (backdoorSuccess) {
+                ns.print("INFO: Started backdoor script for " + server);
+            }
+        }
+    }
+}
+
+/**
+ * Attempts to run the contract solving script if not already running
+ * @param {NS} ns - The Netscript API
+ */
+function runSolveContractsScript(ns) {
+    if (!ns.isRunning(solveContractsScript, "home")) {
+        const contractSuccess = ns.exec(solveContractsScript, "home");
+        if (contractSuccess) {
+            ns.print("INFO: Started contract solving script");
+        }
+    }
+}
+
+/**
  * Gets all servers that are accessible to the player.
+ * Also handles nuking servers, backdooring faction servers, and solving contracts.
  * @param {NS} ns - The Netscript API.
  * @param {"hackableOnly" | "executableOnly" | "all"} getServerOptions - Whether to include all servers or just the ones that are accessible.
  * @returns {string[]} - List of server names.
@@ -436,6 +533,12 @@ function getServers(ns, getServerOptions) {
             var con = s[j];
             if (servers.indexOf(con) < 0) {
                 servers.push(con);
+
+                // Handle nuking and backdooring
+                nukeServerIfNeeded(ns, con);
+                backdoorIfNeeded(ns, con);
+
+                // Add to result based on options
                 if (getServerOptions === "all") {
                     result.push(con);
                     continue;
