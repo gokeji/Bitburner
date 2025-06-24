@@ -87,21 +87,8 @@ function getCachedProcesses(ns, server) {
     return processes;
 }
 
-// Cache for attack info to avoid recalculating expensive process lookups
-let attackInfoCache = new Map();
-let attackInfoCacheTime = 0;
-const ATTACK_INFO_CACHE_EXPIRY = 3000; // Cache for 3 seconds
-
 // Updated: Count total threads attacking a server from distributed-hack.js system
 function get_distributed_attack_info(ns, targetServer) {
-    const now = Date.now();
-    const cacheKey = targetServer;
-
-    // Check cache first
-    if (attackInfoCache.has(cacheKey) && now - attackInfoCacheTime < ATTACK_INFO_CACHE_EXPIRY) {
-        return attackInfoCache.get(cacheKey);
-    }
-
     const allServers = get_servers(ns, true);
     const kamuScripts = {
         "kamu/weaken.js": "weaken",
@@ -141,12 +128,7 @@ function get_distributed_attack_info(ns, targetServer) {
     // ns.tprint(`${targetServer}: ${totalThreads}`)
 
     if (totalThreads === 0) {
-        const result = null;
-        attackInfoCache.set(cacheKey, result);
-        if (now - attackInfoCacheTime > ATTACK_INFO_CACHE_EXPIRY) {
-            attackInfoCacheTime = now;
-        }
-        return result;
+        return null;
     }
 
     // Build the display string based on which actions are present
@@ -189,15 +171,7 @@ function get_distributed_attack_info(ns, targetServer) {
     const totalThreadsStr = `[${ns.formatNumber(totalThreads, 1)}-${ns.formatNumber(totalScriptCount, 0)}]`;
     const paddedTotal = totalThreadsStr.padStart(12);
 
-    const result = `${threadParts.join(":")} ${paddedTotal}`;
-
-    // Cache the result
-    attackInfoCache.set(cacheKey, result);
-    if (now - attackInfoCacheTime > ATTACK_INFO_CACHE_EXPIRY) {
-        attackInfoCacheTime = now;
-    }
-
-    return result;
+    return `${threadParts.join(":")} ${paddedTotal}`;
 }
 
 // Global variable to store profit data from distributed-hack.js
@@ -402,11 +376,6 @@ function cleanupCaches() {
         if (now - data.timestamp > PROCESS_CACHE_EXPIRY_MS * 3) {
             processCache.delete(server);
         }
-    }
-
-    // Clean attack info cache
-    if (now - attackInfoCacheTime > ATTACK_INFO_CACHE_EXPIRY * 3) {
-        attackInfoCache.clear();
     }
 }
 
