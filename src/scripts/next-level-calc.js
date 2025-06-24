@@ -25,10 +25,11 @@ function calculateHackingExpNeeded(ns, targetLevel) {
     const currentLevel = player.skills.hacking;
     const currentExp = player.exp.hacking;
     const hackingMult = player.mults.hacking;
+    const bitNodeMult = ns.getBitNodeMultipliers().HackingLevelMultiplier;
 
     // Correct formula from the game's source code:
     // calculateExp(skill: number, mult = 1): Math.exp((skill / mult + 200) / 32) - 534.6
-    const targetExp = Math.exp((targetLevel / hackingMult + 200) / 32) - 534.6;
+    const targetExp = Math.exp((targetLevel / hackingMult / bitNodeMult + 200) / 32) - 534.6;
 
     const expNeeded = targetExp - currentExp;
     const expMultiplier = targetExp / currentExp;

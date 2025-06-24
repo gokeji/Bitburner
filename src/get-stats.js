@@ -11,7 +11,7 @@ function get_servers(ns, all = false) {
 	If all is false, only servers with root access and have money are returned.
 	*/
     var servers = ["home"];
-    var result = [];
+    var result = ["home"];
 
     const shouldExclude = (server) => {
         if (!ns.hasRootAccess(server)) return true;

@@ -3,7 +3,7 @@ import { NS } from "@ns";
 const HOST_NAME = "home";
 const MAX_SERVER_VALUE = 120000000000; // 120 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
-const SERVER_TO_START_SHARING_RAM_ON = "b-05";
+const SERVER_TO_START_SHARING_RAM_ON = "b-24";
 
 export function autocomplete(data, args) {
     return ["--share", "--faction", "--low-ram"];
@@ -105,7 +105,7 @@ function startScriptIfNotRunning(ns, scriptName, hostname = HOST_NAME, threads =
 }
 
 function startDistributedHackIfNotRunning(ns) {
-    startScriptIfNotRunning(ns, "kamu/distributed-hack.js", HOST_NAME, 1, SERVER_TO_START_SHARING_RAM_ON);
+    startScriptIfNotRunning(ns, "scripts/hacker.js", HOST_NAME, 1, SERVER_TO_START_SHARING_RAM_ON);
 }
 
 export function startIpvgoIfNotRunning(ns) {
@@ -124,6 +124,7 @@ export function startIpvgoIfNotRunning(ns) {
         // "Tetrads", // strength, defense, dexterity, and agility levels
         "Daedalus", // reputation gain
         "Illuminati", // faster hack(), grow(), and weaken()
+        // "????????????", // w0r1d_d43m0n Hacking Levels
     ];
 
     startScriptIfNotRunning(ns, "ipvgo-smart.js", HOST_NAME, 1, ...opponents);

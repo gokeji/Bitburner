@@ -43,7 +43,7 @@ export async function main(ns) {
                             ns.tprint(`❌ Failed to join ${faction}`);
                             ns.toast(`❌ Failed to join ${faction}`, "error");
                         }
-                        if (faction === "The Black Hand") {
+                        if (faction === "Daedalus") {
                             const success = ns.singularity.workForFaction(faction, "hacking");
                             if (success) {
                                 ns.print(`✅ Working for ${faction}!`);
