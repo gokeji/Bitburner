@@ -643,27 +643,35 @@ export async function main(ns) {
 
         let totalRamUsed = 0;
 
-        if (needsInitialWeaken && allocation.initial_weaken) {
-            // Execute weaken on potentially multiple servers
-            for (const [server, threads] of allocation.initial_weaken) {
-                executeWeaken(ns, server, target, threads, 0, true, weakenTime);
+        if (needsInitialWeaken) {
+            if (allocation.initial_weaken) {
+                // Execute weaken on potentially multiple servers
+                for (const [server, threads] of allocation.initial_weaken) {
+                    executeWeaken(ns, server, target, threads, 0, true, weakenTime);
+                }
+                totalRamUsed += initialWeakenRam;
+            } else {
+                ns.print(`ERROR: Allocations were malformed for PREP ${target} - initial_weaken`);
             }
-            totalRamUsed += initialWeakenRam;
         }
 
-        if (needsGrow && allocation.grow && allocation.final_weaken) {
-            // Execute grow on single server (as enforced by the allocation function)
-            const [[growServer, growThreadsActual]] = allocation.grow; // Get the single entry
-            const growDelay = needsInitialWeaken ? weakenTime - growthTime - SCRIPT_DELAY : 0;
-            executeGrow(ns, growServer, target, growThreadsActual, growDelay, false, true, growthTime);
-            totalRamUsed += growRam;
+        if (needsGrow) {
+            if (allocation.grow && allocation.final_weaken) {
+                // Execute grow on single server (as enforced by the allocation function)
+                const [[growServer, growThreadsActual]] = allocation.grow; // Get the single entry
+                const growDelay = needsInitialWeaken ? weakenTime - growthTime - SCRIPT_DELAY : 0;
+                executeGrow(ns, growServer, target, growThreadsActual, growDelay, false, true, growthTime);
+                totalRamUsed += growRam;
 
-            // Execute final weaken on potentially multiple servers
-            const finalWeakenDelay = needsInitialWeaken ? 2 * SCRIPT_DELAY : 0;
-            for (const [server, threads] of allocation.final_weaken) {
-                executeWeaken(ns, server, target, threads, finalWeakenDelay, true, weakenTime);
+                // Execute final weaken on potentially multiple servers
+                const finalWeakenDelay = needsInitialWeaken ? 2 * SCRIPT_DELAY : 0;
+                for (const [server, threads] of allocation.final_weaken) {
+                    executeWeaken(ns, server, target, threads, finalWeakenDelay, true, weakenTime);
+                }
+                totalRamUsed += finalWeakenRam;
+            } else {
+                ns.print(`ERROR: Allocations were malformed for PREP ${target} - grow and final_weaken`);
             }
-            totalRamUsed += finalWeakenRam;
         }
 
         return totalRamUsed;
@@ -726,111 +734,60 @@ export async function main(ns) {
         const growthTime = serverStats.growthTime;
         const hackTime = serverStats.hackTime;
 
-        // Find servers for all three operations with proper RAM accounting
-        const hosts = findExecutableServersForBatch(
-            ns,
-            hackThreads * HACK_SCRIPT_RAM_USAGE,
-            growthThreads * GROW_SCRIPT_RAM_USAGE,
-            weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE,
-        );
+        // Build operations array for the new allocation function
+        const operations = [
+            { type: "hack", threads: hackThreads },
+            { type: "grow", threads: growthThreads },
+            { type: "weaken", threads: weakenThreadsNeeded },
+        ];
 
-        // Update the server RAM cache to reflect the RAM that will be used
-        const hackRamUsed = hackThreads * HACK_SCRIPT_RAM_USAGE;
-        const growRamUsed = growthThreads * GROW_SCRIPT_RAM_USAGE;
-        const weakenRamUsed = weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
-        const totalRamUsed = hackRamUsed + growRamUsed + weakenRamUsed;
+        // Find servers for all three operations with proper RAM accounting
+        const allocation = allocateServersForOperations(ns, operations);
 
         // If not enough RAM to run H G and W, return failure
-        if (hosts) {
-            serverRamCache.set(hosts.hackHost, serverRamCache.get(hosts.hackHost) - hackRamUsed);
-            serverRamCache.set(hosts.growHost, serverRamCache.get(hosts.growHost) - growRamUsed);
-            serverRamCache.set(hosts.weakenHost, serverRamCache.get(hosts.weakenHost) - weakenRamUsed);
+        if (!allocation) {
+            const hackRamUsed = hackThreads * HACK_SCRIPT_RAM_USAGE;
+            const growRamUsed = growthThreads * GROW_SCRIPT_RAM_USAGE;
+            const weakenRamUsed = weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
+            const totalRamUsed = hackRamUsed + growRamUsed + weakenRamUsed;
 
-            const hackDelay = weakenTime + extraDelay - 2 * SCRIPT_DELAY - hackTime;
-            const growDelay = weakenTime + extraDelay - SCRIPT_DELAY - growthTime;
-            const weakenDelay = extraDelay;
-
-            // Validate delays are not negative (which would cause timing issues)
-            if (hackDelay < 0 || growDelay < 0 || weakenDelay < 0) {
-                ns.print(`ERROR: Negative delays detected! H=${hackDelay}, G=${growDelay}, W=${weakenDelay}`);
-                ns.print(
-                    `Times: hackTime=${hackTime}, growthTime=${growthTime}, weakenTime=${weakenTime}, extraDelay=${extraDelay}`,
-                );
-                return { success: false, ramUsed: 0 };
-            }
-
-            executeHack(ns, hosts.hackHost, target, hackThreads, hackDelay, false, false, hackTime);
-            executeGrow(ns, hosts.growHost, target, growthThreads, growDelay, false, false, growthTime);
-            executeWeaken(ns, hosts.weakenHost, target, weakenThreadsNeeded, weakenDelay, false, weakenTime);
-
-            return { success: true, ramUsed: totalRamUsed };
-        } else {
             ns.print(`INFO: No servers found for batch hack ${target}, need ${ns.formatRam(totalRamUsed)} ram`);
             return { success: false, ramUsed: 0 }; // Not enough RAM to run H G and W
         }
-    }
 
-    /**
-     * Finds executable servers with enough available RAM to run hack, grow, and weaken scripts.
-     * Ensures RAM is properly accounted for across all three operations.
-     * @param {NS} ns - The Netscript API.
-     * @param {number} hackRamNeeded - RAM needed for hack script.
-     * @param {number} growRamNeeded - RAM needed for grow script.
-     * @param {number} weakenRamNeeded - RAM needed for weaken script.
-     * @returns {{hackHost: string, growHost: string, weakenHost: string} | false} - Host servers for each operation or false if not enough RAM.
-     */
-    function findExecutableServersForBatch(ns, hackRamNeeded, growRamNeeded, weakenRamNeeded) {
-        // Create a copy of server RAM availability to track allocations for this batch
-        const serverRamAvailable = new Map(serverRamCache);
+        // Calculate delays
+        const hackDelay = weakenTime + extraDelay - 2 * SCRIPT_DELAY - hackTime;
+        const growDelay = weakenTime + extraDelay - SCRIPT_DELAY - growthTime;
+        const weakenDelay = extraDelay;
 
-        // Try to allocate servers for hack, grow, and weaken
-        let hackHost = null;
-        let growHost = null;
-        let weakenHost = null;
+        // Validate delays are not negative (which would cause timing issues)
+        if (hackDelay < 0 || growDelay < 0 || weakenDelay < 0) {
+            ns.print(`ERROR: Negative delays detected! H=${hackDelay}, G=${growDelay}, W=${weakenDelay}`);
+            ns.print(
+                `Times: hackTime=${hackTime}, growthTime=${growthTime}, weakenTime=${weakenTime}, extraDelay=${extraDelay}`,
+            );
+            return { success: false, ramUsed: 0 };
+        }
 
-        // Find server for hack
-        for (const [server, availableRam] of serverRamAvailable) {
-            if (availableRam >= hackRamNeeded) {
-                hackHost = server;
-                serverRamAvailable.set(server, availableRam - hackRamNeeded);
-                break;
+        if (allocation.hack && allocation.grow && allocation.weaken) {
+            // Execute hack operations (can be split across multiple servers)
+            for (const [server, threads] of allocation.hack) {
+                executeHack(ns, server, target, threads, hackDelay, false, false, hackTime);
             }
-        }
 
-        if (!hackHost) {
-            return false;
-        }
+            // Execute grow operation (single server only)
+            const [[growServer, growThreadsActual]] = allocation.grow; // Get the single entry
+            executeGrow(ns, growServer, target, growThreadsActual, growDelay, false, false, growthTime);
 
-        // Find server for grow
-        for (const [server, availableRam] of serverRamAvailable) {
-            if (availableRam >= growRamNeeded) {
-                growHost = server;
-                serverRamAvailable.set(server, availableRam - growRamNeeded);
-                break;
+            // Execute weaken operations (can be split across multiple servers)
+            for (const [server, threads] of allocation.weaken) {
+                executeWeaken(ns, server, target, threads, weakenDelay, false, weakenTime);
             }
+        } else {
+            ns.print(`ERROR: Allocations were malformed for BATCH ${target}`);
         }
 
-        if (!growHost) {
-            return false;
-        }
-
-        // Find server for weaken
-        for (const [server, availableRam] of serverRamAvailable) {
-            if (availableRam >= weakenRamNeeded) {
-                weakenHost = server;
-                break;
-            }
-        }
-
-        if (!weakenHost) {
-            return false;
-        }
-
-        return {
-            hackHost: hackHost,
-            growHost: growHost,
-            weakenHost: weakenHost,
-        };
+        return { success: true, ramUsed: allocation.totalRamUsed };
     }
 
     /**
