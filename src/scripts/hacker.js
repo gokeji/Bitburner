@@ -517,15 +517,17 @@ function runSolveContractsScript(ns) {
  */
 function getServers(ns, getServerOptions) {
     /*
-	Scans and iterates through all servers.
-	If all is false, only servers with root access and have money are returned.
+	Scans and iterates through all servers using BFS to avoid infinite loops.
+	Returns servers based on the specified filter criteria.
 	*/
-    var servers = ["home"];
-    var result = [];
+    const discovered = new Set(["home"]); // Track all discovered servers
+    const toScan = ["home"]; // Queue of servers to scan
+    const result = [];
 
     const isHackable = (server) => {
         if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) return false;
         if (ns.getServerMaxMoney(server) === 0) return false;
+        if (server === "home") return false;
         return true;
     };
 
@@ -534,38 +536,39 @@ function getServers(ns, getServerOptions) {
         return true;
     };
 
-    var i = 0;
-    while (i < servers.length) {
-        var server = servers[i];
-        var s = ns.scan(server);
-        for (var j in s) {
-            var con = s[j];
-            if (servers.indexOf(con) < 0) {
-                servers.push(con);
+    // BFS traversal of the server network
+    while (toScan.length > 0) {
+        const server = toScan.shift(); // Process next server in queue
 
-                // Handle nuking and backdooring
-                nukeServerIfNeeded(ns, con);
-                backdoorIfNeeded(ns, con);
+        // Handle nuking and backdooring for the current server
+        nukeServerIfNeeded(ns, server);
+        backdoorIfNeeded(ns, server);
 
-                // Add to result based on options
-                if (getServerOptions === "all") {
-                    result.push(con);
-                    continue;
-                }
-                if (getServerOptions === "hackableOnly" && isHackable(con)) {
-                    result.push(con);
-                    continue;
-                }
-                if (getServerOptions === "executableOnly" && isExecutable(con)) {
-                    result.push(con);
-                }
+        if (getServerOptions === "all") {
+            result.push(server);
+        } else if (getServerOptions === "hackableOnly" && isHackable(server)) {
+            result.push(server);
+        } else if (getServerOptions === "executableOnly" && isExecutable(server)) {
+            result.push(server);
+        }
+
+        // Scan for connected servers and add new ones to the queue
+        const connectedServers = ns.scan(server);
+        for (const connectedServer of connectedServers) {
+            if (!discovered.has(connectedServer)) {
+                discovered.add(connectedServer);
+                toScan.push(connectedServer);
             }
         }
-        i += 1;
     }
 
     // Move home server to end of list so leftover free RAM can be used for "home" server
-    result.push(result.shift());
+    const homeIndex = result.indexOf("home");
+    if (homeIndex > -1) {
+        const homeServer = result.splice(homeIndex, 1)[0];
+        result.push(homeServer);
+    }
+
     return result;
 }
 
