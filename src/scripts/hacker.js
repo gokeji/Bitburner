@@ -14,8 +14,9 @@ const solveContractsScript = "/kamu/solve-contracts.js";
 const HACK_SCRIPT_RAM_USAGE = 1.7;
 const GROW_SCRIPT_RAM_USAGE = 1.75;
 const WEAKEN_SCRIPT_RAM_USAGE = 1.75;
+const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.1; // Use extra grow and weak threads to correct for out of sync HGW batches
 
-var hackPercentage = 0.9;
+var hackPercentage = 0.5;
 const SCRIPT_DELAY = 100; // ms delay between scripts
 const DELAY_BETWEEN_BATCHES = 100; // ms delay between batches
 const TICK_DELAY = 5000; // ms delay between ticks
@@ -260,12 +261,13 @@ function getServerHackStats(ns, server, useFormulas = false) {
         const currentMoneyAfterHack = maxMoney * (1 - actualHackPercentage); // Use actual hack amount
         const currentSecurityAfterHack = minSecurityLevel + hackSecurityChange;
         growthThreads = Math.ceil(
-            ns.formulas.hacking.growThreads(
-                { ...calcServer, moneyAvailable: currentMoneyAfterHack, hackDifficulty: currentSecurityAfterHack },
-                player,
-                targetMoney,
-                cpuCores,
-            ),
+            CORRECTIVE_GROW_WEAK_MULTIPLIER *
+                ns.formulas.hacking.growThreads(
+                    { ...calcServer, moneyAvailable: currentMoneyAfterHack, hackDifficulty: currentSecurityAfterHack },
+                    player,
+                    targetMoney,
+                    cpuCores,
+                ),
         );
     } else {
         // Use actual hack amount for grow calculation
@@ -278,7 +280,7 @@ function getServerHackStats(ns, server, useFormulas = false) {
     const growthSecurityChange = growthThreads * 0.004;
 
     const weakenTarget = hackSecurityChange + growthSecurityChange;
-    const weakenThreadsNeeded = Math.ceil(weakenTarget / weakenAmount);
+    const weakenThreadsNeeded = Math.ceil((CORRECTIVE_GROW_WEAK_MULTIPLIER * weakenTarget) / weakenAmount);
 
     return {
         securityLevel,
