@@ -279,12 +279,23 @@ function get_server_data(ns, server, useFormulas = true) {
         return (amount * 100).toFixed(digits) + "%";
     };
 
-    // Format time from milliseconds to mm:ss
+    /**
+     * Formats time from milliseconds to mm:ss
+     * If timeMs is less than 5s, it will be formatted as ss.mmm
+     * @param {number} timeMs
+     * @returns {string}
+     */
     var formatTime = (timeMs) => {
-        const totalSeconds = Math.floor(timeMs / 1000);
+        const totalSeconds = timeMs / 1000;
         const minutes = Math.floor(totalSeconds / 60);
-        const seconds = totalSeconds % 60;
-        return `${minutes.toString()}:${seconds.toString().padStart(2, "0")}`;
+        const seconds = Math.floor(totalSeconds % 60);
+        const milliseconds = Math.floor(timeMs % 1000);
+
+        if (seconds > 5) {
+            return `${minutes.toString()}:${seconds.toString().padStart(2, "0")}`;
+        } else {
+            return `${seconds.toString()}.${milliseconds.toString().padStart(3, "0")}`;
+        }
     };
 
     // Create progress bar (20 chars, each char = 5%)

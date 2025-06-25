@@ -16,8 +16,8 @@ const GROW_SCRIPT_RAM_USAGE = 1.75;
 const WEAKEN_SCRIPT_RAM_USAGE = 1.75;
 const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.1; // Use extra grow and weak threads to correct for out of sync HGW batches
 
-var hackPercentage = 0.5;
-const SCRIPT_DELAY = 100; // ms delay between scripts
+let hackPercentage = 0.9;
+export const SCRIPT_DELAY = 100; // ms delay between scripts
 const DELAY_BETWEEN_BATCHES = 100; // ms delay between batches
 const TICK_DELAY = 5000; // ms delay between ticks
 // Batch scheduling: Each batch takes (20*3 + 20) = 80ms to schedule
@@ -30,9 +30,9 @@ const HOME_SERVER_RESERVED_RAM = 30; // GB reserved for home server
 let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
 let SECURITY_LEVEL_THRESHOLD = 0; // Prep servers to be within minSecurityLevel + this amount
 
-var executableServers = [];
-var hackableServers = [];
-var ignoreServers = ["b-05"];
+let executableServers = [];
+let hackableServers = [];
+let ignoreServers = [];
 
 let tickCounter = 0;
 
@@ -40,7 +40,7 @@ let tickCounter = 0;
 let globalPrioritiesMap = new Map();
 
 // automatically backdoor these servers. Requires singularity functions.
-var backdoorServers = new Set([
+let backdoorServers = new Set([
     "CSEC",
     "I.I.I.I",
     "avmnite-02h",
@@ -57,7 +57,7 @@ var backdoorServers = new Set([
  * Global server RAM tracking
  * @type {Map<string, number>}
  */
-var serverRamCache = new Map();
+let serverRamCache = new Map();
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -193,6 +193,9 @@ export async function main(ns) {
         if (serverIndex === 1) {
             ns.print("No servers could be processed this tick");
         }
+
+        // XP farming: Use all remaining RAM for weaken scripts on joesguns
+        xpFarm(ns);
 
         await ns.sleep(TICK_DELAY);
     }
@@ -499,8 +502,8 @@ function backdoorIfNeeded(ns, server) {
 function runSolveContractsScript(ns) {
     if (!ns.isRunning(solveContractsScript, "home")) {
         const contractSuccess = ns.exec(solveContractsScript, "home");
-        if (contractSuccess) {
-            ns.print("INFO: Started contract solving script");
+        if (!contractSuccess) {
+            ns.print("WARN: Failed to start contract solving script");
         }
     }
 }
@@ -1020,4 +1023,60 @@ function calculateAvailableRamForServer(ns, targetServer, totalRamAvailable) {
     const availableRam = Math.max(0, totalRamAvailable - reservedRam);
 
     return availableRam;
+}
+
+/**
+ * XP farming function that launches a separate script to handle XP farming independently.
+ * This ensures the main loop is not blocked by XP farming operations.
+ * @param {NS} ns - The Netscript API.
+ */
+function xpFarm(ns) {
+    const xpTarget = "joesguns";
+    const xpFarmScript = "/scripts/xp-farm.js";
+
+    // Check if joesguns exists and we have root access
+    if (!ns.serverExists(xpTarget) || !ns.hasRootAccess(xpTarget)) {
+        return;
+    }
+
+    const weakenTime = ns.getWeakenTime(xpTarget);
+    const weakenCycles = Math.floor(TICK_DELAY / (weakenTime + SCRIPT_DELAY));
+
+    // Collect server/thread pairs for all available RAM
+    const serverThreadPairs = [];
+    let totalThreads = 0;
+
+    for (const server of executableServers) {
+        if (ignoreServers.includes(server)) {
+            continue;
+        }
+
+        // Use serverRamCache which reflects actual available RAM after all batch scheduling
+        const availableRam = serverRamCache.get(server) || 0;
+        const threadsAvailable = Math.floor(availableRam / WEAKEN_SCRIPT_RAM_USAGE);
+
+        if (threadsAvailable > 0) {
+            serverThreadPairs.push(server, threadsAvailable);
+            totalThreads += threadsAvailable;
+
+            // Update serverRamCache to reflect the RAM that will be used
+            serverRamCache.set(server, availableRam - threadsAvailable * WEAKEN_SCRIPT_RAM_USAGE);
+        }
+    }
+
+    if (serverThreadPairs.length > 0) {
+        // Build arguments: target, cycles, weakenTime, server1, threads1, server2, threads2, ...
+        const args = [xpTarget, weakenCycles, weakenTime, ...serverThreadPairs];
+
+        // Launch the XP farm script on home
+        const pid = ns.exec(xpFarmScript, "home", 1, ...args);
+
+        if (pid) {
+            ns.print(
+                `XP Farm: Launched script with ${weakenCycles} cycles, ${totalThreads} threads across ${serverThreadPairs.length / 2} servers`,
+            );
+        } else {
+            ns.print(`XP Farm: Failed to launch script`);
+        }
+    }
 }

@@ -108,7 +108,7 @@ function startDistributedHackIfNotRunning(ns) {
     startScriptIfNotRunning(ns, "scripts/hacker.js", HOST_NAME, 1, SERVER_TO_START_SHARING_RAM_ON);
 }
 
-export function startIpvgoIfNotRunning(ns) {
+function startIpvgoIfNotRunning(ns) {
     // Check if "master/ipvgo.js" is running on HOST_NAME (different check script name)
     let ipvgoRunning = isScriptRunning(ns, "ipvgo-smart.js", HOST_NAME);
 
