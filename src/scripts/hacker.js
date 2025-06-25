@@ -96,38 +96,39 @@ export async function main(ns) {
         ns.print(`Total RAM Available: ${ns.formatRam(totalRamAvailable)}`);
 
         // Calculate global priorities map once per tick (without excluding any servers)
-        const { prioritiesMap } = calculateTargetServerPriorities(ns);
-        globalPrioritiesMap = prioritiesMap; // Store globally for RAM reservation calculations
+        globalPrioritiesMap = calculateTargetServerPriorities(ns);
 
         // Send throughput data to port 4 for get_stats.js
         var throughputPortHandle = ns.getPortHandle(4);
         throughputPortHandle.clear(); // Clear old data
-        for (let [server, stats] of prioritiesMap.entries()) {
+        for (let [server, stats] of globalPrioritiesMap.entries()) {
             throughputPortHandle.write(JSON.stringify({ server: server, profit: stats.throughput }));
         }
 
-        // Start allocating batches to servers until we run out of RAM
-        var totalRamUsed = 0;
-        let serverIndex = 1;
-        const processedServers = []; // Track servers already processed this tick
+        const serversByThroughput = Array.from(globalPrioritiesMap.entries())
+            .sort((a, b) => b[1].throughput - a[1].throughput)
+            .map(([server]) => server);
 
-        while (totalRamUsed < totalRamAvailable && serverIndex <= globalPrioritiesMap.size) {
-            // Find the server with the highest priority that has enough RAM available
-            // Exclude servers that have already been processed this tick
-            const { prioritiesMap: currentPriorities, highestThroughputServer } = calculateTargetServerPriorities(
-                ns,
-                processedServers,
-            );
+        ns.print(`INFO: Servers by throughput: ${serversByThroughput.join(", ")}`);
+
+        let totalRamUsed = 0;
+        let serverIndex = 0;
+        let successfullyProcessedServers = []; // Track servers that have been successfully processed this tick
+
+        while (totalRamUsed < totalRamAvailable && serverIndex < serversByThroughput.length) {
+            const currentServer = serversByThroughput[serverIndex];
+            serverIndex++; // Increment server index
 
             // Skip servers that are already being targeted
-            const { isTargeted, isPrep, isHgw } = isServerBeingTargeted(ns, highestThroughputServer);
+            const { isTargeted, isPrep, isHgw } = isServerBeingTargeted(ns, currentServer);
 
-            const serverStats = currentPriorities.get(highestThroughputServer);
+            const serverStats = globalPrioritiesMap.get(currentServer);
             if (!serverStats) {
-                break; // No viable servers left
+                ns.print(`ERROR: No server stats found for ${currentServer}`);
+                continue;
             }
 
-            const serverInfo = ns.getServer(highestThroughputServer);
+            const serverInfo = ns.getServer(currentServer);
             const securityLevel = serverInfo.hackDifficulty;
             const minSecurityLevel = serverInfo.minDifficulty;
             const currentMoney = serverInfo.moneyAvailable;
@@ -135,7 +136,7 @@ export async function main(ns) {
 
             // Continue to next server if it's already being prepped
             if (isPrep) {
-                processedServers.push(highestThroughputServer);
+                ns.print(`INFO: Server ${currentServer} is already being prepped`);
                 continue;
             }
 
@@ -145,20 +146,18 @@ export async function main(ns) {
                     securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD) &&
                 !isTargeted // Do not prep if it has HGW scripts running on it or prep scripts
             ) {
-                const prepRamUsed = prepServer(ns, highestThroughputServer, serverIndex);
-                if (prepRamUsed === false) {
-                    break; // Exit the inner loop and wait for next cycle
+                const prepRamUsed = prepServer(ns, currentServer, successfullyProcessedServers.length + 1);
+                if (prepRamUsed !== false) {
+                    totalRamUsed += prepRamUsed;
+                    successfullyProcessedServers.push(currentServer);
                 }
-                serverIndex++;
-                totalRamUsed += prepRamUsed;
-                processedServers.push(highestThroughputServer); // Add to processed list
-                continue;
+                continue; // Move on to next server
             }
 
             // Calculate available RAM for this server after reserving for higher priority servers
             const availableRamForServer = calculateAvailableRamForServer(
                 ns,
-                highestThroughputServer,
+                currentServer,
                 totalRamAvailable - totalRamUsed,
             );
 
@@ -170,27 +169,32 @@ export async function main(ns) {
                 maxAffordableBatches,
             );
 
-            // Schedule batches for the highest priority server
-            const ramUsedForBatches = scheduleBatchHackCycles(
-                ns,
-                highestThroughputServer,
-                batchesToSchedule,
-                serverIndex,
-                serverStats,
-            );
+            if (batchesToSchedule > 0) {
+                // Schedule batches for the highest priority server
+                const ramUsedForBatches = scheduleBatchHackCycles(
+                    ns,
+                    currentServer,
+                    batchesToSchedule,
+                    successfullyProcessedServers.length + 1,
+                    serverStats,
+                );
 
-            // Ensure we made progress to avoid infinite loop
-            if (ramUsedForBatches <= 0) {
-                break;
+                // Ensure we made progress to avoid infinite loop
+                if (ramUsedForBatches > 0) {
+                    successfullyProcessedServers.push(currentServer);
+                    totalRamUsed += ramUsedForBatches;
+                }
+            } else {
+                ns.print(
+                    `INFO: HGW - ${currentServer} Failed. Need ${ns.formatRam(serverStats.ramNeededPerBatch)} ram.`,
+                );
             }
 
-            serverIndex++;
-            totalRamUsed += ramUsedForBatches;
-            processedServers.push(highestThroughputServer); // Add to processed list
+            continue; // Move on to next server
         }
 
-        if (serverIndex === 1) {
-            ns.print("No servers could be processed this tick");
+        if (successfullyProcessedServers.length === 0) {
+            ns.print("INFO: No servers could be processed this tick");
         }
 
         // XP farming: Use all remaining RAM for weaken scripts
@@ -368,13 +372,12 @@ export async function main(ns) {
      * @param {NS} ns - The Netscript API.
      * @param {number} availableRam - The amount of RAM available for allocation.
      * @param {string[]} excludeServers - Array of server names to exclude from calculations.
-     * @returns {{prioritiesMap: Map<string, {priority: number, ramNeededPerBatch: number, throughput: number, weakenTime: number, hackThreads: number, growthThreads: number, weakenThreadsNeeded: number, hackChance: number}>, highestThroughputServer: string}}
+     * @returns {Map<string, {priority: number, ramNeededPerBatch: number, throughput: number, weakenTime: number, hackThreads: number, growthThreads: number, weakenThreadsNeeded: number, hackChance: number}>} - Map of server names to their calculated priorities.
      */
     function calculateTargetServerPriorities(ns, excludeServers = []) {
         const maxRamAvailable = executableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
         const servers = hackableServers.filter((server) => !excludeServers.includes(server));
         const prioritiesMap = new Map();
-        var highestThroughputServer = null;
 
         for (const server of servers) {
             const serverInfo = ns.getServer(server);
@@ -420,16 +423,9 @@ export async function main(ns) {
                 actualBatchLimit: actualBatchLimit,
                 theoreticalBatchLimit: theoreticalBatchLimit,
             });
-
-            if (
-                highestThroughputServer === null ||
-                throughput > prioritiesMap.get(highestThroughputServer).throughput
-            ) {
-                highestThroughputServer = server;
-            }
         }
 
-        return { prioritiesMap, highestThroughputServer };
+        return prioritiesMap;
     }
 
     /**
@@ -680,10 +676,6 @@ export async function main(ns) {
         // Find servers for prep operations with proper RAM accounting
         const hosts = findExecutableServersForServerPrep(ns, initialWeakenRam, growRam, finalWeakenRam);
 
-        if (!hosts) {
-            return false;
-        }
-
         // Display prep information
         const prepOperations = [];
         if (needsInitialWeaken) prepOperations.push(`${initialWeakenThreads}W`);
@@ -691,7 +683,15 @@ export async function main(ns) {
         if (needsGrow) prepOperations.push(`${finalWeakenThreads}W`);
 
         const totalPrepRam = initialWeakenRam + growRam + finalWeakenRam;
-        ns.print(`${serverIndex}. ${target}: PREP ${ns.formatRam(totalPrepRam)} for ${prepOperations.join(" + ")}`);
+
+        if (!hosts) {
+            ns.print(`INFO: PREP - ${target} Failed. Need ${ns.formatRam(totalPrepRam)} ram`);
+            return false;
+        } else {
+            ns.print(
+                `SUCCESS:${serverIndex}. ${target}: PREP ${ns.formatRam(totalPrepRam)} for ${prepOperations.join(" + ")}`,
+            );
+        }
 
         // Update the server RAM cache to reflect the RAM that will be used
         if (initialWeakenRam > 0) {
@@ -704,7 +704,7 @@ export async function main(ns) {
             serverRamCache.set(hosts.finalWeakenHost, serverRamCache.get(hosts.finalWeakenHost) - finalWeakenRam);
         }
 
-        var totalRamUsed = 0;
+        let totalRamUsed = 0;
 
         if (needsInitialWeaken) {
             executeWeaken(ns, hosts.weakenHost, target, initialWeakenThreads, 0, true, weakenTime);
@@ -726,6 +726,15 @@ export async function main(ns) {
         return totalRamUsed;
     }
 
+    /**
+     *
+     * @param {NS} ns
+     * @param {string} target
+     * @param {number} batches
+     * @param {number} serverIndex
+     * @param {Object} serverStats
+     * @returns {number} - Total RAM used to schedule the batch hacks.
+     */
     function scheduleBatchHackCycles(ns, target, batches, serverIndex, serverStats) {
         let totalRamUsed = 0;
         let successfulBatches = 0;
@@ -745,7 +754,7 @@ export async function main(ns) {
         // Display batch scheduling results
         if (successfulBatches > 0) {
             ns.print(
-                `${serverIndex}. ${target}: HGW ${successfulBatches}/${totalBatches} batches, ${ns.formatRam(totalRamUsed)} (${serverStats.hackThreads}H ${serverStats.growthThreads}G ${serverStats.weakenThreadsNeeded}W per batch)`,
+                `SUCCESS: ${serverIndex}. ${target}: HGW ${successfulBatches}/${totalBatches} batches, ${ns.formatRam(totalRamUsed)} (${serverStats.hackThreads}H ${serverStats.growthThreads}G ${serverStats.weakenThreadsNeeded}W per batch)`,
             );
         }
 
@@ -782,14 +791,14 @@ export async function main(ns) {
             weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE,
         );
 
+        // Update the server RAM cache to reflect the RAM that will be used
+        const hackRamUsed = hackThreads * HACK_SCRIPT_RAM_USAGE;
+        const growRamUsed = growthThreads * GROW_SCRIPT_RAM_USAGE;
+        const weakenRamUsed = weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
+        const totalRamUsed = hackRamUsed + growRamUsed + weakenRamUsed;
+
         // If not enough RAM to run H G and W, return failure
         if (hosts) {
-            // Update the server RAM cache to reflect the RAM that will be used
-            const hackRamUsed = hackThreads * HACK_SCRIPT_RAM_USAGE;
-            const growRamUsed = growthThreads * GROW_SCRIPT_RAM_USAGE;
-            const weakenRamUsed = weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
-            const totalRamUsed = hackRamUsed + growRamUsed + weakenRamUsed;
-
             serverRamCache.set(hosts.hackHost, serverRamCache.get(hosts.hackHost) - hackRamUsed);
             serverRamCache.set(hosts.growHost, serverRamCache.get(hosts.growHost) - growRamUsed);
             serverRamCache.set(hosts.weakenHost, serverRamCache.get(hosts.weakenHost) - weakenRamUsed);
@@ -813,6 +822,7 @@ export async function main(ns) {
 
             return { success: true, ramUsed: totalRamUsed };
         } else {
+            ns.print(`INFO: No servers found for batch hack ${target}, need ${ns.formatRam(totalRamUsed)} ram`);
             return { success: false, ramUsed: 0 }; // Not enough RAM to run H G and W
         }
     }
@@ -982,7 +992,6 @@ export async function main(ns) {
      * @returns {number} - Total RAM that should be reserved for higher priority servers (in GB).
      */
     function calculateReservedRam(ns, targetServer) {
-        ns.print(`Calculating reserved RAM for ${targetServer}. GlobalPrioritiesMap: ${globalPrioritiesMap.size}`);
         const targetStats = globalPrioritiesMap.get(targetServer);
         if (!targetStats) {
             return 0;
@@ -1084,10 +1093,10 @@ export async function main(ns) {
 
             if (pid) {
                 ns.print(
-                    `XP Farm: Launched script with ${weakenCycles} cycles, ${totalThreads} threads across ${serverThreadPairs.length / 2} servers`,
+                    `SUCCESS: XP Farm: Launched script with ${weakenCycles} cycles, ${totalThreads} threads across ${serverThreadPairs.length / 2} servers`,
                 );
             } else {
-                ns.print(`XP Farm: Failed to launch script`);
+                ns.print(`WARN: XP Farm: Failed to launch script`);
             }
         }
     }
