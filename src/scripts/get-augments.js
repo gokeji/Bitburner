@@ -98,22 +98,37 @@ function getCurrentNeuroFluxPurchaseLevel(ns) {
 }
 
 /**
- * Calculates total hacking and reputation stat increases from a list of augmentations
+ * Calculates total stat increases from a list of augmentations (hacking, combat, and reputation)
  * @param {NS} ns - NetScript object
  * @param {Array} augmentations - Array of augmentation objects with names
- * @returns {Object} Object with totalHacking and totalRep multipliers
+ * @returns {Object} Object with all stat multipliers and original values
  */
 function calculateTotalStatIncrease(ns, augmentations) {
     let neuroFluxToBuy = 0;
+    const player = ns.getPlayer();
 
-    // Start with current player multipliers
-    let hackingMultiplier = ns.getPlayer().mults.hacking;
-    let hackingChanceMultiplier = ns.getPlayer().mults.hacking_chance;
-    let hackingSpeedMultiplier = ns.getPlayer().mults.hacking_speed;
-    let hackingMoneyMultiplier = ns.getPlayer().mults.hacking_money;
-    let hackingGrowMultiplier = ns.getPlayer().mults.hacking_grow;
-    let hackingExpMultiplier = ns.getPlayer().mults.hacking_exp;
-    let repMultiplier = ns.getPlayer().mults.faction_rep;
+    // Start with current player multipliers - Hacking
+    let hackingMultiplier = player.mults.hacking;
+    let hackingChanceMultiplier = player.mults.hacking_chance;
+    let hackingSpeedMultiplier = player.mults.hacking_speed;
+    let hackingMoneyMultiplier = player.mults.hacking_money;
+    let hackingGrowMultiplier = player.mults.hacking_grow;
+    let hackingExpMultiplier = player.mults.hacking_exp;
+
+    // Combat stats
+    let strengthMultiplier = player.mults.strength;
+    let strengthExpMultiplier = player.mults.strength_exp;
+    let defenseMultiplier = player.mults.defense;
+    let defenseExpMultiplier = player.mults.defense_exp;
+    let dexterityMultiplier = player.mults.dexterity;
+    let dexterityExpMultiplier = player.mults.dexterity_exp;
+    let agilityMultiplier = player.mults.agility;
+    let agilityExpMultiplier = player.mults.agility_exp;
+
+    // Other stats
+    let repMultiplier = player.mults.faction_rep;
+    let charismaMultiplier = player.mults.charisma;
+    let charismaExpMultiplier = player.mults.charisma_exp;
 
     // Apply each augmentation multiplicatively
     for (const aug of augmentations) {
@@ -134,7 +149,19 @@ function calculateTotalStatIncrease(ns, augmentations) {
         hackingMoneyMultiplier *= stats.hacking_money;
         hackingGrowMultiplier *= stats.hacking_grow;
         hackingExpMultiplier *= stats.hacking_exp;
+
+        strengthMultiplier *= stats.strength;
+        strengthExpMultiplier *= stats.strength_exp;
+        defenseMultiplier *= stats.defense;
+        defenseExpMultiplier *= stats.defense_exp;
+        dexterityMultiplier *= stats.dexterity;
+        dexterityExpMultiplier *= stats.dexterity_exp;
+        agilityMultiplier *= stats.agility;
+        agilityExpMultiplier *= stats.agility_exp;
+
         repMultiplier *= stats.faction_rep;
+        charismaMultiplier *= stats.charisma;
+        charismaExpMultiplier *= stats.charisma_exp;
     }
 
     return {
@@ -146,17 +173,166 @@ function calculateTotalStatIncrease(ns, augmentations) {
             hackingGrow: hackingGrowMultiplier,
             hackingExp: hackingExpMultiplier,
         },
-        totalRep: repMultiplier,
+        totalCombat: {
+            strength: strengthMultiplier,
+            strengthExp: strengthExpMultiplier,
+            defense: defenseMultiplier,
+            defenseExp: defenseExpMultiplier,
+            dexterity: dexterityMultiplier,
+            dexterityExp: dexterityExpMultiplier,
+            agility: agilityMultiplier,
+            agilityExp: agilityExpMultiplier,
+        },
+        totalOther: {
+            rep: repMultiplier,
+            charisma: charismaMultiplier,
+            charismaExp: charismaExpMultiplier,
+        },
         neurofluxLevels: neuroFluxToBuy,
         // Store original values for comparison
-        originalHacking: ns.getPlayer().mults.hacking,
-        originalHackingChance: ns.getPlayer().mults.hacking_chance,
-        originalHackingSpeed: ns.getPlayer().mults.hacking_speed,
-        originalHackingMoney: ns.getPlayer().mults.hacking_money,
-        originalHackingGrow: ns.getPlayer().mults.hacking_grow,
-        originalHackingExp: ns.getPlayer().mults.hacking_exp,
-        originalRep: ns.getPlayer().mults.faction_rep,
+        originalHacking: {
+            hackingLevel: player.mults.hacking,
+            hackingChance: player.mults.hacking_chance,
+            hackingSpeed: player.mults.hacking_speed,
+            hackingMoney: player.mults.hacking_money,
+            hackingGrow: player.mults.hacking_grow,
+            hackingExp: player.mults.hacking_exp,
+        },
+        originalCombat: {
+            strength: player.mults.strength,
+            strengthExp: player.mults.strength_exp,
+            defense: player.mults.defense,
+            defenseExp: player.mults.defense_exp,
+            dexterity: player.mults.dexterity,
+            dexterityExp: player.mults.dexterity_exp,
+            agility: player.mults.agility,
+            agilityExp: player.mults.agility_exp,
+        },
+        originalOther: {
+            rep: player.mults.faction_rep,
+            charisma: player.mults.charisma,
+            charismaExp: player.mults.charisma_exp,
+        },
     };
+}
+
+/**
+ * Displays comprehensive stat increases in a formatted way
+ * @param {NS} ns - NetScript object
+ * @param {Object} statIncrease - Result from calculateTotalStatIncrease
+ */
+function displayStatIncreases(ns, statIncrease) {
+    ns.print("\n");
+    ns.print("=== TOTAL STAT INCREASES FROM ALL AUGMENTS ===");
+
+    // Hacking Stats Section
+    ns.print("\n🧠 HACKING STATS:");
+    const hackingStats = [
+        {
+            name: "Hacking Level",
+            original: statIncrease.originalHacking.hackingLevel,
+            final: statIncrease.totalHacking.hackingLevel,
+        },
+        {
+            name: "Hacking Chance",
+            original: statIncrease.originalHacking.hackingChance,
+            final: statIncrease.totalHacking.hackingChance,
+        },
+        {
+            name: "Hacking Speed",
+            original: statIncrease.originalHacking.hackingSpeed,
+            final: statIncrease.totalHacking.hackingSpeed,
+        },
+        {
+            name: "Hacking Money",
+            original: statIncrease.originalHacking.hackingMoney,
+            final: statIncrease.totalHacking.hackingMoney,
+        },
+        {
+            name: "Hacking Grow",
+            original: statIncrease.originalHacking.hackingGrow,
+            final: statIncrease.totalHacking.hackingGrow,
+        },
+        {
+            name: "Hacking Exp",
+            original: statIncrease.originalHacking.hackingExp,
+            final: statIncrease.totalHacking.hackingExp,
+        },
+    ];
+
+    for (const stat of hackingStats) {
+        const increase = stat.final / stat.original;
+        const percentIncrease = (increase - 1) * 100;
+        ns.print(
+            `  ${stat.name.padEnd(14)}: ${ns.formatPercent(stat.original)} -> ${ns.formatPercent(stat.final)} (+${percentIncrease.toFixed(1)}%, ${increase.toFixed(2)}X)`,
+        );
+    }
+
+    // Combat Stats Section
+    ns.print("\n💪 COMBAT STATS:");
+    const combatStats = [
+        { name: "Strength", original: statIncrease.originalCombat.strength, final: statIncrease.totalCombat.strength },
+        {
+            name: "Strength Exp",
+            original: statIncrease.originalCombat.strengthExp,
+            final: statIncrease.totalCombat.strengthExp,
+        },
+        { name: "Defense", original: statIncrease.originalCombat.defense, final: statIncrease.totalCombat.defense },
+        {
+            name: "Defense Exp",
+            original: statIncrease.originalCombat.defenseExp,
+            final: statIncrease.totalCombat.defenseExp,
+        },
+        {
+            name: "Dexterity",
+            original: statIncrease.originalCombat.dexterity,
+            final: statIncrease.totalCombat.dexterity,
+        },
+        {
+            name: "Dexterity Exp",
+            original: statIncrease.originalCombat.dexterityExp,
+            final: statIncrease.totalCombat.dexterityExp,
+        },
+        { name: "Agility", original: statIncrease.originalCombat.agility, final: statIncrease.totalCombat.agility },
+        {
+            name: "Agility Exp",
+            original: statIncrease.originalCombat.agilityExp,
+            final: statIncrease.totalCombat.agilityExp,
+        },
+    ];
+
+    for (const stat of combatStats) {
+        const increase = stat.final / stat.original;
+        const percentIncrease = (increase - 1) * 100;
+        ns.print(
+            `  ${stat.name.padEnd(14)}: ${ns.formatPercent(stat.original)} -> ${ns.formatPercent(stat.final)} (+${percentIncrease.toFixed(1)}%, ${increase.toFixed(2)}X)`,
+        );
+    }
+
+    // Other Stats Section
+    ns.print("\n📈 OTHER STATS:");
+    const otherStats = [
+        { name: "Reputation", original: statIncrease.originalOther.rep, final: statIncrease.totalOther.rep },
+        { name: "Charisma", original: statIncrease.originalOther.charisma, final: statIncrease.totalOther.charisma },
+        {
+            name: "Charisma Exp",
+            original: statIncrease.originalOther.charismaExp,
+            final: statIncrease.totalOther.charismaExp,
+        },
+    ];
+
+    for (const stat of otherStats) {
+        const increase = stat.final / stat.original;
+        const percentIncrease = (increase - 1) * 100;
+        ns.print(
+            `  ${stat.name.padEnd(14)}: ${ns.formatPercent(stat.original)} -> ${ns.formatPercent(stat.final)} (+${percentIncrease.toFixed(1)}%, ${increase.toFixed(2)}X)`,
+        );
+    }
+
+    if (statIncrease.neurofluxLevels > 0) {
+        ns.print("");
+        ns.print(`🔋 NeuroFlux Levels: ${statIncrease.neurofluxLevels} (1% boost each to all stats)`);
+    }
 }
 
 /**
@@ -190,10 +366,10 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget) {
 
         // Calculate total stat increase for this result
         const statIncrease = calculateTotalStatIncrease(ns, result.purchaseOrder);
-        const totalStatScore = statIncrease.totalHacking.hackingLevel - 1 + (statIncrease.totalRep - 1);
+        const totalStatScore = statIncrease.totalHacking.hackingLevel - 1 + (statIncrease.totalOther.rep - 1);
 
         ns.print(
-            `Max price: $${ns.formatNumber(maxPrice * 1000000)} | Augments: ${result.purchaseOrder.length} | Hacking: +${((statIncrease.totalHacking - 1) * 100).toFixed(1)}% | Rep: +${((statIncrease.totalRep - 1) * 100).toFixed(1)}% | Total score: ${totalStatScore.toFixed(3)}`,
+            `Max price: $${ns.formatNumber(maxPrice * 1000000)} | Augments: ${result.purchaseOrder.length} | Hacking: +${((statIncrease.totalHacking.hackingLevel - 1) * 100).toFixed(1)}% | Rep: +${((statIncrease.totalOther.rep - 1) * 100).toFixed(1)}% | Total score: ${totalStatScore.toFixed(3)}`,
         );
 
         // Update best result if this is better
@@ -211,7 +387,7 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget) {
         ns.print(`   Best filter: Max price $${ns.formatNumber(bestMaxPrice * 1000000)}`);
         ns.print(`   Augments: ${bestResult.purchaseOrder.length}`);
         ns.print(`   Hacking boost: +${((bestResult.statIncrease.totalHacking.hackingLevel - 1) * 100).toFixed(1)}%`);
-        ns.print(`   Rep boost: +${((bestResult.statIncrease.totalRep - 1) * 100).toFixed(1)}%`);
+        ns.print(`   Rep boost: +${((bestResult.statIncrease.totalOther.rep - 1) * 100).toFixed(1)}%`);
         ns.print(`   Total stat score: ${bestTotalStats.toFixed(3)}`);
     }
 
@@ -279,6 +455,10 @@ export async function main(ns) {
         return stats.faction_rep > 1;
     }
 
+    function hasCombatBoost(stats) {
+        return stats.strength > 1 || stats.defense > 1 || stats.dexterity > 1 || stats.agility > 1;
+    }
+
     // Check which augmentations we can afford (both price and reputation) - separate entry for each qualifying faction
     const affordableAugmentations = [];
 
@@ -305,6 +485,7 @@ export async function main(ns) {
                     if (factionRep >= repReq) {
                         const hackingBoost = hasHackingBoost(stats);
                         const repBoost = hasRepBoost(stats);
+                        const combatBoost = hasCombatBoost(stats);
 
                         // If --hacking-rep-only flag is set, skip augments that don't boost hacking or rep
                         // Exception: Always include NeuroFlux Governor as it provides hacking boost
@@ -323,6 +504,7 @@ export async function main(ns) {
                             prereqs: prereqs,
                             hackingBoost: hackingBoost,
                             repBoost: repBoost,
+                            combatBoost: combatBoost,
                             repReq: repReq,
                             stats: stats,
                         });
@@ -336,8 +518,9 @@ export async function main(ns) {
     for (const aug of affordableAugmentations.sort((a, b) => b.cost - a.cost)) {
         const hasHackingBoost = aug.hackingBoost;
         const hasRepBoost = aug.repBoost;
+        const hasCombatBoost = aug.combatBoost;
         ns.print(
-            `$${ns.formatNumber(aug.cost * 1000000)} - ${aug.name} - ${aug.faction} ${hasHackingBoost ? "- 🧠 " : ""}${hasRepBoost ? "- 📈" : ""}`,
+            `$${ns.formatNumber(aug.cost * 1000000)} - ${aug.name} - ${aug.faction} ${hasHackingBoost ? "- 🧠 " : ""}${hasRepBoost ? "- 📈" : ""}${hasCombatBoost ? "- 💪" : ""}`,
         );
     }
 
@@ -367,6 +550,7 @@ export async function main(ns) {
         prereqs: aug.prereqs,
         hackingBoost: aug.hackingBoost,
         repBoost: aug.repBoost,
+        combatBoost: aug.combatBoost,
         available: true,
     }));
 
@@ -378,14 +562,14 @@ export async function main(ns) {
         result.statIncrease = calculateTotalStatIncrease(ns, result.purchaseOrder);
     }
 
-    // If hacking-rep-only flag is set and we can't afford all augments, try price filtering optimization
-    if ((hackingRepOnly || hackingOnly) && result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
+    // If we can't afford all augments, try price filtering optimization
+    if (result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
         ns.print("🔍 Cannot afford all augments with hacking-rep-only filter. Trying price filtering optimization...");
 
         // Store the original result for comparison
         const originalStatIncrease = result.statIncrease;
         const originalTotalStats = originalStatIncrease
-            ? originalStatIncrease.totalHacking.hackingLevel - 1 + (originalStatIncrease.totalRep - 1)
+            ? originalStatIncrease.totalHacking.hackingLevel - 1 + (originalStatIncrease.totalOther.rep - 1)
             : 0;
 
         const optimizedResult = optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget);
@@ -393,7 +577,7 @@ export async function main(ns) {
             const optimizedTotalStats =
                 optimizedResult.statIncrease.totalHacking.hackingLevel -
                 1 +
-                (optimizedResult.statIncrease.totalRep - 1);
+                (optimizedResult.statIncrease.totalOther.rep - 1);
 
             ns.print(`\n📊 COMPARISON:`);
             ns.print(
@@ -493,61 +677,7 @@ export async function main(ns) {
 
     // Display comprehensive stat increases if available
     if (result.statIncrease) {
-        // Get original and final values
-        const originalHacking = result.statIncrease.originalHacking;
-        const originalHackingChance = result.statIncrease.originalHackingChance;
-        const originalHackingSpeed = result.statIncrease.originalHackingSpeed;
-        const originalHackingMoney = result.statIncrease.originalHackingMoney;
-        const originalHackingGrow = result.statIncrease.originalHackingGrow;
-        const originalHackingExp = result.statIncrease.originalHackingExp;
-        const originalRep = result.statIncrease.originalRep;
-
-        const finalHacking = result.statIncrease.totalHacking.hackingLevel;
-        const finalHackingChance = result.statIncrease.totalHacking.hackingChance;
-        const finalHackingSpeed = result.statIncrease.totalHacking.hackingSpeed;
-        const finalHackingMoney = result.statIncrease.totalHacking.hackingMoney;
-        const finalHackingGrow = result.statIncrease.totalHacking.hackingGrow;
-        const finalHackingExp = result.statIncrease.totalHacking.hackingExp;
-        const finalRep = result.statIncrease.totalRep;
-
-        // Calculate the multiplier increases
-        const hackingIncrease = finalHacking / originalHacking;
-        const hackingChanceIncrease = finalHackingChance / originalHackingChance;
-        const hackingSpeedIncrease = finalHackingSpeed / originalHackingSpeed;
-        const hackingMoneyIncrease = finalHackingMoney / originalHackingMoney;
-        const hackingGrowIncrease = finalHackingGrow / originalHackingGrow;
-        const hackingExpIncrease = finalHackingExp / originalHackingExp;
-        const repIncrease = finalRep / originalRep;
-
-        ns.print("\n");
-        ns.print("=== TOTAL STAT INCREASES FROM ALL AUGMENTS ===");
-        ns.print(
-            `Hacking Level:  ${ns.formatPercent(originalHacking)} -> ${ns.formatPercent(finalHacking)} (${hackingIncrease.toFixed(2)}X increase)`,
-        );
-        ns.print(
-            `Hacking Chance: ${ns.formatPercent(originalHackingChance)} -> ${ns.formatPercent(finalHackingChance)} (${hackingChanceIncrease.toFixed(2)}X increase)`,
-        );
-        ns.print(
-            `Hacking Speed:  ${ns.formatPercent(originalHackingSpeed)} -> ${ns.formatPercent(finalHackingSpeed)} (${hackingSpeedIncrease.toFixed(2)}X increase)`,
-        );
-        ns.print(
-            `Hacking Money:  ${ns.formatPercent(originalHackingMoney)} -> ${ns.formatPercent(finalHackingMoney)} (${hackingMoneyIncrease.toFixed(2)}X increase)`,
-        );
-        ns.print(
-            `Hacking Grow:   ${ns.formatPercent(originalHackingGrow)} -> ${ns.formatPercent(finalHackingGrow)} (${hackingGrowIncrease.toFixed(2)}X increase)`,
-        );
-        ns.print(
-            `Hacking Exp:    ${ns.formatPercent(originalHackingExp)} -> ${ns.formatPercent(finalHackingExp)} (${hackingExpIncrease.toFixed(2)}X increase)`,
-        );
-        ns.print("");
-        ns.print(
-            `Reputation:     ${ns.formatPercent(originalRep)} -> ${ns.formatPercent(finalRep)} (${repIncrease.toFixed(2)}X increase)`,
-        );
-
-        if (result.statIncrease.neurofluxLevels > 0) {
-            ns.print("");
-            ns.print(`NeuroFlux Levels: ${result.statIncrease.neurofluxLevels} (1% boost each to all stats)`);
-        }
+        displayStatIncreases(ns, result.statIncrease);
     }
 
     // === NEUROFLUX GOVERNOR REPUTATION VALIDATION ===
