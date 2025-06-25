@@ -16,7 +16,7 @@ const GROW_SCRIPT_RAM_USAGE = 1.75;
 const WEAKEN_SCRIPT_RAM_USAGE = 1.75;
 const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.1; // Use extra grow and weak threads to correct for out of sync HGW batches
 
-let hackPercentage = 0.9;
+let hackPercentage = 0.5;
 export const SCRIPT_DELAY = 100; // ms delay between scripts
 const DELAY_BETWEEN_BATCHES = 100; // ms delay between batches
 const TICK_DELAY = 5000; // ms delay between ticks
@@ -194,7 +194,7 @@ export async function main(ns) {
             ns.print("No servers could be processed this tick");
         }
 
-        // XP farming: Use all remaining RAM for weaken scripts on joesguns
+        // XP farming: Use all remaining RAM for weaken scripts
         xpFarm(ns);
 
         await ns.sleep(TICK_DELAY);
@@ -1034,16 +1034,16 @@ function calculateAvailableRamForServer(ns, targetServer, totalRamAvailable) {
  * @param {NS} ns - The Netscript API.
  */
 function xpFarm(ns) {
-    const xpTarget = "joesguns";
+    const xpTarget = "foodnstuff";
     const xpFarmScript = "/scripts/xp-farm.js";
 
-    // Check if joesguns exists and we have root access
+    // Check if target server exists and we have root access
     if (!ns.serverExists(xpTarget) || !ns.hasRootAccess(xpTarget)) {
         return;
     }
 
     const weakenTime = ns.getWeakenTime(xpTarget);
-    const weakenCycles = Math.floor(TICK_DELAY / (weakenTime + SCRIPT_DELAY));
+    const weakenCycles = Math.max(1, Math.floor(TICK_DELAY / (weakenTime + SCRIPT_DELAY))); // Kick off at least 1 weaken cycle
 
     // Collect server/thread pairs for all available RAM
     const serverThreadPairs = [];
