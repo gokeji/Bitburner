@@ -17,7 +17,7 @@ async function cleanup_home_assist_processes(ns, typesToKill) {
     ns.tprint(`Found ${servers.size} servers`);
 
     let totalKilled = 0;
-    let killReport = [];
+    let killReport = {};
 
     if (typesToKill.includes("hack")) {
         // First kill all hack scripts
@@ -27,7 +27,7 @@ async function cleanup_home_assist_processes(ns, typesToKill) {
             servers,
         );
         totalKilled += totalKilledHack;
-        killReport.push(...killReportHack);
+        killReport.hack = killReportHack;
 
         await ns.sleep(200);
     }
@@ -40,7 +40,7 @@ async function cleanup_home_assist_processes(ns, typesToKill) {
             servers,
         );
         totalKilled += totalKilledGrow;
-        killReport.push(...killReportGrow);
+        killReport.grow = killReportGrow;
 
         await ns.sleep(200);
     }
@@ -53,7 +53,7 @@ async function cleanup_home_assist_processes(ns, typesToKill) {
             servers,
         );
         totalKilled += totalKilledWeaken;
-        killReport.push(...killReportWeaken);
+        killReport.weaken = killReportWeaken;
     }
 
     return {
@@ -64,7 +64,7 @@ async function cleanup_home_assist_processes(ns, typesToKill) {
 
 function cleanScriptOnAllServers(ns, script, servers) {
     let totalKilled = 0;
-    const killReport = [];
+    const killReport = {};
 
     for (const server of servers) {
         const processes = ns.ps(server).filter((p) => p.filename === script);
@@ -77,7 +77,7 @@ function cleanScriptOnAllServers(ns, script, servers) {
         });
 
         if (killedOnServer > 0) {
-            killReport.push(`${server}: ${killedOnServer} processes`);
+            killReport[server] = killedOnServer;
         }
     }
 
@@ -95,8 +95,12 @@ export async function main(ns) {
     const { totalKilled, killReport } = await cleanup_home_assist_processes(ns, typesToKill);
 
     if (totalKilled > 0) {
-        ns.tprint(`Successfully killed ${totalKilled} direct action HGW processes:`);
-        killReport.forEach((report) => ns.tprint(`  ${report}`));
+        const totalHacked = killReport.hack ? Object.values(killReport.hack).reduce((acc, curr) => acc + curr, 0) : 0;
+        const totalGrown = killReport.grow ? Object.values(killReport.grow).reduce((acc, curr) => acc + curr, 0) : 0;
+        const totalWeakened = killReport.weaken
+            ? Object.values(killReport.weaken).reduce((acc, curr) => acc + curr, 0)
+            : 0;
+        ns.tprint(`Total: ${totalHacked}H ${totalGrown}G ${totalWeakened}W processes killed`);
     } else {
         ns.tprint("No direct HGW processes found running");
     }
