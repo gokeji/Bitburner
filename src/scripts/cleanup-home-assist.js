@@ -11,37 +11,54 @@ function disable_logs(ns) {
     logs.forEach((log) => ns.disableLog(log));
 }
 
-async function cleanup_home_assist_processes(ns) {
+async function cleanup_home_assist_processes(ns, typesToKill) {
     const servers = new Set(["home"]);
     scanAll(ns, "home", servers);
     ns.tprint(`Found ${servers.size} servers`);
 
-    // First kill all hack scripts
-    const { totalKilled: totalKilledHack, killReport: killReportHack } = cleanScriptOnAllServers(
-        ns,
-        "kamu/hack.js",
-        servers,
-    );
+    let totalKilled = 0;
+    let killReport = [];
 
-    await ns.sleep(200);
-    // Then kill all grow scripts
-    const { totalKilled: totalKilledGrow, killReport: killReportGrow } = cleanScriptOnAllServers(
-        ns,
-        "kamu/grow.js",
-        servers,
-    );
+    if (typesToKill.includes("hack")) {
+        // First kill all hack scripts
+        const { totalKilled: totalKilledHack, killReport: killReportHack } = cleanScriptOnAllServers(
+            ns,
+            "kamu/hack.js",
+            servers,
+        );
+        totalKilled += totalKilledHack;
+        killReport.push(...killReportHack);
 
-    await ns.sleep(200);
-    // Then kill all weaken scripts
-    const { totalKilled: totalKilledWeaken, killReport: killReportWeaken } = cleanScriptOnAllServers(
-        ns,
-        "kamu/weaken.js",
-        servers,
-    );
+        await ns.sleep(200);
+    }
+
+    if (typesToKill.includes("grow")) {
+        // Then kill all grow scripts
+        const { totalKilled: totalKilledGrow, killReport: killReportGrow } = cleanScriptOnAllServers(
+            ns,
+            "kamu/grow.js",
+            servers,
+        );
+        totalKilled += totalKilledGrow;
+        killReport.push(...killReportGrow);
+
+        await ns.sleep(200);
+    }
+
+    if (typesToKill.includes("weaken")) {
+        // Then kill all weaken scripts
+        const { totalKilled: totalKilledWeaken, killReport: killReportWeaken } = cleanScriptOnAllServers(
+            ns,
+            "kamu/weaken.js",
+            servers,
+        );
+        totalKilled += totalKilledWeaken;
+        killReport.push(...killReportWeaken);
+    }
 
     return {
-        totalKilled: totalKilledHack + totalKilledGrow + totalKilledWeaken,
-        killReport: [...killReportHack, ...killReportGrow, ...killReportWeaken],
+        totalKilled,
+        killReport,
     };
 }
 
@@ -73,7 +90,9 @@ function cleanScriptOnAllServers(ns, script, servers) {
 export async function main(ns) {
     disable_logs(ns);
 
-    const { totalKilled, killReport } = await cleanup_home_assist_processes(ns);
+    const typesToKill = ns.args.length > 0 ? ns.args : ["hack", "grow", "weaken"];
+
+    const { totalKilled, killReport } = await cleanup_home_assist_processes(ns, typesToKill);
 
     if (totalKilled > 0) {
         ns.tprint(`Successfully killed ${totalKilled} direct action HGW processes:`);

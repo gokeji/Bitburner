@@ -27,7 +27,7 @@ export async function main(ns) {
     // All 25 batches complete before next tick starts
     const MAX_BATCHES_PER_TICK = Math.floor(TICK_DELAY / (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES)); // max batches to schedule per tick
 
-    const HOME_SERVER_RESERVED_RAM = 30; // GB reserved for home server
+    const HOME_SERVER_RESERVED_RAM = 640; // GB reserved for home server
     let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
     let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
@@ -321,14 +321,17 @@ export async function main(ns) {
         // Initialize available RAM for each server
         for (const server of executableServers) {
             const serverInfo = ns.getServer(server);
-            const availableRam = serverInfo.maxRam - serverInfo.ramUsed;
+            let availableRam = serverInfo.maxRam - serverInfo.ramUsed;
+            if (server === "home") {
+                availableRam = Math.max(availableRam - HOME_SERVER_RESERVED_RAM, 0);
+            }
             if (availableRam > 0) {
                 serverRamCache.set(server, availableRam);
                 totalRam += availableRam;
             }
         }
 
-        return totalRam - HOME_SERVER_RESERVED_RAM;
+        return totalRam;
     }
 
     /**
@@ -1092,8 +1095,9 @@ export async function main(ns) {
             const pid = ns.exec(xpFarmScript, "home", 1, ...args);
 
             if (pid) {
+                const remainingRamUsed = totalThreads * WEAKEN_SCRIPT_RAM_USAGE;
                 ns.print(
-                    `SUCCESS: XP Farm: Launched script with ${weakenCycles} cycles, ${totalThreads} threads across ${serverThreadPairs.length / 2} servers`,
+                    `SUCCESS: XP Farm: Launched script with ${weakenCycles} cycles, ${ns.formatRam(remainingRamUsed)} across ${serverThreadPairs.length / 2} servers`,
                 );
             } else {
                 ns.print(`WARN: XP Farm: Failed to launch script`);
