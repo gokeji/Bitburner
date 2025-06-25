@@ -20,9 +20,9 @@ export async function main(ns) {
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.1; // Use extra grow and weak threads to correct for out of sync HGW batches
 
     let hackPercentage = 0.5;
-    const SCRIPT_DELAY = 150; // ms delay between scripts
-    const DELAY_BETWEEN_BATCHES = 150; // ms delay between batches
-    const TICK_DELAY = 6000; // ms delay between ticks
+    const SCRIPT_DELAY = 200; // ms delay between scripts
+    const DELAY_BETWEEN_BATCHES = 200; // ms delay between batches
+    const TICK_DELAY = 8000; // ms delay between ticks
     // Batch scheduling: Each batch takes (20*3 + 20) = 80ms to schedule
     // In 2000ms tick, we can fit exactly 25 batches (2000/80 = 25)
     // All 25 batches complete before next tick starts
@@ -43,6 +43,7 @@ export async function main(ns) {
     // Global priorities map that persists across the scheduling loop
     let globalPrioritiesMap = new Map();
     let previousGlobalPrioritiesMap = new Map();
+    let serverBatchState = new Map(); // Tracks weakenTime at start of a batch stream for each server
 
     // automatically backdoor these servers. Requires singularity functions.
     let backdoorServers = new Set([
@@ -99,6 +100,32 @@ export async function main(ns) {
 
         // Calculate global priorities map once per tick (without excluding any servers)
         globalPrioritiesMap = calculateTargetServerPriorities(ns);
+
+        // --- Cumulative Drift Detection & Recovery ---
+        const serversToRecover = [];
+        for (const [server, batchState] of serverBatchState.entries()) {
+            const currentStats = globalPrioritiesMap.get(server);
+            if (!currentStats) {
+                // Server is no longer in the hackable list, remove it from tracking
+                serverBatchState.delete(server);
+                continue;
+            }
+
+            const cumulativeDrift = currentStats.weakenTime - batchState.weakenTimeAtStart;
+            // Trigger recovery if drift exceeds half the script delay
+            if (Math.abs(cumulativeDrift) > SCRIPT_DELAY / 2) {
+                serversToRecover.push(server);
+            }
+        }
+
+        if (serversToRecover.length > 0) {
+            ns.print(`INFO: Detected cumulative drift on ${serversToRecover.length} servers. Initiating recovery.`);
+            for (const server of serversToRecover) {
+                killAllHackScriptsForTarget(ns, server, executableServers, hackScript);
+                // Remove from tracking. It will be re-added when batches restart on it.
+                serverBatchState.delete(server);
+            }
+        }
 
         // Check for weakenTime desync by comparing with the previous tick
         let outOfSyncServers = 0;
@@ -172,7 +199,6 @@ export async function main(ns) {
             const currentServer = serversByThroughput[serverIndex];
             serverIndex++; // Increment server index
 
-            // Skip servers that are already being targeted
             const { isTargeted, isPrep, isHgw } = isServerBeingTargeted(ns, currentServer);
 
             const serverStats = globalPrioritiesMap.get(currentServer);
@@ -182,10 +208,39 @@ export async function main(ns) {
             }
 
             const serverInfo = ns.getServer(currentServer);
+
+            // --- New Security Drift Check ---
+            const maxSecurityIncrease = serverStats.maxSecurityIncreasePerBatch;
+            // Allow for some buffer. A single batch shouldn't raise it past min + maxIncrease.
+            // A healthy stream of batches should hover around minSecurity. If it gets this high, something is wrong.
+            const securityThreshold = serverInfo.minDifficulty + maxSecurityIncrease * 1.5;
+
+            if (serverInfo.hackDifficulty > securityThreshold) {
+                const message = `WARN: Security on ${currentServer} (${ns.formatNumber(
+                    serverInfo.hackDifficulty,
+                    2,
+                )}) breached threshold (${ns.formatNumber(securityThreshold, 2)}). Recovering.`;
+                ns.print(message);
+                ns.tprint(message);
+                killAllHackScriptsForTarget(ns, currentServer, executableServers, hackScript);
+                serverBatchState.delete(currentServer);
+                continue; // Skip processing this server for HGW/prep this tick
+            }
+
             const securityLevel = serverInfo.hackDifficulty;
             const minSecurityLevel = serverInfo.minDifficulty;
             const currentMoney = serverInfo.moneyAvailable;
             const maxMoney = serverInfo.moneyMax;
+
+            // If a server is idle (not targeted), and we are about to start a new batch, record its initial state.
+            if (!isTargeted && !serverBatchState.has(currentServer)) {
+                serverBatchState.set(currentServer, {
+                    weakenTimeAtStart: serverStats.weakenTime,
+                });
+                ns.print(
+                    `INFO: Starting new batch stream on ${currentServer}. Tracking initial weakenTime: ${ns.formatNumber(serverStats.weakenTime)}ms`,
+                );
+            }
 
             // Continue to next server if it's already being prepped
             if (isPrep) {
@@ -357,6 +412,7 @@ export async function main(ns) {
             growthThreads,
             growthFactor,
             growthTime,
+            totalSecurityIncrease: weakenTarget,
         };
     }
 
@@ -388,39 +444,55 @@ export async function main(ns) {
     }
 
     /**
-     * Checks if a server is already being targeted by running scripts (either prep or HGW batches).
+     * Checks if a server is already being targeted by running scripts by analyzing the composition of running processes.
+     * This method is stateless and doesn't rely on potentially outdated script arguments.
      * @param {NS} ns - The Netscript API.
      * @param {string} target - The target server to check.
-     * @returns {{isTargeted: boolean, isPrep: boolean, isHgw: boolean}} - Object indicating if server is targeted and for what operations.
+     * @returns {{isTargeted: boolean, isPrep: boolean, isHgw: boolean}} - Object indicating if server is targeted.
+     *   - isHgw: True if a full HGW script cycle is running.
+     *   - isPrep: True if only Grow and/or Weaken scripts are running (server is being prepped or is in recovery).
      */
     function isServerBeingTargeted(ns, target) {
-        // Check all executable servers for running scripts targeting this server
+        let hasHack = false;
+        let hasGrow = false;
+        let hasWeaken = false;
+
+        const hackScriptName = hackScript.startsWith("/") ? hackScript.substring(1) : hackScript;
+        const growScriptName = growScript.startsWith("/") ? growScript.substring(1) : growScript;
+        const weakenScriptName = weakenScript.startsWith("/") ? weakenScript.substring(1) : weakenScript;
+
         for (const server of executableServers) {
             const runningScripts = ns.ps(server);
 
             for (const script of runningScripts) {
-                // Check if any of our hack/grow/weaken scripts are running with this target
-                // Use more specific matching to avoid false positives
-                if (
-                    (script.filename === hackScript ||
-                        script.filename === growScript ||
-                        script.filename === weakenScript ||
-                        script.filename === "kamu/hack.js" ||
-                        script.filename === "kamu/grow.js" ||
-                        script.filename === "kamu/weaken.js") &&
-                    script.args.length > 0 &&
-                    script.args[0] === target
-                ) {
+                // Check if the script is targeting our server
+                if (script.args.length > 0 && script.args[0] === target) {
+                    // Fast path for explicit prep operations, which are always highest priority to identify.
                     if (script.args.includes("prep")) {
                         return { isTargeted: true, isPrep: true, isHgw: false };
-                    } else if (script.args.includes("hgw")) {
-                        return { isTargeted: true, isPrep: false, isHgw: true };
+                    }
+
+                    // If not prep, check if it's part of an HGW batch.
+                    if (script.args.includes("hgw")) {
+                        if (script.filename === hackScriptName) hasHack = true;
+                        else if (script.filename === growScriptName) hasGrow = true;
+                        else if (script.filename === weakenScriptName) hasWeaken = true;
                     }
                 }
             }
+            // Optimization: if we've found at least one of each HGW type, we know its state and can stop searching.
+            if (hasHack && hasGrow && hasWeaken) {
+                break;
+            }
         }
 
-        return { isTargeted: false, isPrep: false, isHgw: false };
+        // Determine state based on what we found.
+        const isHgw = hasHack && hasGrow && hasWeaken;
+        // A server is in prep/recovery if it has only Grow/Weaken scripts running (no Hack scripts).
+        const isPrep = !hasHack && (hasGrow || hasWeaken);
+        const isTargeted = isPrep || isHgw;
+
+        return { isTargeted, isPrep, isHgw };
     }
 
     /**
@@ -448,6 +520,7 @@ export async function main(ns) {
                 hackTime,
                 growthTime,
                 actualHackPercentage,
+                totalSecurityIncrease,
             } = getServerHackStats(
                 ns,
                 server,
@@ -478,6 +551,7 @@ export async function main(ns) {
                 hackChance: hackChance,
                 actualBatchLimit: actualBatchLimit,
                 theoreticalBatchLimit: theoreticalBatchLimit,
+                maxSecurityIncreasePerBatch: totalSecurityIncrease,
             });
         }
 
@@ -1261,5 +1335,35 @@ export async function main(ns) {
         }
 
         return result;
+    }
+}
+
+/**
+ * Finds and kills all instances of the hack script running against a specific target.
+ * @param {NS} ns - The Netscript API.
+ * @param {string} target - The server target whose hack scripts should be killed.
+ * @param {string[]} executableServers - A list of all servers where scripts can run.
+ * @param {string} hackScript - The path to the hack script.
+ */
+function killAllHackScriptsForTarget(ns, target, executableServers, hackScript) {
+    let killedCount = 0;
+    // Get script name without the leading '/' for matching with ps() result
+    const hackScriptName = hackScript.startsWith("/") ? hackScript.substring(1) : hackScript;
+
+    for (const server of executableServers) {
+        const runningScripts = ns.ps(server);
+        for (const script of runningScripts) {
+            // Check filename and the first argument (the target)
+            if (script.filename === hackScriptName && script.args[0] === target) {
+                if (ns.kill(script.pid)) {
+                    killedCount++;
+                }
+            }
+        }
+    }
+    if (killedCount > 0) {
+        const message = `RECOVERY: Killed ${killedCount} hack scripts targeting ${target} to prevent desync.`;
+        ns.print(message);
+        ns.tprint(message);
     }
 }
