@@ -42,6 +42,7 @@ export async function main(ns) {
 
     // Global priorities map that persists across the scheduling loop
     let globalPrioritiesMap = new Map();
+    let previousGlobalPrioritiesMap = new Map();
 
     // automatically backdoor these servers. Requires singularity functions.
     let backdoorServers = new Set([
@@ -98,6 +99,59 @@ export async function main(ns) {
 
         // Calculate global priorities map once per tick (without excluding any servers)
         globalPrioritiesMap = calculateTargetServerPriorities(ns);
+
+        // Check for weakenTime desync by comparing with the previous tick
+        let outOfSyncServers = 0;
+        let totalPercentChange = 0;
+        let totalMsChange = 0;
+        let outOfSyncChanges = [];
+
+        for (const [server, currentStats] of globalPrioritiesMap.entries()) {
+            if (previousGlobalPrioritiesMap.has(server)) {
+                const previousStats = previousGlobalPrioritiesMap.get(server);
+                // Use a small tolerance for floating point comparisons
+                if (Math.abs(currentStats.weakenTime - previousStats.weakenTime) > 0.001) {
+                    outOfSyncServers++;
+                    const msChange = currentStats.weakenTime - previousStats.weakenTime;
+                    const percentChange =
+                        previousStats.weakenTime !== 0 ? (msChange / previousStats.weakenTime) * 100 : 0;
+                    totalMsChange += msChange;
+                    totalPercentChange += percentChange;
+
+                    // Store the change data for this server
+                    outOfSyncChanges.push({
+                        server: server,
+                        msChange: msChange,
+                        percentChange: percentChange,
+                        priority: currentStats.throughput,
+                    });
+                }
+            }
+        }
+
+        if (outOfSyncServers > 0) {
+            const avgPercentChange = totalPercentChange / outOfSyncServers;
+            const avgMsChange = totalMsChange / outOfSyncServers;
+
+            const warnMessage = `WARN: ${outOfSyncServers} servers are out of sync. Avg weakenTime change: ${ns.formatNumber(avgMsChange, 2)}ms (${ns.formatNumber(avgPercentChange, 2)}%). Player Level: ${ns.getPlayer().skills.hacking}. HackingMult: ${ns.getPlayer().mults.hacking_speed}.`;
+
+            ns.print(warnMessage);
+            ns.tprint(warnMessage);
+
+            // Sort by priority (throughput) and show top 3
+            outOfSyncChanges.sort((a, b) => b.priority - a.priority);
+            const topThreeChanges = outOfSyncChanges.slice(0, 3);
+
+            for (let i = 0; i < topThreeChanges.length; i++) {
+                const change = topThreeChanges[i];
+                const changeMessage = `Top ${i + 1} Priority Server: ${change.server} - ${ns.formatNumber(change.msChange, 2)}ms change (${ns.formatNumber(change.percentChange, 2)}%)`;
+                ns.print(changeMessage);
+                ns.tprint(changeMessage);
+            }
+        }
+
+        // Update the previous state for the next tick's comparison
+        previousGlobalPrioritiesMap = new Map(globalPrioritiesMap);
 
         // Send throughput data to port 4 for get_stats.js
         var throughputPortHandle = ns.getPortHandle(4);
