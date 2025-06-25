@@ -110,8 +110,6 @@ export async function main(ns) {
             .sort((a, b) => b[1].throughput - a[1].throughput)
             .map(([server]) => server);
 
-        ns.print(`INFO: Servers by throughput: ${serversByThroughput.join(", ")}`);
-
         let totalRamUsed = 0;
         let serverIndex = 0;
         let successfullyProcessedServers = []; // Track servers that have been successfully processed this tick
@@ -635,7 +633,7 @@ export async function main(ns) {
             return false;
         } else {
             ns.print(
-                `SUCCESS:${serverIndex}. ${target}: PREP ${ns.formatRam(allocation.totalRamUsed)} for ${prepOperations.join(" + ")}`,
+                `SUCCESS ${serverIndex}. ${target}: PREP ${ns.formatRam(allocation.totalRamUsed)} for ${prepOperations.join(" + ")}`,
             );
         }
 
@@ -705,7 +703,7 @@ export async function main(ns) {
         // Display batch scheduling results
         if (successfulBatches > 0) {
             ns.print(
-                `SUCCESS: ${serverIndex}. ${target}: HGW ${successfulBatches}/${totalBatches} batches, ${ns.formatRam(totalRamUsed)} (${serverStats.hackThreads}H ${serverStats.growthThreads}G ${serverStats.weakenThreadsNeeded}W per batch)`,
+                `SUCCESS ${serverIndex}. ${target}: HGW ${successfulBatches}/${totalBatches} batches, ${ns.formatRam(totalRamUsed)} (${serverStats.hackThreads}H ${serverStats.growthThreads}G ${serverStats.weakenThreadsNeeded}W per batch)`,
             );
         }
 
@@ -994,7 +992,7 @@ export async function main(ns) {
             if (pid) {
                 const remainingRamUsed = totalThreads * WEAKEN_SCRIPT_RAM_USAGE;
                 ns.print(
-                    `SUCCESS: XP Farm: Launched script with ${weakenCycles} cycles, ${ns.formatRam(remainingRamUsed)} across ${serverThreadPairs.length / 2} servers`,
+                    `SUCCESS XP Farm: Launched script with ${weakenCycles} cycles, ${ns.formatRam(remainingRamUsed)} across ${serverThreadPairs.length / 2} servers`,
                 );
             } else {
                 ns.print(`WARN: XP Farm: Failed to launch script`);
@@ -1030,7 +1028,9 @@ export async function main(ns) {
         const serversToIterate = allowSplit ? [...sortedServers].reverse() : sortedServers;
 
         // Single loop handles both splittable and non-splittable operations
-        for (const [server, availableRam] of serversToIterate) {
+        for (const [server] of serversToIterate) {
+            // FIX: Get the most current available RAM from the map, not the stale value from the sorted array
+            const availableRam = serverRamAvailable.get(server) || 0;
             if (remainingThreads <= 0) break;
 
             const threadsCanAllocate = Math.floor(availableRam / ramPerThread);

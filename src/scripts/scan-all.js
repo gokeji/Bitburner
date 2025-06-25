@@ -1,4 +1,4 @@
-// import { NS } from "@ns";
+import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -45,6 +45,7 @@ export async function main(ns) {
         count++;
         const hackLevel = ns.getServerRequiredHackingLevel(server);
         const maxRam = ns.getServer(server).maxRam;
+        const availableRam = ns.getServer(server).maxRam - ns.getServer(server).ramUsed;
         const cpuCores = ns.getServer(server).cpuCores;
         const hasRoot = ns.hasRootAccess(server);
         const openPorts = ns.getServer(server).openPortCount;
@@ -52,7 +53,7 @@ export async function main(ns) {
         const maxMoney = ns.getServerMaxMoney(server);
 
         ns.tprint(
-            `${pad(count, 3)}: ${pad(server, 20)} HACK: ${pad(hackLevel, 5)} RAM: ${pad(`${maxRam}GB`, 8)} CPU: ${pad(`${cpuCores} Cores`, 8)} ROOT: ${pad(hasRoot, 5)} PORTS: ${pad(`${openPorts}/${reqPorts}`, 5)} ${pad(maxMoney.toLocaleString(), 12)}`,
+            `${pad(count, 3)}: ${pad(server, 20)} HACK: ${pad(hackLevel, 5)} RAM: ${pad(`${ns.formatRam(availableRam)}/${ns.formatRam(maxRam)}`, 18)} CPU: ${pad(`${cpuCores} Cores`, 8)} ROOT: ${pad(hasRoot, 5)} PORTS: ${pad(`${openPorts}/${reqPorts}`, 5)} ${pad(maxMoney.toLocaleString(), 12)}`,
         );
     }
 
