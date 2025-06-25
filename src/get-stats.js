@@ -403,7 +403,7 @@ function get_server_data(ns, server, useFormulas = true) {
         const seconds = Math.floor(totalSeconds % 60);
         const milliseconds = Math.floor(timeMs % 1000);
 
-        if (seconds > 5) {
+        if (totalSeconds > 5) {
             return `${minutes.toString()}:${seconds.toString().padStart(2, "0")}`;
         } else {
             return `${seconds.toString()}.${milliseconds.toString().padStart(3, "0")}`;
