@@ -525,6 +525,7 @@ function addNeuroFluxGovernors(augments, count) {
             prereqs: [`NeuroFlux Governor - Level ${i - 1}`],
             hackingBoost: true,
             repBoost: true,
+            combatBoost: true,
         });
     }
     return [...augments, ...neuroFluxGovernors];

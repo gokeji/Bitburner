@@ -16,6 +16,7 @@ export async function main(ns) {
     const HACK_SCRIPT_RAM_USAGE = 1.7;
     const GROW_SCRIPT_RAM_USAGE = 1.75;
     const WEAKEN_SCRIPT_RAM_USAGE = 1.75;
+    const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.1; // Use extra grow and weak threads to correct for out of sync HGW batches
 
     let hackPercentage = 0.5;
@@ -325,7 +326,7 @@ export async function main(ns) {
             if (server === "home") {
                 availableRam = Math.max(availableRam - HOME_SERVER_RESERVED_RAM, 0);
             }
-            if (availableRam > 0) {
+            if (availableRam > MINIMUM_SCRIPT_RAM_USAGE) {
                 serverRamCache.set(server, availableRam);
                 totalRam += availableRam;
             }
@@ -570,74 +571,6 @@ export async function main(ns) {
     }
 
     /**
-     * Finds executable servers with enough available RAM to run server prep operations.
-     * @param {NS} ns - The Netscript API.
-     * @param {number} weakenRamNeeded - RAM needed for weaken script.
-     * @param {number} growRamNeeded - RAM needed for grow script (0 if not needed).
-     * @param {number} finalWeakenRamNeeded - RAM needed for final weaken script (0 if not needed).
-     * @returns {{weakenHost: string, growHost: string, finalWeakenHost: string} | false} - Host servers for each operation or false if not enough RAM.
-     */
-    function findExecutableServersForServerPrep(ns, weakenRamNeeded, growRamNeeded, finalWeakenRamNeeded) {
-        // Create a copy of server RAM availability to track allocations for this prep
-        const serverRamAvailable = new Map(serverRamCache);
-
-        // Try to allocate servers for weaken, grow, and final weaken
-        let weakenHost = null;
-        let growHost = null;
-        let finalWeakenHost = null;
-
-        // Find server for initial weaken (if needed)
-        if (weakenRamNeeded > 0) {
-            for (const [server, availableRam] of serverRamAvailable) {
-                if (availableRam >= weakenRamNeeded) {
-                    weakenHost = server;
-                    serverRamAvailable.set(server, availableRam - weakenRamNeeded);
-                    break;
-                }
-            }
-
-            if (!weakenHost) {
-                return false;
-            }
-        }
-
-        // Find server for grow (if needed)
-        if (growRamNeeded > 0) {
-            for (const [server, availableRam] of serverRamAvailable) {
-                if (availableRam >= growRamNeeded) {
-                    growHost = server;
-                    serverRamAvailable.set(server, availableRam - growRamNeeded);
-                    break;
-                }
-            }
-
-            if (!growHost) {
-                return false;
-            }
-        }
-
-        // Find server for final weaken (if needed)
-        if (finalWeakenRamNeeded > 0) {
-            for (const [server, availableRam] of serverRamAvailable) {
-                if (availableRam >= finalWeakenRamNeeded) {
-                    finalWeakenHost = server;
-                    break;
-                }
-            }
-
-            if (!finalWeakenHost) {
-                return false;
-            }
-        }
-
-        return {
-            weakenHost: weakenHost,
-            growHost: growHost,
-            finalWeakenHost: finalWeakenHost,
-        };
-    }
-
-    /**
      * Prepares the target server for hacking, get it to the min security level and grow it to max money.
      * Do a WGW batch of 3 scripts, weaken, grow, weaken.
      * Or if already at min security level, just do GW batch of 2 scripts, grow, weaken.
@@ -676,8 +609,18 @@ export async function main(ns) {
         const growRam = growthThreads * GROW_SCRIPT_RAM_USAGE;
         const finalWeakenRam = finalWeakenThreads * WEAKEN_SCRIPT_RAM_USAGE;
 
+        // Build operations array for the new allocation function
+        const operations = [];
+        if (needsInitialWeaken) {
+            operations.push({ type: "weaken", threads: initialWeakenThreads, id: "initial_weaken" });
+        }
+        if (needsGrow) {
+            operations.push({ type: "grow", threads: growthThreads });
+            operations.push({ type: "weaken", threads: finalWeakenThreads, id: "final_weaken" });
+        }
+
         // Find servers for prep operations with proper RAM accounting
-        const hosts = findExecutableServersForServerPrep(ns, initialWeakenRam, growRam, finalWeakenRam);
+        const allocation = allocateServersForOperations(ns, operations);
 
         // Display prep information
         const prepOperations = [];
@@ -687,42 +630,39 @@ export async function main(ns) {
 
         const totalPrepRam = initialWeakenRam + growRam + finalWeakenRam;
 
-        if (!hosts) {
+        if (!allocation) {
             ns.print(`INFO: PREP - ${target} Failed. Need ${ns.formatRam(totalPrepRam)} ram`);
             return false;
         } else {
             ns.print(
-                `SUCCESS:${serverIndex}. ${target}: PREP ${ns.formatRam(totalPrepRam)} for ${prepOperations.join(" + ")}`,
+                `SUCCESS:${serverIndex}. ${target}: PREP ${ns.formatRam(allocation.totalRamUsed)} for ${prepOperations.join(" + ")}`,
             );
         }
 
-        // Update the server RAM cache to reflect the RAM that will be used
-        if (initialWeakenRam > 0) {
-            serverRamCache.set(hosts.weakenHost, serverRamCache.get(hosts.weakenHost) - initialWeakenRam);
-        }
-        if (growRam > 0) {
-            serverRamCache.set(hosts.growHost, serverRamCache.get(hosts.growHost) - growRam);
-        }
-        if (finalWeakenRam > 0) {
-            serverRamCache.set(hosts.finalWeakenHost, serverRamCache.get(hosts.finalWeakenHost) - finalWeakenRam);
-        }
+        // Update the server RAM cache - this is handled by allocateServersForOperations
 
         let totalRamUsed = 0;
 
-        if (needsInitialWeaken) {
-            executeWeaken(ns, hosts.weakenHost, target, initialWeakenThreads, 0, true, weakenTime);
+        if (needsInitialWeaken && allocation.initial_weaken) {
+            // Execute weaken on potentially multiple servers
+            for (const [server, threads] of allocation.initial_weaken) {
+                executeWeaken(ns, server, target, threads, 0, true, weakenTime);
+            }
             totalRamUsed += initialWeakenRam;
         }
 
-        if (needsGrow) {
-            // Adjust timing based on whether initial weaken was needed
+        if (needsGrow && allocation.grow && allocation.final_weaken) {
+            // Execute grow on single server (as enforced by the allocation function)
+            const [[growServer, growThreadsActual]] = allocation.grow; // Get the single entry
             const growDelay = needsInitialWeaken ? weakenTime - growthTime - SCRIPT_DELAY : 0;
-            executeGrow(ns, hosts.growHost, target, growthThreads, growDelay, false, true, growthTime);
+            executeGrow(ns, growServer, target, growThreadsActual, growDelay, false, true, growthTime);
             totalRamUsed += growRam;
 
-            // Adjust timing based on whether initial weaken was needed (2 scripts vs 3)
+            // Execute final weaken on potentially multiple servers
             const finalWeakenDelay = needsInitialWeaken ? 2 * SCRIPT_DELAY : 0;
-            executeWeaken(ns, hosts.finalWeakenHost, target, finalWeakenThreads, finalWeakenDelay, true, weakenTime);
+            for (const [server, threads] of allocation.final_weaken) {
+                executeWeaken(ns, server, target, threads, finalWeakenDelay, true, weakenTime);
+            }
             totalRamUsed += finalWeakenRam;
         }
 
@@ -1177,7 +1117,7 @@ export async function main(ns) {
     }
 
     /**
-     * Unified function to find executable servers for any combination of HGW operations.
+     * Allocates servers for any combination of HGW operations and updates global RAM cache.
      * This function can handle both batch operations and prep operations with flexible allocation.
      *
      * @param {NS} ns - The Netscript API.
@@ -1204,8 +1144,9 @@ export async function main(ns) {
      * 3. Hack and weaken operations can be split across multiple servers
      * 4. Grow operations are allocated first to ensure they get priority
      * 5. Remaining operations are allocated to remaining servers
+     * 6. Updates global serverRamCache and removes servers with insufficient RAM (< 1.75GB)
      */
-    function findExecutableServersForOperations(ns, operations) {
+    function allocateServersForOperations(ns, operations) {
         // Validate input
         if (!operations || operations.length === 0) {
             return false;
@@ -1285,6 +1226,24 @@ export async function main(ns) {
 
             result[opKey] = allocation.allocations;
             result.totalRamUsed += allocation.totalRamUsed;
+        }
+
+        // Allocation is successful, so we can update the global serverRamCache
+        // Only update servers that have actually been modified during allocation
+
+        for (const [server, updatedRam] of serverRamAvailable) {
+            const originalRam = serverRamCache.get(server);
+
+            // Only update if the RAM amount has changed
+            if (originalRam !== updatedRam) {
+                if (updatedRam < MINIMUM_SCRIPT_RAM_USAGE) {
+                    // Remove servers with insufficient RAM
+                    serverRamCache.delete(server);
+                } else {
+                    // Update the global cache with the new available RAM
+                    serverRamCache.set(server, updatedRam);
+                }
+            }
         }
 
         return result;
