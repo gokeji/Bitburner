@@ -1,9 +1,10 @@
 import { NS } from "@ns";
-import { SCRIPT_DELAY } from "/scripts/hacker.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
     const args = ns.args;
+
+    const SCRIPT_DELAY = 100; // ms delay between scripts
 
     if (args.length < 3) {
         ns.tprint("Usage: xp-farm.js <target> <cycles> <weakenTime> <server1> <threads1> <server2> <threads2> ...");
