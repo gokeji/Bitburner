@@ -1,6 +1,6 @@
 alias autoplay=run autoplay.js --share
 global alias execute=run scripts/execute.js
-global alias reload=run scripts/cleanup-home-assist.js; kill kamu/distributed-hack.js; run kamu/distributed-hack.js --tail
+global alias reload=run kill scripts/hacker.js; scripts/cleanup-home-assist.js; run scripts/hacker.js --tail
 global alias stat=run get-stats.js --chart
 global alias ram=run scripts/ram-list.js
 global alias rebuy=buy BruteSSH.exe; buy FTPCrack.exe; buy relaySMTP.exe; buy HTTPWorm.exe; buy SQLInject.exe; buy ServerProfiler.exe; buy DeepscanV1.exe; buy DeepscanV2.exe; buy AutoLink.exe

@@ -26,6 +26,7 @@ const TICK_DELAY = 5000; // ms delay between ticks
 const MAX_BATCHES_PER_TICK = Math.floor(TICK_DELAY / (SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES)); // max batches to schedule per tick
 
 const HOME_SERVER_RESERVED_RAM = 30; // GB reserved for home server
+let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
 let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
 let SECURITY_LEVEL_THRESHOLD = 0; // Prep servers to be within minSecurityLevel + this amount
@@ -76,9 +77,7 @@ export async function main(ns) {
 
         // Get all servers
         executableServers = getServers(ns, "executableOnly");
-        hackableServers = getServers(ns, "hackableOnly").filter((server) => {
-            return !ignoreServers.includes(server);
-        });
+        hackableServers = getServers(ns, "hackableOnly").filter((server) => ns.getWeakenTime(server) < MAX_WEAKEN_TIME);
 
         // Run contract solving script each tick
         runSolveContractsScript(ns);
@@ -201,12 +200,6 @@ export async function main(ns) {
     }
 }
 
-function convertMsToTime(ms) {
-    const seconds = Math.floor((ms / 1000) % 60);
-    const minutes = Math.floor((ms / (1000 * 60)) % 60);
-    return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
-}
-
 /**
  * Calculates the hack stats given current security, hacking to hackingPercentage, and growing back to 100% money.
  * @param {NS} ns
@@ -320,9 +313,6 @@ function getTotalAvailableRam(ns) {
 
     // Initialize available RAM for each server
     for (const server of executableServers) {
-        if (ignoreServers.includes(server)) {
-            continue;
-        }
         const serverInfo = ns.getServer(server);
         const availableRam = serverInfo.maxRam - serverInfo.ramUsed;
         if (availableRam > 0) {
@@ -442,7 +432,7 @@ function calculateTargetServerPriorities(ns, excludeServers = []) {
  * @param {string} server - Server name to nuke
  */
 function nukeServerIfNeeded(ns, server) {
-    if (ns.hasRootAccess(server) || server.startsWith("hacknet-node") || ignoreServers.includes(server)) {
+    if (ns.hasRootAccess(server) || server.startsWith("hacknet-node")) {
         return;
     }
 
@@ -528,11 +518,13 @@ function getServers(ns, getServerOptions) {
         if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) return false;
         if (ns.getServerMaxMoney(server) === 0) return false;
         if (server === "home") return false;
+        if (ignoreServers.includes(server)) return false;
         return true;
     };
 
     const isExecutable = (server) => {
         if (!ns.hasRootAccess(server)) return false;
+        if (ignoreServers.includes(server)) return false;
         return true;
     };
 
@@ -544,7 +536,7 @@ function getServers(ns, getServerOptions) {
         nukeServerIfNeeded(ns, server);
         backdoorIfNeeded(ns, server);
 
-        if (getServerOptions === "all") {
+        if (getServerOptions === "all" || ignoreServers.includes(server)) {
             result.push(server);
         } else if (getServerOptions === "hackableOnly" && isHackable(server)) {
             result.push(server);
@@ -905,6 +897,10 @@ function executeWeaken(ns, host, target, threads, sleepTime, isPrep = false, wea
     );
     if (!pid) {
         ns.tprint(`WARN Failed to execute weaken script on ${target}`);
+        ns.print(`WARN Failed to execute weaken script on ${target}`);
+        ns.print(
+            `WARN Host: ${host}, Target: ${target}, Threads: ${threads}, SleepTime: ${sleepTime}, IsPrep: ${isPrep}, WeakenTime: ${weakenTime}`,
+        );
     }
 }
 
@@ -933,6 +929,10 @@ function executeGrow(ns, host, target, threads, sleepTime, stockArg = false, isP
     );
     if (!pid) {
         ns.tprint(`WARN Failed to execute grow script on ${target}`);
+        ns.print(`WARN Failed to execute grow script on ${target}`);
+        ns.print(
+            `WARN Host: ${host}, Target: ${target}, Threads: ${threads}, SleepTime: ${sleepTime}, StockArg: ${stockArg}, IsPrep: ${isPrep}, GrowTime: ${growTime}`,
+        );
     }
 }
 
@@ -961,6 +961,10 @@ function executeHack(ns, host, target, threads, sleepTime, stockArg = false, isP
     );
     if (!pid) {
         ns.tprint(`WARN Failed to execute hack script on ${target}`);
+        ns.print(`WARN Failed to execute hack script on ${target}`);
+        ns.print(
+            `WARN Host: ${host}, Target: ${target}, Threads: ${threads}, SleepTime: ${sleepTime}, StockArg: ${stockArg}, IsPrep: ${isPrep}, HackTime: ${hackTime}`,
+        );
     }
 }
 
@@ -1050,10 +1054,6 @@ function xpFarm(ns) {
     let totalThreads = 0;
 
     for (const server of executableServers) {
-        if (ignoreServers.includes(server)) {
-            continue;
-        }
-
         // Use serverRamCache which reflects actual available RAM after all batch scheduling
         const availableRam = serverRamCache.get(server) || 0;
         const threadsAvailable = Math.floor(availableRam / WEAKEN_SCRIPT_RAM_USAGE);
