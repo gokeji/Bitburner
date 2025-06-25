@@ -1106,6 +1106,77 @@ export async function main(ns) {
     }
 
     /**
+     * Allocates RAM for a single operation across available servers.
+     *
+     * @param {Array<[string, number]>} sortedServers - Array of [serverName, availableRam] sorted by RAM (largest first)
+     * @param {Map<string, number>} serverRamAvailable - Map of server names to available RAM (for updates)
+     * @param {number} ramPerThread - RAM cost per thread for this operation type
+     * @param {number} totalThreadsNeeded - Total number of threads needed
+     * @param {boolean} allowSplit - Whether to allow splitting across multiple servers
+     * @returns {{allocations: Map<string, number>, totalRamUsed: number} | false} -
+     *   Returns allocation map and total RAM used, or false if allocation failed
+     */
+    function allocateRamForOperation(
+        sortedServers,
+        serverRamAvailable,
+        ramPerThread,
+        totalThreadsNeeded,
+        allowSplit = true,
+    ) {
+        const allocations = new Map();
+        let totalRamUsed = 0;
+        let remainingThreads = totalThreadsNeeded;
+
+        // Determine iteration order based on allowSplit:
+        // - Non-splittable operations (allowSplit=false) use largest servers first to minimize fragmentation
+        // - Splittable operations (allowSplit=true) use smallest servers first to preserve larger servers
+        const serversToIterate = allowSplit ? [...sortedServers].reverse() : sortedServers;
+
+        // Single loop handles both splittable and non-splittable operations
+        for (const [server, availableRam] of serversToIterate) {
+            if (remainingThreads <= 0) break;
+
+            const threadsCanAllocate = Math.floor(availableRam / ramPerThread);
+
+            if (threadsCanAllocate >= remainingThreads) {
+                // Server has enough RAM for all remaining needs
+                const ramUsed = remainingThreads * ramPerThread;
+                allocations.set(server, remainingThreads);
+
+                // Update available RAM in the map
+                serverRamAvailable.set(server, availableRam - ramUsed);
+                totalRamUsed += ramUsed;
+                remainingThreads = 0;
+                break; // We're done
+            } else {
+                // Server doesn't have enough RAM for all needs
+                if (!allowSplit) {
+                    // Cannot split, so we fail
+                    return false;
+                } else {
+                    // Can split, so take what we can and continue
+                    if (threadsCanAllocate > 0) {
+                        const ramUsed = threadsCanAllocate * ramPerThread;
+                        allocations.set(server, threadsCanAllocate);
+
+                        // Update available RAM in the map
+                        serverRamAvailable.set(server, availableRam - ramUsed);
+                        totalRamUsed += ramUsed;
+                        remainingThreads -= threadsCanAllocate;
+                    }
+                    // Continue to next server for remaining threads
+                }
+            }
+        }
+
+        if (remainingThreads > 0) {
+            return false; // Cannot allocate all remaining threads
+        }
+
+        return { allocations, totalRamUsed };
+    }
+
+    /**
      * Unified function to find executable servers for any combination of HGW operations.
      * This function can handle both batch operations and prep operations with flexible allocation.
      *
@@ -1143,7 +1214,10 @@ export async function main(ns) {
         // Create a copy of server RAM availability to track allocations
         const serverRamAvailable = new Map(serverRamCache);
 
-        // Separate operations by type and calculate total RAM needed
+        // Sort servers by available RAM (largest first) - do this once and reuse
+        const sortedServersByRam = Array.from(serverRamAvailable.entries()).sort((a, b) => b[1] - a[1]); // Sort by RAM descending (largest first)
+
+        // Separate operations by type
         const growOperations = operations.filter((op) => op.type === "grow");
         const hackOperations = operations.filter((op) => op.type === "hack");
         const weakenOperations = operations.filter((op) => op.type === "weaken");
@@ -1154,99 +1228,63 @@ export async function main(ns) {
         };
 
         // Step 1: Allocate grow operations first (must be on single servers)
+        // Will automatically use largest servers first since allowSplit=false
         for (const growOp of growOperations) {
-            const ramNeeded = growOp.threads * GROW_SCRIPT_RAM_USAGE;
-            let allocated = false;
+            const opKey = growOp.id || "grow";
+            const allocation = allocateRamForOperation(
+                sortedServersByRam,
+                serverRamAvailable,
+                GROW_SCRIPT_RAM_USAGE,
+                growOp.threads,
+                false, // Grow cannot be split (will use largest servers first)
+            );
 
-            // Find a single server that can handle the entire grow demand
-            for (const [server, availableRam] of serverRamAvailable) {
-                if (availableRam >= ramNeeded) {
-                    const opKey = growOp.id || "grow";
-                    if (!result[opKey]) {
-                        result[opKey] = new Map();
-                    }
-                    result[opKey].set(server, growOp.threads);
-
-                    // Update available RAM
-                    serverRamAvailable.set(server, availableRam - ramNeeded);
-                    result.totalRamUsed += ramNeeded;
-                    allocated = true;
-                    break;
-                }
-            }
-
-            if (!allocated) {
+            if (!allocation) {
                 return false; // Cannot allocate grow operation
             }
+
+            result[opKey] = allocation.allocations;
+            result.totalRamUsed += allocation.totalRamUsed;
         }
 
         // Step 2: Allocate hack operations (can be split across multiple servers)
+        // Will automatically use smallest servers first since allowSplit=true
         for (const hackOp of hackOperations) {
-            const ramNeeded = hackOp.threads * HACK_SCRIPT_RAM_USAGE;
-            let remainingThreads = hackOp.threads;
             const opKey = hackOp.id || "hack";
+            const allocation = allocateRamForOperation(
+                sortedServersByRam,
+                serverRamAvailable,
+                HACK_SCRIPT_RAM_USAGE,
+                hackOp.threads,
+                true, // Hack can be split (will use smallest servers first)
+            );
 
-            if (!result[opKey]) {
-                result[opKey] = new Map();
+            if (!allocation) {
+                return false; // Cannot allocate hack operation
             }
 
-            // Try to allocate threads across available servers
-            for (const [server, availableRam] of serverRamAvailable) {
-                if (remainingThreads <= 0) break;
-
-                const threadsCanAllocate = Math.floor(availableRam / HACK_SCRIPT_RAM_USAGE);
-                const threadsToAllocate = Math.min(remainingThreads, threadsCanAllocate);
-
-                if (threadsToAllocate > 0) {
-                    const ramUsed = threadsToAllocate * HACK_SCRIPT_RAM_USAGE;
-                    result[opKey].set(server, threadsToAllocate);
-
-                    // Update available RAM
-                    serverRamAvailable.set(server, availableRam - ramUsed);
-                    result.totalRamUsed += ramUsed;
-                    remainingThreads -= threadsToAllocate;
-                }
-            }
-
-            if (remainingThreads > 0) {
-                return false; // Cannot allocate all hack threads
-            }
+            result[opKey] = allocation.allocations;
+            result.totalRamUsed += allocation.totalRamUsed;
         }
 
         // Step 3: Allocate weaken operations (can be split across multiple servers)
+        // Will automatically use smallest servers first since allowSplit=true
         for (const weakenOp of weakenOperations) {
-            const ramNeeded = weakenOp.threads * WEAKEN_SCRIPT_RAM_USAGE;
-            let remainingThreads = weakenOp.threads;
             const opKey = weakenOp.id || "weaken";
+            const allocation = allocateRamForOperation(
+                sortedServersByRam,
+                serverRamAvailable,
+                WEAKEN_SCRIPT_RAM_USAGE,
+                weakenOp.threads,
+                true, // Weaken can be split (will use smallest servers first)
+            );
 
-            if (!result[opKey]) {
-                result[opKey] = new Map();
+            if (!allocation) {
+                return false; // Cannot allocate weaken operation
             }
 
-            // Try to allocate threads across available servers
-            for (const [server, availableRam] of serverRamAvailable) {
-                if (remainingThreads <= 0) break;
-
-                const threadsCanAllocate = Math.floor(availableRam / WEAKEN_SCRIPT_RAM_USAGE);
-                const threadsToAllocate = Math.min(remainingThreads, threadsCanAllocate);
-
-                if (threadsToAllocate > 0) {
-                    const ramUsed = threadsToAllocate * WEAKEN_SCRIPT_RAM_USAGE;
-
-                    // If this server already has threads allocated for this operation, add to it
-                    const existingThreads = result[opKey].get(server) || 0;
-                    result[opKey].set(server, existingThreads + threadsToAllocate);
-
-                    // Update available RAM
-                    serverRamAvailable.set(server, availableRam - ramUsed);
-                    result.totalRamUsed += ramUsed;
-                    remainingThreads -= threadsToAllocate;
-                }
-            }
-
-            if (remainingThreads > 0) {
-                return false; // Cannot allocate all weaken threads
-            }
+            result[opKey] = allocation.allocations;
+            result.totalRamUsed += allocation.totalRamUsed;
         }
 
         return result;
