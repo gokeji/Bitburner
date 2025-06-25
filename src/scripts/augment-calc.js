@@ -684,6 +684,11 @@ function calculateOptimalOrder(augments, maxBudget = null) {
     return { purchaseOrder, unpurchasedAugments, totalCost, totalCostOfAll, nextUnaffordableItem };
 }
 
+/**
+ * @param {Array<{name: string, cost: number, faction: string, prereqs: string[], hackingBoost: boolean, repBoost: boolean, available: boolean}>} initialAugments
+ * @param {number} maxBudgetInDollars
+ * @returns {Object<{purchaseOrder: Array<{name: string, cost: number, faction: string, prereqs: string[], hackingBoost: boolean, repBoost: boolean, available: boolean}>, unpurchasedAugments: Array<{name: string, cost: number, faction: string, prereqs: string[], hackingBoost: boolean, repBoost: boolean, available: boolean}>, totalCost: number, totalCostOfAll: number, neurofluxCount: number, nextUnaffordableItem: {name: string, cost: number, faction: string, prereqs: string[], hackingBoost: boolean, repBoost: boolean, available: boolean}}>}
+ */
 export function optimizeAugmentPurchases(initialAugments, maxBudgetInDollars) {
     const maxBudget = maxBudgetInDollars ? maxBudgetInDollars / 1000000 : null;
 

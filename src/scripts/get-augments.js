@@ -164,6 +164,33 @@ function calculateTotalStatIncrease(ns, augmentations) {
         charismaExpMultiplier *= stats.charisma_exp;
     }
 
+    // Calculate average multipliers
+    const averageHackingBoost =
+        (hackingMultiplier +
+            hackingChanceMultiplier +
+            hackingSpeedMultiplier +
+            hackingMoneyMultiplier +
+            hackingGrowMultiplier +
+            hackingExpMultiplier) /
+        6;
+    const averageCombatBoost = (strengthMultiplier + defenseMultiplier + dexterityMultiplier + agilityMultiplier) / 4;
+
+    // Calculate relative multipliers (final / original)
+    const relativeHackingLevelBoost = hackingMultiplier / player.mults.hacking;
+    const relativeHackingBoost =
+        averageHackingBoost /
+        ((player.mults.hacking +
+            player.mults.hacking_chance +
+            player.mults.hacking_speed +
+            player.mults.hacking_money +
+            player.mults.hacking_grow +
+            player.mults.hacking_exp) /
+            6);
+    const relativeCombatBoost =
+        averageCombatBoost /
+        ((player.mults.strength + player.mults.defense + player.mults.dexterity + player.mults.agility) / 4);
+    const relativeRepBoost = repMultiplier / player.mults.faction_rep;
+
     return {
         totalHacking: {
             hackingLevel: hackingMultiplier,
@@ -188,6 +215,14 @@ function calculateTotalStatIncrease(ns, augmentations) {
             charisma: charismaMultiplier,
             charismaExp: charismaExpMultiplier,
         },
+        // Average boost calculations
+        averageHackingBoost: averageHackingBoost,
+        averageCombatBoost: averageCombatBoost,
+        // Relative multipliers (how much better compared to original)
+        relativeHackingLevelBoost: relativeHackingLevelBoost,
+        relativeHackingBoost: relativeHackingBoost,
+        relativeCombatBoost: relativeCombatBoost,
+        relativeRepBoost: relativeRepBoost,
         neurofluxLevels: neuroFluxToBuy,
         // Store original values for comparison
         originalHacking: {
@@ -214,6 +249,28 @@ function calculateTotalStatIncrease(ns, augmentations) {
             charismaExp: player.mults.charisma_exp,
         },
     };
+}
+
+/**
+ * Calculates optimization score based on the specified criteria
+ * @param {Object} statIncrease - Result from calculateTotalStatIncrease
+ * @param {string} optimizeFor - What to optimize for ("hackingLevel", "hackingAndRep", "combat", "all")
+ * @returns {number} The optimization score
+ */
+function getOptimizationScore(statIncrease, optimizeFor) {
+    if (optimizeFor === "hackingLevel") {
+        return statIncrease.relativeHackingLevelBoost;
+    } else if (optimizeFor === "hackingAndRep") {
+        return statIncrease.relativeHackingLevelBoost + statIncrease.relativeRepBoost;
+    } else if (optimizeFor === "combat") {
+        return statIncrease.relativeCombatBoost;
+    } else if (optimizeFor === "all") {
+        return (
+            statIncrease.relativeHackingLevelBoost + statIncrease.relativeCombatBoost + statIncrease.relativeRepBoost
+        );
+    }
+    // Default to hacking + rep for backward compatibility
+    return statIncrease.relativeHackingLevelBoost + statIncrease.relativeRepBoost;
 }
 
 /**
@@ -340,9 +397,10 @@ function displayStatIncreases(ns, statIncrease) {
  * @param {NS} ns - NetScript object
  * @param {Array} augmentsForOptimizer - Available augmentations
  * @param {number} totalBudget - Total available budget
+ * @param {"hacking" | "rep" | "combat" | "all"} optimizeFor - What to optimize for (hacking, rep, combat, all)
  * @returns {Object} Best optimization result with additional stat information
  */
-function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget) {
+function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, optimizeFor) {
     // Get all unique prices and sort them descending
     const allPrices = [...new Set(augmentsForOptimizer.map((aug) => aug.cost))].sort((a, b) => b - a);
 
@@ -350,8 +408,10 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget) {
     let bestTotalStats = 0;
     let bestMaxPrice = null;
 
+    // Use the shared optimization scoring function
+
     ns.print("\n=== ITERATIVE PRICE FILTERING OPTIMIZATION ===");
-    ns.print("Finding the best price filter that maximizes hacking + rep stats...");
+    ns.print(`Finding the best price filter that maximizes ${optimizeFor} stats...`);
     ns.print(`Testing ${allPrices.length} different price thresholds...`);
 
     // Try each price threshold
@@ -366,10 +426,10 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget) {
 
         // Calculate total stat increase for this result
         const statIncrease = calculateTotalStatIncrease(ns, result.purchaseOrder);
-        const totalStatScore = statIncrease.totalHacking.hackingLevel - 1 + (statIncrease.totalOther.rep - 1);
+        const totalStatScore = getOptimizationScore(statIncrease, optimizeFor);
 
         ns.print(
-            `Max price: $${ns.formatNumber(maxPrice * 1000000)} | Augments: ${result.purchaseOrder.length} | Hacking: +${((statIncrease.totalHacking.hackingLevel - 1) * 100).toFixed(1)}% | Rep: +${((statIncrease.totalOther.rep - 1) * 100).toFixed(1)}% | Total score: ${totalStatScore.toFixed(3)}`,
+            `Max price: $${ns.formatNumber(maxPrice * 1000000)} | Augments: ${result.purchaseOrder.length} | Hacking: ${statIncrease.relativeHackingLevelBoost.toFixed(2)}X | Rep: ${statIncrease.relativeRepBoost.toFixed(2)}X | Combat: ${statIncrease.relativeCombatBoost.toFixed(2)}X | Score: ${totalStatScore.toFixed(3)}`,
         );
 
         // Update best result if this is better
@@ -377,7 +437,9 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget) {
             bestTotalStats = totalStatScore;
             bestResult = result;
             bestMaxPrice = maxPrice;
+
             bestResult.statIncrease = statIncrease;
+            bestResult.totalStatScore = totalStatScore;
             bestResult.maxPriceFilter = maxPrice;
         }
     }
@@ -386,8 +448,18 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget) {
         ns.print(`\n✅ Optimization complete!`);
         ns.print(`   Best filter: Max price $${ns.formatNumber(bestMaxPrice * 1000000)}`);
         ns.print(`   Augments: ${bestResult.purchaseOrder.length}`);
-        ns.print(`   Hacking boost: +${((bestResult.statIncrease.totalHacking.hackingLevel - 1) * 100).toFixed(1)}%`);
-        ns.print(`   Rep boost: +${((bestResult.statIncrease.totalOther.rep - 1) * 100).toFixed(1)}%`);
+        ns.print(
+            `   Hacking Level: +${((bestResult.statIncrease.relativeHackingLevelBoost - 1) * 100).toFixed(1)}% (${bestResult.statIncrease.relativeHackingLevelBoost.toFixed(2)}X)`,
+        );
+        ns.print(
+            `   Hacking boost: +${((bestResult.statIncrease.averageHackingBoost - 1) * 100).toFixed(1)}% (${bestResult.statIncrease.relativeHackingBoost.toFixed(2)}X)`,
+        );
+        ns.print(
+            `   Rep boost: +${((bestResult.statIncrease.totalOther.rep - 1) * 100).toFixed(1)}% (${bestResult.statIncrease.relativeRepBoost.toFixed(2)}X)`,
+        );
+        ns.print(
+            `   Combat boost: +${((bestResult.statIncrease.averageCombatBoost - 1) * 100).toFixed(1)}% (${bestResult.statIncrease.relativeCombatBoost.toFixed(2)}X)`,
+        );
         ns.print(`   Total stat score: ${bestTotalStats.toFixed(3)}`);
     }
 
@@ -557,37 +629,31 @@ export async function main(ns) {
     // Optimize the purchase order
     let result = optimizeAugmentPurchases(augmentsForOptimizer, totalBudget);
 
+    const optimizeFor = hackingRepOnly ? "hackingAndRep" : hackingOnly ? "hackingLevel" : "all";
+
     // Calculate total stat increases for the current result
     if (result.purchaseOrder.length > 0) {
         result.statIncrease = calculateTotalStatIncrease(ns, result.purchaseOrder);
+        result.totalStatScore = getOptimizationScore(result.statIncrease, optimizeFor);
     }
 
     // If we can't afford all augments, try price filtering optimization
     if (result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
         ns.print("🔍 Cannot afford all augments with hacking-rep-only filter. Trying price filtering optimization...");
 
-        // Store the original result for comparison
-        const originalStatIncrease = result.statIncrease;
-        const originalTotalStats = originalStatIncrease
-            ? originalStatIncrease.totalHacking.hackingLevel - 1 + (originalStatIncrease.totalOther.rep - 1)
-            : 0;
-
-        const optimizedResult = optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget);
+        const optimizedResult = optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, optimizeFor);
         if (optimizedResult) {
-            const optimizedTotalStats =
-                optimizedResult.statIncrease.totalHacking.hackingLevel -
-                1 +
-                (optimizedResult.statIncrease.totalOther.rep - 1);
+            const optimizedTotalStats = optimizedResult.totalStatScore;
 
             ns.print(`\n📊 COMPARISON:`);
             ns.print(
-                `   Original plan: ${result.purchaseOrder.length} augments, stat score: ${originalTotalStats.toFixed(3)}`,
+                `   Original plan: ${result.purchaseOrder.length} augments, stat score: ${result.totalStatScore.toFixed(3)}`,
             );
             ns.print(
                 `   Optimized plan: ${optimizedResult.purchaseOrder.length} augments, stat score: ${optimizedTotalStats.toFixed(3)}`,
             );
             ns.print(
-                `   Improvement: ${((optimizedTotalStats - originalTotalStats) * 100).toFixed(1)}% better stat increase`,
+                `   Improvement: ${((optimizedTotalStats - result.totalStatScore) * 100).toFixed(1)}% better stat increase`,
             );
 
             result = optimizedResult;
