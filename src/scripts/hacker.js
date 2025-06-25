@@ -75,7 +75,17 @@ export async function main(ns) {
 
         // Get all servers
         executableServers = getServers(ns, "executableOnly");
-        hackableServers = getServers(ns, "hackableOnly").filter((server) => ns.getWeakenTime(server) < MAX_WEAKEN_TIME);
+        hackableServers = getServers(ns, "hackableOnly").filter((server) => {
+            const serverInfo = ns.getServer(server);
+            const optimalServer = {
+                ...serverInfo,
+                hackDifficulty: serverInfo.minDifficulty,
+                moneyAvailable: serverInfo.moneyMax,
+            };
+            const player = ns.getPlayer();
+            const weakenTime = ns.formulas.hacking.weakenTime(optimalServer, player);
+            return weakenTime < MAX_WEAKEN_TIME;
+        });
 
         // Run contract solving script each tick
         runSolveContractsScript(ns);
@@ -193,20 +203,23 @@ export async function main(ns) {
                 }
             }
 
-            // --- New Security Drift Check ---
-            const maxSecurityIncrease = serverStats.maxSecurityIncreasePerBatch;
-            // Allow for some buffer. A single batch shouldn't raise it past min + maxIncrease.
-            // A healthy stream of batches should hover around minSecurity. If it gets this high, something is wrong.
-            const securityThreshold = serverInfo.minDifficulty + maxSecurityIncrease * 1.5;
+            if (isHgw) {
+                // --- New Security Drift Check ---
+                // Only check if the server is not currently being batched
+                const maxSecurityIncrease = serverStats.maxSecurityIncreasePerBatch;
+                // Allow for some buffer. A single batch shouldn't raise it past min + maxIncrease.
+                // A healthy stream of batches should hover around minSecurity. If it gets this high, something is wrong.
+                const securityThreshold = serverInfo.minDifficulty + maxSecurityIncrease * 1.5;
 
-            if (serverInfo.hackDifficulty > securityThreshold) {
-                const message = `WARN: Security on ${currentServer} (${ns.formatNumber(
-                    serverInfo.hackDifficulty,
-                    2,
-                )}) breached threshold (${ns.formatNumber(securityThreshold, 2)}). Recovering.`;
-                ns.print(message);
-                killAllScriptsForTarget(ns, currentServer, ["hack"]);
-                continue; // Skip processing this server for HGW/prep this tick
+                if (serverInfo.hackDifficulty > securityThreshold) {
+                    const message = `WARN: Security on ${currentServer} (${ns.formatNumber(
+                        serverInfo.hackDifficulty,
+                        2,
+                    )}) breached threshold (${ns.formatNumber(securityThreshold, 2)}). Recovering.`;
+                    ns.print(message);
+                    killAllScriptsForTarget(ns, currentServer, ["hack"]);
+                    continue; // Skip processing this server for HGW/prep this tick
+                }
             }
 
             const securityLevel = serverInfo.hackDifficulty;
