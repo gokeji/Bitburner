@@ -1104,4 +1104,151 @@ export async function main(ns) {
             }
         }
     }
+
+    /**
+     * Unified function to find executable servers for any combination of HGW operations.
+     * This function can handle both batch operations and prep operations with flexible allocation.
+     *
+     * @param {NS} ns - The Netscript API.
+     * @param {Array<{type: 'hack'|'grow'|'weaken', threads: number, id?: string}>} operations - Array of operations needed.
+     *   Each operation should specify:
+     *   - type: 'hack', 'grow', or 'weaken'
+     *   - threads: number of threads needed
+     *   - id: optional identifier to distinguish multiple operations of the same type (e.g., 'initial_weaken', 'final_weaken')
+     *
+     * @returns {Object|false} - Returns allocation result or false if not enough RAM.
+     *   Success format: {
+     *     hack: Map<string, number>,     // serverName -> threads (can be split across multiple servers)
+     *     grow: Map<string, number>,     // serverName -> threads (single server only)
+     *     weaken: Map<string, number>,   // serverName -> threads (can be split across multiple servers)
+     *     initial_weaken: Map<string, number>, // if id='initial_weaken'
+     *     final_weaken: Map<string, number>,   // if id='final_weaken'
+     *     // ... other operations with custom ids
+     *     totalRamUsed: number
+     *   }
+     *
+     * Key behaviors:
+     * 1. All operations must be satisfied or the function returns false
+     * 2. Grow operations must be allocated to a single server (cannot be split)
+     * 3. Hack and weaken operations can be split across multiple servers
+     * 4. Grow operations are allocated first to ensure they get priority
+     * 5. Remaining operations are allocated to remaining servers
+     */
+    function findExecutableServersForOperations(ns, operations) {
+        // Validate input
+        if (!operations || operations.length === 0) {
+            return false;
+        }
+
+        // Create a copy of server RAM availability to track allocations
+        const serverRamAvailable = new Map(serverRamCache);
+
+        // Separate operations by type and calculate total RAM needed
+        const growOperations = operations.filter((op) => op.type === "grow");
+        const hackOperations = operations.filter((op) => op.type === "hack");
+        const weakenOperations = operations.filter((op) => op.type === "weaken");
+
+        // Result object to store allocations
+        const result = {
+            totalRamUsed: 0,
+        };
+
+        // Step 1: Allocate grow operations first (must be on single servers)
+        for (const growOp of growOperations) {
+            const ramNeeded = growOp.threads * GROW_SCRIPT_RAM_USAGE;
+            let allocated = false;
+
+            // Find a single server that can handle the entire grow demand
+            for (const [server, availableRam] of serverRamAvailable) {
+                if (availableRam >= ramNeeded) {
+                    const opKey = growOp.id || "grow";
+                    if (!result[opKey]) {
+                        result[opKey] = new Map();
+                    }
+                    result[opKey].set(server, growOp.threads);
+
+                    // Update available RAM
+                    serverRamAvailable.set(server, availableRam - ramNeeded);
+                    result.totalRamUsed += ramNeeded;
+                    allocated = true;
+                    break;
+                }
+            }
+
+            if (!allocated) {
+                return false; // Cannot allocate grow operation
+            }
+        }
+
+        // Step 2: Allocate hack operations (can be split across multiple servers)
+        for (const hackOp of hackOperations) {
+            const ramNeeded = hackOp.threads * HACK_SCRIPT_RAM_USAGE;
+            let remainingThreads = hackOp.threads;
+            const opKey = hackOp.id || "hack";
+
+            if (!result[opKey]) {
+                result[opKey] = new Map();
+            }
+
+            // Try to allocate threads across available servers
+            for (const [server, availableRam] of serverRamAvailable) {
+                if (remainingThreads <= 0) break;
+
+                const threadsCanAllocate = Math.floor(availableRam / HACK_SCRIPT_RAM_USAGE);
+                const threadsToAllocate = Math.min(remainingThreads, threadsCanAllocate);
+
+                if (threadsToAllocate > 0) {
+                    const ramUsed = threadsToAllocate * HACK_SCRIPT_RAM_USAGE;
+                    result[opKey].set(server, threadsToAllocate);
+
+                    // Update available RAM
+                    serverRamAvailable.set(server, availableRam - ramUsed);
+                    result.totalRamUsed += ramUsed;
+                    remainingThreads -= threadsToAllocate;
+                }
+            }
+
+            if (remainingThreads > 0) {
+                return false; // Cannot allocate all hack threads
+            }
+        }
+
+        // Step 3: Allocate weaken operations (can be split across multiple servers)
+        for (const weakenOp of weakenOperations) {
+            const ramNeeded = weakenOp.threads * WEAKEN_SCRIPT_RAM_USAGE;
+            let remainingThreads = weakenOp.threads;
+            const opKey = weakenOp.id || "weaken";
+
+            if (!result[opKey]) {
+                result[opKey] = new Map();
+            }
+
+            // Try to allocate threads across available servers
+            for (const [server, availableRam] of serverRamAvailable) {
+                if (remainingThreads <= 0) break;
+
+                const threadsCanAllocate = Math.floor(availableRam / WEAKEN_SCRIPT_RAM_USAGE);
+                const threadsToAllocate = Math.min(remainingThreads, threadsCanAllocate);
+
+                if (threadsToAllocate > 0) {
+                    const ramUsed = threadsToAllocate * WEAKEN_SCRIPT_RAM_USAGE;
+
+                    // If this server already has threads allocated for this operation, add to it
+                    const existingThreads = result[opKey].get(server) || 0;
+                    result[opKey].set(server, existingThreads + threadsToAllocate);
+
+                    // Update available RAM
+                    serverRamAvailable.set(server, availableRam - ramUsed);
+                    result.totalRamUsed += ramUsed;
+                    remainingThreads -= threadsToAllocate;
+                }
+            }
+
+            if (remainingThreads > 0) {
+                return false; // Cannot allocate all weaken threads
+            }
+        }
+
+        return result;
+    }
 }
