@@ -199,7 +199,7 @@ export async function main(ns) {
             const currentServer = serversByThroughput[serverIndex];
             serverIndex++; // Increment server index
 
-            const { isTargeted, isPrep, isHgw } = isServerBeingTargeted(ns, currentServer);
+            let { isTargeted, isPrep, isHgw } = isServerBeingTargeted(ns, currentServer);
 
             const serverStats = globalPrioritiesMap.get(currentServer);
             if (!serverStats) {
@@ -208,6 +208,23 @@ export async function main(ns) {
             }
 
             const serverInfo = ns.getServer(currentServer);
+
+            // --- Stale Recovery Check ---
+            if (isPrep) {
+                const isFullyPrepped =
+                    serverInfo.moneyAvailable >= serverInfo.moneyMax &&
+                    serverInfo.hackDifficulty <= serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD;
+
+                if (isFullyPrepped) {
+                    const message = `INFO: ${currentServer} is fully prepped with lingering G/W scripts. Clearing them to start HGW.`;
+                    ns.print(message);
+                    killLingeringScriptsForTarget(ns, currentServer, executableServers, growScript, weakenScript);
+                    // Invalidate the state for this tick, as the server is now truly idle.
+                    isPrep = false;
+                    isTargeted = false;
+                    isHgw = false;
+                }
+            }
 
             // --- New Security Drift Check ---
             const maxSecurityIncrease = serverStats.maxSecurityIncreasePerBatch;
@@ -1336,34 +1353,65 @@ export async function main(ns) {
 
         return result;
     }
-}
 
-/**
- * Finds and kills all instances of the hack script running against a specific target.
- * @param {NS} ns - The Netscript API.
- * @param {string} target - The server target whose hack scripts should be killed.
- * @param {string[]} executableServers - A list of all servers where scripts can run.
- * @param {string} hackScript - The path to the hack script.
- */
-function killAllHackScriptsForTarget(ns, target, executableServers, hackScript) {
-    let killedCount = 0;
-    // Get script name without the leading '/' for matching with ps() result
-    const hackScriptName = hackScript.startsWith("/") ? hackScript.substring(1) : hackScript;
+    /**
+     * Finds and kills all instances of the hack script running against a specific target.
+     * @param {NS} ns - The Netscript API.
+     * @param {string} target - The server target whose hack scripts should be killed.
+     */
+    function killAllHackScriptsForTarget(ns, target) {
+        let killedCount = 0;
+        // Get script name without the leading '/' for matching with ps() result
+        const hackScriptName = hackScript.startsWith("/") ? hackScript.substring(1) : hackScript;
 
-    for (const server of executableServers) {
-        const runningScripts = ns.ps(server);
-        for (const script of runningScripts) {
-            // Check filename and the first argument (the target)
-            if (script.filename === hackScriptName && script.args[0] === target) {
-                if (ns.kill(script.pid)) {
-                    killedCount++;
+        for (const server of executableServers) {
+            const runningScripts = ns.ps(server);
+            for (const script of runningScripts) {
+                // Check filename and the first argument (the target)
+                if (script.filename === hackScriptName && script.args[0] === target) {
+                    if (ns.kill(script.pid)) {
+                        killedCount++;
+                    }
                 }
             }
         }
+        if (killedCount > 0) {
+            const message = `RECOVERY: Killed ${killedCount} hack scripts targeting ${target} to prevent desync.`;
+            ns.print(message);
+            ns.tprint(message);
+        }
     }
-    if (killedCount > 0) {
-        const message = `RECOVERY: Killed ${killedCount} hack scripts targeting ${target} to prevent desync.`;
-        ns.print(message);
-        ns.tprint(message);
+
+    /**
+     * Kills lingering Grow/Weaken scripts from a previous HGW batch on a target that is now fully prepped.
+     * This prevents the script from waiting unnecessarily for scripts that are no longer needed.
+     * @param {NS} ns - The Netscript API.
+     * @param {string} target - The server target whose scripts should be killed.
+     */
+    function killLingeringScriptsForTarget(ns, target) {
+        let killedCount = 0;
+        const growScriptName = growScript.substring(1);
+        const weakenScriptName = weakenScript.substring(1);
+
+        for (const server of executableServers) {
+            const runningScripts = ns.ps(server);
+            for (const script of runningScripts) {
+                const scriptName = script.filename;
+                const scriptArgs = script.args;
+                // Check if it's a G/W script targeting our server from a HGW batch (not a prep batch)
+                if (
+                    scriptArgs[0] === target &&
+                    scriptArgs.includes("hgw") &&
+                    (scriptName === growScriptName || scriptName === weakenScriptName)
+                ) {
+                    if (ns.kill(script.pid)) {
+                        killedCount++;
+                    }
+                }
+            }
+        }
+        if (killedCount > 0) {
+            ns.print(`RECOVERY: Killed ${killedCount} lingering G/W scripts on ${target}.`);
+        }
     }
 }
