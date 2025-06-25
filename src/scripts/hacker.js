@@ -119,12 +119,16 @@ export async function main(ns) {
         }
 
         if (serversToRecover.length > 0) {
-            ns.print(`INFO: Detected cumulative drift on ${serversToRecover.length} servers. Initiating recovery.`);
-            for (const server of serversToRecover) {
-                killAllScriptsForTarget(ns, server, ["hack"]);
-                // Remove from tracking. It will be re-added when batches restart on it.
-                serverBatchState.delete(server);
-            }
+            ns.print(
+                `INFO: Detected cumulative drift on ${serversToRecover.length} servers: ${serversToRecover.join(
+                    ", ",
+                )}.`,
+            );
+            // for (const server of serversToRecover) {
+            //     killAllScriptsForTarget(ns, server, ["hack"]);
+            //     // Remove from tracking. It will be re-added when batches restart on it.
+            //     serverBatchState.delete(server);
+            // }
         }
 
         // Check for weakenTime desync by comparing with the previous tick
@@ -163,7 +167,6 @@ export async function main(ns) {
             const warnMessage = `WARN: ${outOfSyncServers} servers are out of sync. Avg weakenTime change: ${ns.formatNumber(avgMsChange, 2)}ms (${ns.formatNumber(avgPercentChange, 2)}%). Player Level: ${ns.getPlayer().skills.hacking}. HackingMult: ${ns.getPlayer().mults.hacking_speed}.`;
 
             ns.print(warnMessage);
-            ns.tprint(warnMessage);
 
             // Sort by priority (throughput) and show top 3
             outOfSyncChanges.sort((a, b) => b.priority - a.priority);
@@ -173,7 +176,6 @@ export async function main(ns) {
                 const change = topThreeChanges[i];
                 const changeMessage = `Top ${i + 1} Priority Server: ${change.server} - ${ns.formatNumber(change.msChange, 2)}ms change (${ns.formatNumber(change.percentChange, 2)}%)`;
                 ns.print(changeMessage);
-                ns.tprint(changeMessage);
             }
         }
 
@@ -238,7 +240,6 @@ export async function main(ns) {
                     2,
                 )}) breached threshold (${ns.formatNumber(securityThreshold, 2)}). Recovering.`;
                 ns.print(message);
-                ns.tprint(message);
                 killAllScriptsForTarget(ns, currentServer, ["hack"]);
                 serverBatchState.delete(currentServer);
                 continue; // Skip processing this server for HGW/prep this tick
@@ -1395,7 +1396,6 @@ export async function main(ns) {
 
             const message = `RECOVERY: Killed ${killedCount} HGW scripts targeting ${target} (${hackKilled}H, ${growKilled}G, ${weakenKilled}W)`;
             ns.print(message);
-            ns.tprint(message);
         }
     }
 }
