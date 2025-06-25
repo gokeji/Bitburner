@@ -261,16 +261,16 @@ function getOptimizationScore(statIncrease, optimizeFor) {
     if (optimizeFor === "hackingLevel") {
         return statIncrease.relativeHackingLevelBoost;
     } else if (optimizeFor === "hackingAndRep") {
-        return statIncrease.relativeHackingLevelBoost + statIncrease.relativeRepBoost;
+        return statIncrease.relativeHackingLevelBoost * statIncrease.relativeRepBoost;
     } else if (optimizeFor === "combat") {
         return statIncrease.relativeCombatBoost;
     } else if (optimizeFor === "all") {
         return (
-            statIncrease.relativeHackingLevelBoost + statIncrease.relativeCombatBoost + statIncrease.relativeRepBoost
+            statIncrease.relativeHackingLevelBoost * statIncrease.relativeCombatBoost * statIncrease.relativeRepBoost
         );
     }
     // Default to hacking + rep for backward compatibility
-    return statIncrease.relativeHackingLevelBoost + statIncrease.relativeRepBoost;
+    return statIncrease.relativeHackingLevelBoost * statIncrease.relativeRepBoost;
 }
 
 /**
@@ -429,7 +429,7 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, optim
         const totalStatScore = getOptimizationScore(statIncrease, optimizeFor);
 
         ns.print(
-            `Max price: $${ns.formatNumber(maxPrice * 1000000)} | Augments: ${result.purchaseOrder.length} | Hacking: ${statIncrease.relativeHackingLevelBoost.toFixed(2)}X | Rep: ${statIncrease.relativeRepBoost.toFixed(2)}X | Combat: ${statIncrease.relativeCombatBoost.toFixed(2)}X | Score: ${totalStatScore.toFixed(3)}`,
+            `Max price: $${ns.formatNumber(maxPrice * 1000000)} | Augments: ${result.purchaseOrder.length} | Hacking: ${statIncrease.relativeHackingLevelBoost.toFixed(2)}X | Rep: ${statIncrease.relativeRepBoost.toFixed(2)}X | Combat: ${statIncrease.relativeCombatBoost.toFixed(2)}X | Score: ${totalStatScore.toFixed(3)}X`,
         );
 
         // Update best result if this is better
@@ -452,13 +452,13 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, optim
             `   Hacking Level: +${((bestResult.statIncrease.relativeHackingLevelBoost - 1) * 100).toFixed(1)}% (${bestResult.statIncrease.relativeHackingLevelBoost.toFixed(2)}X)`,
         );
         ns.print(
-            `   Hacking boost: +${((bestResult.statIncrease.averageHackingBoost - 1) * 100).toFixed(1)}% (${bestResult.statIncrease.relativeHackingBoost.toFixed(2)}X)`,
+            `   Hacking boost: +${((bestResult.statIncrease.relativeHackingBoost - 1) * 100).toFixed(1)}% (${bestResult.statIncrease.relativeHackingBoost.toFixed(2)}X)`,
         );
         ns.print(
-            `   Rep boost: +${((bestResult.statIncrease.totalOther.rep - 1) * 100).toFixed(1)}% (${bestResult.statIncrease.relativeRepBoost.toFixed(2)}X)`,
+            `   Rep boost: +${((bestResult.statIncrease.relativeRepBoost - 1) * 100).toFixed(1)}% (${bestResult.statIncrease.relativeRepBoost.toFixed(2)}X)`,
         );
         ns.print(
-            `   Combat boost: +${((bestResult.statIncrease.averageCombatBoost - 1) * 100).toFixed(1)}% (${bestResult.statIncrease.relativeCombatBoost.toFixed(2)}X)`,
+            `   Combat boost: +${((bestResult.statIncrease.relativeCombatBoost - 1) * 100).toFixed(1)}% (${bestResult.statIncrease.relativeCombatBoost.toFixed(2)}X)`,
         );
         ns.print(`   Total stat score: ${bestTotalStats.toFixed(3)}`);
     }
@@ -664,7 +664,7 @@ export async function main(ns) {
     ns.print("\n");
     ns.print("=== OPTIMAL AUGMENTATION PURCHASE ORDER ===");
     ns.print(`Cost multiplier per purchase: 1.9x`);
-    ns.print("Legend: 🧠 = Improves hacking, 📈 = Improves reputation");
+    ns.print("Legend: 🧠 = Improves hacking, 📈 = Improves reputation, 💪 = Improves combat");
     if (hackingRepOnly) {
         ns.print("INFO Filter: Only showing hacking/reputation augments");
     }
@@ -680,9 +680,10 @@ export async function main(ns) {
         const aug = result.purchaseOrder[i];
         const hackingMark = aug.hackingBoost ? " 🧠" : "";
         const repMark = aug.repBoost ? " 📈" : "";
+        const combatMark = aug.combatBoost ? " 💪" : "";
         const prereqInfo = aug.prereqs.length > 0 ? `\n      - Requires: ${aug.prereqs.join(", ")}` : "";
         ns.print(
-            `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} [Base: $${ns.formatNumber(aug.cost * 1000000)}] - ${aug.name}${hackingMark}${repMark}${prereqInfo}`,
+            `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} [Base: $${ns.formatNumber(aug.cost * 1000000)}] - ${aug.name}${hackingMark}${repMark}${combatMark}${prereqInfo}`,
         );
     }
 
@@ -694,9 +695,10 @@ export async function main(ns) {
             const aug = result.unpurchasedAugments[i];
             const hackingMark = aug.hackingBoost ? " 🧠" : "";
             const repMark = aug.repBoost ? " 📈" : "";
+            const combatMark = aug.combatBoost ? " 💪" : "";
             const prereqInfo = aug.prereqs.length > 0 ? `\n      - Requires: ${aug.prereqs.join(", ")}` : "";
             ns.print(
-                `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} [Base: $${ns.formatNumber(aug.cost * 1000000)}] - ${aug.name}${hackingMark}${repMark}${prereqInfo}`,
+                `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} [Base: $${ns.formatNumber(aug.cost * 1000000)}] - ${aug.name}${hackingMark}${repMark}${combatMark}${prereqInfo}`,
             );
         }
     }
