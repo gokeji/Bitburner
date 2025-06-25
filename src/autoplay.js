@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = 120000000000; // 120 B max server value
+const MAX_SERVER_VALUE = -1; //120000000000; // 120 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-24";
 
@@ -123,8 +123,8 @@ export function startIpvgoIfNotRunning(ns) {
         // "The Black Hand", // hacking money
         // "Tetrads", // strength, defense, dexterity, and agility levels
         "Daedalus", // reputation gain
-        "Illuminati", // faster hack(), grow(), and weaken()
-        // "????????????", // w0r1d_d43m0n Hacking Levels
+        // "Illuminati", // faster hack(), grow(), and weaken()
+        "????????????", // w0r1d_d43m0n Hacking Levels
     ];
 
     startScriptIfNotRunning(ns, "ipvgo-smart.js", HOST_NAME, 1, ...opponents);

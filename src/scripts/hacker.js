@@ -36,6 +36,9 @@ var ignoreServers = ["b-05"];
 
 let tickCounter = 0;
 
+// Global priorities map that persists across the scheduling loop
+let globalPrioritiesMap = new Map();
+
 // automatically backdoor these servers. Requires singularity functions.
 var backdoorServers = new Set([
     "CSEC",
@@ -93,7 +96,9 @@ export async function main(ns) {
         const totalRamAvailable = getTotalAvailableRam(ns);
         ns.print(`Total RAM Available: ${ns.formatRam(totalRamAvailable)}`);
 
+        // Calculate global priorities map once per tick (without excluding any servers)
         const { prioritiesMap } = calculateTargetServerPriorities(ns);
+        globalPrioritiesMap = prioritiesMap; // Store globally for RAM reservation calculations
 
         // Send throughput data to port 4 for get_stats.js
         var throughputPortHandle = ns.getPortHandle(4);
@@ -107,7 +112,7 @@ export async function main(ns) {
         let serverIndex = 1;
         const processedServers = []; // Track servers already processed this tick
 
-        while (totalRamUsed < totalRamAvailable && serverIndex <= prioritiesMap.size) {
+        while (totalRamUsed < totalRamAvailable && serverIndex <= globalPrioritiesMap.size) {
             // Find the server with the highest priority that has enough RAM available
             // Exclude servers that have already been processed this tick
             const { prioritiesMap: currentPriorities, highestThroughputServer } = calculateTargetServerPriorities(
@@ -154,7 +159,6 @@ export async function main(ns) {
             // Calculate available RAM for this server after reserving for higher priority servers
             const availableRamForServer = calculateAvailableRamForServer(
                 ns,
-                currentPriorities,
                 highestThroughputServer,
                 totalRamAvailable - totalRamUsed,
             );
@@ -958,12 +962,12 @@ function executeHack(ns, host, target, threads, sleepTime, stockArg = false, isP
  * Calculates how much RAM should be reserved for higher priority servers during the target server's batch cycle.
  * This ensures higher priority servers can maintain continuous batch streams without being starved by lower priority allocations.
  * @param {NS} ns - The Netscript API.
- * @param {Map} prioritiesMap - Map of server stats sorted by priority.
  * @param {string} targetServer - The server we're considering scheduling batches for.
  * @returns {number} - Total RAM that should be reserved for higher priority servers (in GB).
  */
-function calculateReservedRam(ns, prioritiesMap, targetServer) {
-    const targetStats = prioritiesMap.get(targetServer);
+function calculateReservedRam(ns, targetServer) {
+    ns.print(`Calculating reserved RAM for ${targetServer}. GlobalPrioritiesMap: ${globalPrioritiesMap.size}`);
+    const targetStats = globalPrioritiesMap.get(targetServer);
     if (!targetStats) {
         return 0;
     }
@@ -973,7 +977,7 @@ function calculateReservedRam(ns, prioritiesMap, targetServer) {
     const ticksInReservationPeriod = Math.ceil(reservationPeriod / TICK_DELAY);
 
     // Get all servers sorted by priority (throughput) descending
-    const sortedServers = Array.from(prioritiesMap.entries()).sort((a, b) => b[1].throughput - a[1].throughput);
+    const sortedServers = Array.from(globalPrioritiesMap.entries()).sort((a, b) => b[1].throughput - a[1].throughput);
 
     let totalReservedRam = 0;
 
@@ -982,6 +986,13 @@ function calculateReservedRam(ns, prioritiesMap, targetServer) {
         // Stop when we reach the target server (all remaining servers have lower priority)
         if (serverName === targetServer) {
             break;
+        }
+
+        // Skip reserving RAM for servers that are currently being prepped
+        // They cannot have additional batches scheduled while prep is running
+        const { isPrep } = isServerBeingTargeted(ns, serverName);
+        if (isPrep) {
+            continue;
         }
 
         // Calculate how many batches this higher priority server could want during the reservation period
@@ -1000,13 +1011,12 @@ function calculateReservedRam(ns, prioritiesMap, targetServer) {
 /**
  * Calculates how much RAM is available for the target server after reserving RAM for higher priority servers.
  * @param {NS} ns - The Netscript API.
- * @param {Map} prioritiesMap - Map of server stats sorted by priority.
  * @param {string} targetServer - The server we're considering scheduling batches for.
  * @param {number} totalRamAvailable - Total RAM available across all servers.
  * @returns {number} - RAM available for the target server after reservations (in GB).
  */
-function calculateAvailableRamForServer(ns, prioritiesMap, targetServer, totalRamAvailable) {
-    const reservedRam = calculateReservedRam(ns, prioritiesMap, targetServer);
+function calculateAvailableRamForServer(ns, targetServer, totalRamAvailable) {
+    const reservedRam = calculateReservedRam(ns, targetServer);
     const availableRam = Math.max(0, totalRamAvailable - reservedRam);
 
     return availableRam;
