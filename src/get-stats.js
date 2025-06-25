@@ -1,6 +1,6 @@
 import { NS } from "@ns";
 
-const REFRESH_RATE = 1000;
+const REFRESH_RATE = 150;
 const CACHE_EXPIRY_MS = 10000; // Cache server list for 10 seconds
 const PROCESS_CACHE_EXPIRY_MS = 5000; // Cache process data for 5 seconds
 
@@ -10,6 +10,118 @@ let serverListCacheTime = 0;
 let allServersCache = null;
 let allServersCacheTime = 0;
 let processCache = new Map(); // server -> {processes, timestamp}
+
+/**
+ *
+ * @param {NS} ns
+ */
+export async function main(ns) {
+    ns.disableLog("ALL");
+
+    // Kill all other scripts called get_stats.js
+    ns.ps(ns.getHostname())
+        .filter((p) => p.filename === "get_stats.js")
+        .forEach((p) => {
+            if (p.pid !== ns.pid) {
+                ns.ui.closeTail(p.pid);
+                ns.kill(p.pid);
+            }
+        });
+
+    // Check for chart mode argument
+    const isChartMode = ns.args.includes("--chart") || ns.args.includes("-c");
+
+    const charsWidth = 128; // Updated to include 8-char priority column + 6-char batch column + separators
+
+    if (isChartMode) {
+        // Chart mode: dynamic updating terminal display
+        ns.ui.openTail();
+
+        // Initial window setup (will be adjusted dynamically)
+        ns.ui.resizeTail(charsWidth * 10, 400);
+        ns.ui.moveTail(320, 0);
+
+        let cleanupCounter = 0;
+        cleanupCaches();
+
+        while (true) {
+            // Update profit data from distributed-hack.js
+            update_distributed_hack_profits(ns);
+
+            // Cleanup caches every 30 seconds to prevent memory leaks
+            cleanupCounter++;
+            if (cleanupCounter % Math.floor(30000 / REFRESH_RATE) === 0) {
+                // Every 30 seconds
+                cleanupCaches();
+            }
+
+            // Rescan for servers on each iteration, but use cache to reduce overhead
+            var servers = get_servers(ns, false);
+
+            // Dynamically adjust window size based on current server count
+            const windowWidth = charsWidth * 10; // 120 characters * 8px per char
+            const windowHeight = Math.min((servers.length + 6) * 26, 800); // lines * 16px per line
+
+            ns.ui.resizeTail(windowWidth, windowHeight);
+
+            // Generate all content first to minimize flashing
+            const chartData = generate_chart_data(ns, servers);
+            const timeHeader = `Time: ${new Date().toLocaleTimeString()} - Distributed Hack Monitor`;
+            const separator = "=".repeat(charsWidth);
+            const dashSeparator = "-".repeat(charsWidth);
+            const tableHeader = get_table_header();
+
+            const allUsableServers = get_servers(ns, true).filter((server) => {
+                // RAM greater than 0 and has root access
+                return ns.getServerMaxRam(server) > 0 && ns.hasRootAccess(server);
+            });
+            const footer = `Target servers: ${servers.length} | Total usable servers: ${allUsableServers.length} | Total RAM: ${ns.formatRam(
+                allUsableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0),
+                2,
+            )} | Total CPU cores: ${allUsableServers.reduce((acc, server) => acc + ns.getServer(server).cpuCores, 0)}`;
+
+            // Clear and display all content at once to reduce flashing
+            ns.clearLog();
+            ns.print(timeHeader);
+            ns.print(separator);
+            ns.print(tableHeader);
+            ns.print(dashSeparator);
+
+            // Display server data
+            for (const serverLine of chartData) {
+                ns.print(serverLine);
+            }
+
+            // Add footer with summary
+            ns.print(separator);
+            ns.print(footer);
+
+            await ns.sleep(REFRESH_RATE);
+        }
+    } else {
+        // Normal mode: single output with formatted table
+        // Update profit data from distributed-hack.js
+        update_distributed_hack_profits(ns);
+
+        const servers = get_servers(ns, false);
+        const chartData = generate_chart_data(ns, servers);
+
+        // Add header
+        ns.tprint(`Distributed Hack Server Stats - ${new Date().toLocaleTimeString()}`);
+        ns.tprint("=".repeat(charsWidth));
+        ns.tprint(get_table_header());
+        ns.tprint("-".repeat(charsWidth));
+
+        // Display server data
+        for (const serverLine of chartData) {
+            ns.tprint(serverLine);
+        }
+
+        // Add footer with summary
+        ns.tprint("=".repeat(charsWidth));
+        ns.tprint(`Total servers: ${servers.length}`);
+    }
+}
 
 /**
  * @param {NS} ns
@@ -387,111 +499,5 @@ function cleanupCaches() {
         if (now - data.timestamp > PROCESS_CACHE_EXPIRY_MS * 3) {
             processCache.delete(server);
         }
-    }
-}
-
-export async function main(ns) {
-    ns.disableLog("ALL");
-
-    // Kill all other scripts called get_stats.js
-    ns.ps(ns.getHostname())
-        .filter((p) => p.filename === "get_stats.js")
-        .forEach((p) => {
-            if (p.pid !== ns.pid) {
-                ns.ui.closeTail(p.pid);
-                ns.kill(p.pid);
-            }
-        });
-
-    // Check for chart mode argument
-    const isChartMode = ns.args.includes("--chart") || ns.args.includes("-c");
-
-    const charsWidth = 128; // Updated to include 8-char priority column + 6-char batch column + separators
-
-    if (isChartMode) {
-        // Chart mode: dynamic updating terminal display
-        ns.ui.openTail();
-
-        // Initial window setup (will be adjusted dynamically)
-        ns.ui.resizeTail(charsWidth * 10, 400);
-        ns.ui.moveTail(320, 0);
-
-        let cleanupCounter = 0;
-        while (true) {
-            // Update profit data from distributed-hack.js
-            update_distributed_hack_profits(ns);
-
-            // Cleanup caches every 30 seconds to prevent memory leaks
-            cleanupCounter++;
-            if (cleanupCounter % Math.floor(30000 / REFRESH_RATE) === 0) {
-                // Every 30 seconds
-                cleanupCaches();
-            }
-
-            // Rescan for servers on each iteration, but use cache to reduce overhead
-            var servers = get_servers(ns, false);
-
-            // Dynamically adjust window size based on current server count
-            const windowWidth = charsWidth * 10; // 120 characters * 8px per char
-            const windowHeight = Math.min((servers.length + 6) * 26, 800); // lines * 16px per line
-
-            ns.ui.resizeTail(windowWidth, windowHeight);
-
-            // Generate all content first to minimize flashing
-            const chartData = generate_chart_data(ns, servers);
-            const timeHeader = `Time: ${new Date().toLocaleTimeString()} - Distributed Hack Monitor`;
-            const separator = "=".repeat(charsWidth);
-            const dashSeparator = "-".repeat(charsWidth);
-            const tableHeader = get_table_header();
-
-            const allUsableServers = get_servers(ns, true).filter((server) => {
-                // RAM greater than 0 and has root access
-                return ns.getServerMaxRam(server) > 0 && ns.hasRootAccess(server);
-            });
-            const footer = `Target servers: ${servers.length} | Total usable servers: ${allUsableServers.length} | Total RAM: ${ns.formatRam(
-                allUsableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0),
-                2,
-            )} | Total CPU cores: ${allUsableServers.reduce((acc, server) => acc + ns.getServer(server).cpuCores, 0)}`;
-
-            // Clear and display all content at once to reduce flashing
-            ns.clearLog();
-            ns.print(timeHeader);
-            ns.print(separator);
-            ns.print(tableHeader);
-            ns.print(dashSeparator);
-
-            // Display server data
-            for (const serverLine of chartData) {
-                ns.print(serverLine);
-            }
-
-            // Add footer with summary
-            ns.print(separator);
-            ns.print(footer);
-
-            await ns.sleep(REFRESH_RATE);
-        }
-    } else {
-        // Normal mode: single output with formatted table
-        // Update profit data from distributed-hack.js
-        update_distributed_hack_profits(ns);
-
-        const servers = get_servers(ns, false);
-        const chartData = generate_chart_data(ns, servers);
-
-        // Add header
-        ns.tprint(`Distributed Hack Server Stats - ${new Date().toLocaleTimeString()}`);
-        ns.tprint("=".repeat(charsWidth));
-        ns.tprint(get_table_header());
-        ns.tprint("-".repeat(charsWidth));
-
-        // Display server data
-        for (const serverLine of chartData) {
-            ns.tprint(serverLine);
-        }
-
-        // Add footer with summary
-        ns.tprint("=".repeat(charsWidth));
-        ns.tprint(`Total servers: ${servers.length}`);
     }
 }

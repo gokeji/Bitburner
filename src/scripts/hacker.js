@@ -20,9 +20,9 @@ export async function main(ns) {
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.1; // Use extra grow and weak threads to correct for out of sync HGW batches
 
     let hackPercentage = 0.5;
-    const SCRIPT_DELAY = 100; // ms delay between scripts
-    const DELAY_BETWEEN_BATCHES = 100; // ms delay between batches
-    const TICK_DELAY = 5000; // ms delay between ticks
+    const SCRIPT_DELAY = 150; // ms delay between scripts
+    const DELAY_BETWEEN_BATCHES = 150; // ms delay between batches
+    const TICK_DELAY = 6000; // ms delay between ticks
     // Batch scheduling: Each batch takes (20*3 + 20) = 80ms to schedule
     // In 2000ms tick, we can fit exactly 25 batches (2000/80 = 25)
     // All 25 batches complete before next tick starts
@@ -613,7 +613,7 @@ export async function main(ns) {
             operations.push({ type: "weaken", threads: initialWeakenThreads, id: "initial_weaken" });
         }
         if (needsGrow) {
-            operations.push({ type: "grow", threads: growthThreads });
+            operations.push({ type: "grow", threads: growthThreads, allowSplit: true });
             operations.push({ type: "weaken", threads: finalWeakenThreads, id: "final_weaken" });
         }
 
@@ -658,7 +658,9 @@ export async function main(ns) {
                 // Execute grow on single server (as enforced by the allocation function)
                 const [[growServer, growThreadsActual]] = allocation.grow; // Get the single entry
                 const growDelay = needsInitialWeaken ? weakenTime - growthTime - SCRIPT_DELAY : 0;
-                executeGrow(ns, growServer, target, growThreadsActual, growDelay, false, true, growthTime);
+                for (const [server, threads] of allocation.grow) {
+                    executeGrow(ns, server, target, threads, growDelay, false, true, growthTime);
+                }
                 totalRamUsed += growRam;
 
                 // Execute final weaken on potentially multiple servers
@@ -913,10 +915,10 @@ export async function main(ns) {
                 break;
             }
 
-            // Skip reserving RAM for servers that are currently being prepped
-            // They cannot have additional batches scheduled while prep is running
-            const { isPrep } = isServerBeingTargeted(ns, serverName);
-            if (isPrep) {
+            // Skip reserving RAM for servers that are not being batched for HGW
+            // They don't need RAM to be reserved
+            const { isHgw } = isServerBeingTargeted(ns, serverName);
+            if (!isHgw) {
                 continue;
             }
 
@@ -1129,12 +1131,13 @@ export async function main(ns) {
         // Will automatically use largest servers first since allowSplit=false
         for (const growOp of growOperations) {
             const opKey = growOp.id || "grow";
+            const canSplit = growOp.allowSplit === true;
             const allocation = allocateRamForOperation(
                 sortedServersByRam,
                 serverRamAvailable,
                 GROW_SCRIPT_RAM_USAGE,
                 growOp.threads,
-                false, // Grow cannot be split (will use largest servers first)
+                canSplit, // Grow can be split for prep, but not for batches
             );
 
             if (!allocation) {
