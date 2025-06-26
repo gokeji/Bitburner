@@ -1,7 +1,12 @@
 const MS_BETWEEN_STEPS = 20;
-const MIN_HOME_RAM = 512;
+const MIN_HOME_RAM = 640;
 const KNAPSACK_BUCKETS = 100;
 const MAX_MINUTES_TO_HACK = 10;
+
+const HACK_SCRIPT = "/kamu/hack.js";
+const GROW_SCRIPT = "/kamu/grow.js";
+const WEAKEN_SCRIPT = "/kamu/weaken.js";
+
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog("ALL");
@@ -95,7 +100,7 @@ export async function main(ns) {
                     // ns.print(run_configs)
                     for (const config of run_configs) {
                         switch (config.script) {
-                            case "hgw_h.js":
+                            case HACK_SCRIPT:
                                 ns.exec(
                                     config.script,
                                     config.runner,
@@ -104,7 +109,7 @@ export async function main(ns) {
                                     setting.batch_start_w_time - timings.h - 2 * MS_BETWEEN_STEPS,
                                 );
                                 break;
-                            case "hgw_g.js":
+                            case GROW_SCRIPT:
                                 ns.exec(
                                     config.script,
                                     config.runner,
@@ -113,7 +118,7 @@ export async function main(ns) {
                                     setting.batch_start_w_time - timings.g - 1 * MS_BETWEEN_STEPS,
                                 );
                                 break;
-                            case "hgw_w.js":
+                            case WEAKEN_SCRIPT:
                                 ns.exec(
                                     config.script,
                                     config.runner,
@@ -396,7 +401,7 @@ function get_runner_threads(ns, setting, all_servers) {
     // 3. If still not done, try to fit into home server again
     // ns.print("Start: ", setting)
     let res = [];
-    let ram_per_thread = ns.getScriptRam("hgw_w.js");
+    let ram_per_thread = ns.getScriptRam(WEAKEN_SCRIPT);
     let h = setting.h;
     let g = setting.g;
     let w = setting.w;
@@ -411,7 +416,7 @@ function get_runner_threads(ns, setting, all_servers) {
     if (!grow_done && possible_home_threads >= g_c) {
         res.push({
             runner: "home",
-            script: "hgw_g.js",
+            script: GROW_SCRIPT,
             threads: g_c,
             target: setting.target,
         });
@@ -421,7 +426,7 @@ function get_runner_threads(ns, setting, all_servers) {
     if (!weak_done && possible_home_threads >= w_c) {
         res.push({
             runner: "home",
-            script: "hgw_w.js",
+            script: WEAKEN_SCRIPT,
             threads: w_c,
             target: setting.target,
         });
@@ -438,7 +443,7 @@ function get_runner_threads(ns, setting, all_servers) {
                 if (g < possible_threads) {
                     res.push({
                         runner: server,
-                        script: "hgw_g.js",
+                        script: GROW_SCRIPT,
                         threads: g,
                         target: setting.target,
                     });
@@ -447,7 +452,7 @@ function get_runner_threads(ns, setting, all_servers) {
                 } else {
                     res.push({
                         runner: server,
-                        script: "hgw_g.js",
+                        script: GROW_SCRIPT,
                         threads: possible_threads,
                         target: setting.target,
                     });
@@ -461,7 +466,7 @@ function get_runner_threads(ns, setting, all_servers) {
                 if (w < possible_threads) {
                     res.push({
                         runner: server,
-                        script: "hgw_w.js",
+                        script: WEAKEN_SCRIPT,
                         threads: w,
                         target: setting.target,
                     });
@@ -470,7 +475,7 @@ function get_runner_threads(ns, setting, all_servers) {
                 } else {
                     res.push({
                         runner: server,
-                        script: "hgw_w.js",
+                        script: WEAKEN_SCRIPT,
                         threads: possible_threads,
                         target: setting.target,
                     });
@@ -484,7 +489,7 @@ function get_runner_threads(ns, setting, all_servers) {
                 if (h < possible_threads) {
                     res.push({
                         runner: server,
-                        script: "hgw_h.js",
+                        script: HACK_SCRIPT,
                         threads: h,
                         target: setting.target,
                     });
@@ -493,7 +498,7 @@ function get_runner_threads(ns, setting, all_servers) {
                 } else {
                     res.push({
                         runner: server,
-                        script: "hgw_h.js",
+                        script: HACK_SCRIPT,
                         threads: possible_threads,
                         target: setting.target,
                     });
@@ -509,7 +514,7 @@ function get_runner_threads(ns, setting, all_servers) {
         if (g <= possible_home_threads) {
             res.push({
                 runner: "home",
-                script: "hgw_g.js",
+                script: GROW_SCRIPT,
                 threads: g,
                 target: setting.target,
             });
@@ -521,7 +526,7 @@ function get_runner_threads(ns, setting, all_servers) {
         if (w <= possible_home_threads) {
             res.push({
                 runner: "home",
-                script: "hgw_w.js",
+                script: WEAKEN_SCRIPT,
                 threads: w,
                 target: setting.target,
             });
@@ -533,7 +538,7 @@ function get_runner_threads(ns, setting, all_servers) {
         if (h <= possible_home_threads) {
             res.push({
                 runner: "home",
-                script: "hgw_h.js",
+                script: HACK_SCRIPT,
                 threads: h,
                 target: setting.target,
             });
@@ -575,9 +580,9 @@ function RecursiveScan(ns, root = "home", found = []) {
         found.push(root);
         for (const server of ns.scan(root)) {
             if (!found.includes(server)) {
-                ns.scp("hgw_h.js", server);
-                ns.scp("hgw_g.js", server);
-                ns.scp("hgw_w.js", server);
+                ns.scp("kamu/hack.js", server);
+                ns.scp("kamu/grow.js", server);
+                ns.scp("kamu/weaken.js", server);
                 RecursiveScan(ns, server, found);
             }
         }
@@ -600,7 +605,7 @@ function getTotalRamUtilization(ns, servers) {
 
 function get_all_thread_count(ns, servers) {
     let res = 0;
-    const ram_per_thread = ns.getScriptRam("hgw_h.js");
+    const ram_per_thread = ns.getScriptRam(HACK_SCRIPT);
     // Remove pserv-0 because we use it for faction sharing
     for (const server of servers.filter((s) => ns.hasRootAccess(s) && ns.getServerMaxRam(s) > 0 && s != "pserv-00")) {
         let available_ram = ns.getServerMaxRam(server);
