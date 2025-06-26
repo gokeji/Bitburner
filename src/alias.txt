@@ -9,3 +9,7 @@ global alias stock=run scripts/stock-market.js --player
 global alias liquidate=run scripts/liquidate.js
 global alias playground=run scripts/playground.js --tail
 global alias r=run run.js
+global alias augments=run scripts/get-augments.js
+global alias k=run scripts/find-process.js --kill
+global alias t=run scripts/find-process.js --tail
+global alias f=run scripts/find-process.js
