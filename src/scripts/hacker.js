@@ -20,8 +20,8 @@ export async function main(ns) {
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1; // Use extra grow and weak threads to correct for out of sync HGW batches
 
     let hackPercentage = 0.5;
-    const BASE_SCRIPT_DELAY = 50; // ms delay between scripts, will be added to dynamically
-    const DELAY_BETWEEN_BATCHES = 50; // ms delay between batches
+    const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
+    const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 8000; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 640; // GB reserved for home server
@@ -40,6 +40,7 @@ export async function main(ns) {
     let globalPrioritiesMap = new Map();
     let previousGlobalPrioritiesMap = new Map();
     const recoveringServers = new Set(); // In-memory state for servers in active recovery
+    let serverBatchTimings = new Map(); // Stores the original batch timings for each server
 
     // automatically backdoor these servers. Requires singularity functions.
     let backdoorServers = new Set([
@@ -252,6 +253,11 @@ export async function main(ns) {
                     ns.print(message);
                     killAllScriptsForTarget(ns, currentServer, ["hack"]);
                     recoveringServers.add(currentServer); // Tag server for fast-path recovery check
+
+                    if (serverBatchTimings.has(currentServer)) {
+                        serverBatchTimings.delete(currentServer);
+                        ns.print(`INFO: ${currentServer} entering prep. Clearing stored batch timings.`);
+                    }
                     continue; // Skip processing this server for HGW/prep this tick
                 }
             }
@@ -267,7 +273,6 @@ export async function main(ns) {
                 continue;
             }
 
-            // TODO: - Do not weaken if we need to reserve for higher priority servers
             if (
                 (currentMoney < maxMoney * PREP_MONEY_THRESHOLD ||
                     securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD) &&
@@ -294,6 +299,15 @@ export async function main(ns) {
             const batchesToSchedule = Math.min(actualBatchLimit, maxBatchesThisTick, maxAffordableBatches);
 
             if (batchesToSchedule > 0) {
+                let timeDriftDelay = 0;
+                if (serverBatchTimings.has(currentServer)) {
+                    const originalTimings = serverBatchTimings.get(currentServer);
+                    timeDriftDelay = originalTimings.originalWeakenTime - serverStats.weakenTime;
+
+                    if (timeDriftDelay < 0) {
+                        timeDriftDelay = 0;
+                    }
+                }
                 // Schedule batches for the highest priority server
                 const ramUsedForBatches = scheduleBatchHackCycles(
                     ns,
@@ -301,12 +315,22 @@ export async function main(ns) {
                     batchesToSchedule,
                     successfullyProcessedServers.length + 1,
                     serverStats,
+                    timeDriftDelay,
                 );
 
                 // Ensure we made progress to avoid infinite loop
                 if (ramUsedForBatches > 0) {
                     successfullyProcessedServers.push(currentServer);
                     totalRamUsed += ramUsedForBatches;
+
+                    if (!serverBatchTimings.has(currentServer)) {
+                        const { weakenTime, growthTime, hackTime } = serverStats;
+                        serverBatchTimings.set(currentServer, {
+                            originalWeakenTime: weakenTime,
+                            originalGrowthTime: growthTime,
+                            originalHackTime: hackTime,
+                        });
+                    }
                 }
             } else {
                 // ns.print(
@@ -551,8 +575,7 @@ export async function main(ns) {
                 continue;
             }
 
-            const dynamicDelay = BASE_SCRIPT_DELAY + weakenTime * 0.0001;
-            const timePerBatch = dynamicDelay * 3 + DELAY_BETWEEN_BATCHES;
+            const timePerBatch = BASE_SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES;
             const theoreticalBatchLimit = weakenTime / timePerBatch;
 
             const ramNeededPerBatch =
@@ -581,7 +604,6 @@ export async function main(ns) {
                 actualBatchLimit: actualBatchLimit,
                 theoreticalBatchLimit: theoreticalBatchLimit,
                 maxSecurityIncreasePerBatch: totalSecurityIncrease,
-                dynamicDelay: dynamicDelay,
                 timePerBatch: timePerBatch,
                 ramForMaxThroughput: ramForMaxThroughput,
             });
@@ -845,7 +867,7 @@ export async function main(ns) {
      * @param {Object} serverStats
      * @returns {number} - Total RAM used to schedule the batch hacks.
      */
-    function scheduleBatchHackCycles(ns, target, batches, serverIndex, serverStats) {
+    function scheduleBatchHackCycles(ns, target, batches, serverIndex, serverStats, timeDriftDelay = 0) {
         let totalRamUsed = 0;
         let successfulBatches = 0;
 
@@ -854,7 +876,7 @@ export async function main(ns) {
         const { timePerBatch } = serverStats;
 
         for (let i = 0; i < totalBatches; i++) {
-            const batchResult = runBatchHack(ns, target, timePerBatch * i, serverStats);
+            const batchResult = runBatchHack(ns, target, timePerBatch * i + timeDriftDelay, serverStats);
             if (!batchResult.success) {
                 break;
             }
@@ -884,8 +906,7 @@ export async function main(ns) {
      */
     function runBatchHack(ns, target, extraDelay, serverStats) {
         // Use pre-calculated values from serverStats instead of recalculating
-        const { hackThreads, growthThreads, weakenThreadsNeeded, weakenTime, growthTime, hackTime, dynamicDelay } =
-            serverStats;
+        const { hackThreads, growthThreads, weakenThreadsNeeded, weakenTime, growthTime, hackTime } = serverStats;
 
         // CRITICAL FIX: Use original timing calculations from serverStats
         // DO NOT recalculate timing as server security changes between batches
@@ -912,8 +933,8 @@ export async function main(ns) {
         }
 
         // Calculate delays
-        const hackDelay = weakenTime + extraDelay - 2 * dynamicDelay - hackTime;
-        const growDelay = weakenTime + extraDelay - dynamicDelay - growthTime;
+        const hackDelay = weakenTime + extraDelay - 2 * BASE_SCRIPT_DELAY - hackTime;
+        const growDelay = weakenTime + extraDelay - BASE_SCRIPT_DELAY - growthTime;
         const weakenDelay = extraDelay;
 
         // Validate delays are not negative (which would cause timing issues)
