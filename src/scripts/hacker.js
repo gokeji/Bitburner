@@ -22,7 +22,7 @@ export async function main(ns) {
     let hackPercentage = 0.5;
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
-    const TICK_DELAY = 8000; // ms delay between ticks
+    const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 640; // GB reserved for home server
     let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
@@ -69,6 +69,10 @@ export async function main(ns) {
     if (ns.args.length > 0) {
         ignoreServers = ns.args;
     }
+
+    // Global counters for server success tracking
+    let totalServersAttempted = 0;
+    let totalServersSucceeded = 0;
 
     // Main loop
     while (true) {
@@ -318,8 +322,11 @@ export async function main(ns) {
                     timeDriftDelay,
                 );
 
+                totalServersAttempted++;
+
                 // Ensure we made progress to avoid infinite loop
                 if (ramUsedForBatches > 0) {
+                    totalServersSucceeded++;
                     successfullyProcessedServers.push(currentServer);
                     totalRamUsed += ramUsedForBatches;
 
@@ -350,6 +357,11 @@ export async function main(ns) {
         const ramUtilization = totalRamUsedAfterTick / maxRamAvailable;
         ns.print(
             `Used ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(totalRamUsedAfterTick)}/${ns.formatRam(maxRamAvailable)} of RAM - ${ns.formatRam(freeRamAfterTick)} free`,
+        );
+
+        const serverSuccessRate = totalServersAttempted > 0 ? totalServersSucceeded / totalServersAttempted : 1;
+        ns.print(
+            `Server Success Rate: ${ns.formatPercent(serverSuccessRate)} (${ns.formatNumber(totalServersSucceeded)}/${ns.formatNumber(totalServersAttempted)} servers scheduled overall)`,
         );
 
         // XP farming: Use all remaining RAM for weaken scripts
@@ -880,8 +892,13 @@ export async function main(ns) {
             return 0;
         }
 
+        const weakenTimeCompletionTarget = 0 * BASE_SCRIPT_DELAY; // Target the midpoint of the 400ms H-G-W window
+        const weakenTimeFinishOffset = (timeDriftDelay + serverStats.weakenTime) % timePerBatch;
+        const weakenTimeSyncDelay =
+            (timePerBatch + (weakenTimeCompletionTarget - weakenTimeFinishOffset)) % timePerBatch;
+
         for (let i = 0; i < totalBatches; i++) {
-            const batchResult = runBatchHack(ns, target, timePerBatch * i + timeDriftDelay, serverStats);
+            const batchResult = runBatchHack(ns, target, timePerBatch * i + weakenTimeSyncDelay, serverStats);
             if (!batchResult.success) {
                 break;
             }
