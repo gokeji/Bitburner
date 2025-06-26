@@ -1,9 +1,19 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = 120 * 10 ** 9; // 12 B max server value
+const MAX_SERVER_VALUE = -1; // 120 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
+
+const IPVGO_OPPONENTS = [
+    // "Netburners", // increased hacknet production
+    // "Slum Snakes", // crime success rate
+    "The Black Hand", // hacking money
+    // "Tetrads", // strength, defense, dexterity, and agility levels
+    // "Daedalus", // reputation gain
+    "Illuminati", // faster hack(), grow(), and weaken()
+    // "????????????", // w0r1d_d43m0n Hacking Levels
+];
 
 export function autocomplete(data, args) {
     return ["--share", "--faction", "--low-ram"];
@@ -58,8 +68,11 @@ export async function main(ns) {
             .getPurchasedServers()
             .reduce((acc, server) => acc + ns.getPurchasedServerCost(ns.getServer(server).maxRam), 0);
 
+        // if MAX_SERVER_VALUE is -1, don't start until we have b-24 server
+        const noMaxServerValueCondition = MAX_SERVER_VALUE === -1 && ns.getPurchasedServers().length < 24;
+
         // Start stock trader and also share ram after we purchase the server to share ram on
-        if (totalServerValue > MAX_SERVER_VALUE) {
+        if (totalServerValue > MAX_SERVER_VALUE && !noMaxServerValueCondition) {
             startStockTraderIfNotRunning(ns);
             if (shouldShare) {
                 startShareAllRamIfNotRunning(ns);
@@ -121,17 +134,7 @@ function startIpvgoIfNotRunning(ns) {
         return;
     }
 
-    const opponents = [
-        // "Netburners", // increased hacknet production
-        // "Slum Snakes", // crime success rate
-        // "The Black Hand", // hacking money
-        // "Tetrads", // strength, defense, dexterity, and agility levels
-        "Daedalus", // reputation gain
-        "Illuminati", // faster hack(), grow(), and weaken()
-        // "????????????", // w0r1d_d43m0n Hacking Levels
-    ];
-
-    startScriptIfNotRunning(ns, "ipvgo-smart.js", HOST_NAME, 1, ...opponents);
+    startScriptIfNotRunning(ns, "ipvgo-smart.js", HOST_NAME, 1, ...IPVGO_OPPONENTS);
     // Note: This function checks for a different script name than what it starts
 }
 

@@ -20,9 +20,10 @@ export async function main(ns) {
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1; // Use extra grow and weak threads to correct for out of sync HGW batches
 
     let hackPercentage = 0.5;
-    const BASE_SCRIPT_DELAY = 200; // ms delay between scripts, will be added to dynamically
-    const DELAY_BETWEEN_BATCHES = 200; // ms delay between batches
+    const BASE_SCRIPT_DELAY = 50; // ms delay between scripts, will be added to dynamically
+    const DELAY_BETWEEN_BATCHES = 50; // ms delay between batches
     const TICK_DELAY = 8000; // ms delay between ticks
+    const RAM_RESERVATION_FACTOR = 0.5; // Factor to multiply the reservation period by
 
     const HOME_SERVER_RESERVED_RAM = 640; // GB reserved for home server
     let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
@@ -486,12 +487,11 @@ export async function main(ns) {
      * @param {string[]} excludeServers - Array of server names to exclude from calculations.
      * @returns {Map<string, {priority: number, ramNeededPerBatch: number, throughput: number, weakenTime: number, hackThreads: number, growthThreads: number, weakenThreadsNeeded: number, hackChance: number}>} - Map of server names to their calculated priorities.
      */
-    function calculateTargetServerPriorities(ns, excludeServers = []) {
+    function calculateTargetServerPriorities(ns) {
         const maxRamAvailable = executableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
-        const servers = hackableServers.filter((server) => !excludeServers.includes(server));
         const prioritiesMap = new Map();
 
-        for (const server of servers) {
+        for (const server of hackableServers) {
             const serverInfo = ns.getServer(server);
             const maxMoney = serverInfo.moneyMax;
 
@@ -510,6 +510,11 @@ export async function main(ns) {
                 server,
                 true, // Set to true to use formulas API with optimal conditions
             );
+
+            // This is a guard against invalid batches that might have 0 threads for very high security servers
+            if (hackThreads <= 0 || growthThreads <= 0 || weakenThreadsNeeded <= 0) {
+                continue;
+            }
 
             const dynamicDelay = BASE_SCRIPT_DELAY + weakenTime * 0.0001;
             const timePerBatch = dynamicDelay * 3 + DELAY_BETWEEN_BATCHES;
@@ -657,7 +662,7 @@ export async function main(ns) {
             nukeServerIfNeeded(ns, server);
             backdoorIfNeeded(ns, server);
 
-            if (getServerOptions === "all" || ignoreServers.includes(server)) {
+            if (getServerOptions === "all" && !ignoreServers.includes(server)) {
                 result.push(server);
             } else if (getServerOptions === "hackableOnly" && isHackable(server)) {
                 result.push(server);
@@ -1012,7 +1017,7 @@ export async function main(ns) {
 
         // Calculate the reservation period (target server's cycle duration)
         const reservationPeriod = targetStats.weakenTime + TICK_DELAY; // ms
-        const ticksInReservationPeriod = Math.ceil(reservationPeriod / TICK_DELAY);
+        const ticksInReservationPeriod = Math.ceil(reservationPeriod / TICK_DELAY) * RAM_RESERVATION_FACTOR;
 
         // Get all servers sorted by priority (throughput) descending
         const sortedServers = Array.from(globalPrioritiesMap.entries()).sort(
