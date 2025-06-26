@@ -162,6 +162,8 @@ export async function main(ns) {
         // Update the previous state for the next tick's comparison
         previousGlobalPrioritiesMap = new Map(globalPrioritiesMap);
 
+        const runningScriptInfo = getRunningScriptInfo(ns);
+
         // Send throughput data to port 4 for get_stats.js
         var throughputPortHandle = ns.getPortHandle(4);
         throughputPortHandle.clear(); // Clear old data
@@ -179,7 +181,7 @@ export async function main(ns) {
 
         // Distribute available RAM based on server priority
         const serverRamAllocation = new Map();
-        let ramToDistribute = totalRamAvailable;
+        let ramToDistribute = maxRamAvailable; // Use total network RAM
 
         for (const server of serversByThroughput) {
             if (ramToDistribute <= 0) break;
@@ -195,7 +197,18 @@ export async function main(ns) {
             const currentServer = serversByThroughput[serverIndex];
             serverIndex++; // Increment server index
 
-            let { isTargeted, isPrep, isHgw } = isServerBeingTargeted(ns, currentServer);
+            const currentServerScripts = runningScriptInfo.get(currentServer) || {
+                ramUsed: 0,
+                isPrep: false,
+                hasHack: false,
+                hasGrow: false,
+                hasWeaken: false,
+            };
+            let isHgw = currentServerScripts.hasHack && currentServerScripts.hasGrow && currentServerScripts.hasWeaken;
+            let isPrep =
+                currentServerScripts.isPrep ||
+                (!currentServerScripts.hasHack && (currentServerScripts.hasGrow || currentServerScripts.hasWeaken));
+            let isTargeted = isHgw || isPrep;
 
             const serverStats = globalPrioritiesMap.get(currentServer);
             if (!serverStats) {
@@ -269,7 +282,9 @@ export async function main(ns) {
             }
 
             // Calculate available RAM for this server from its allocation
-            const availableRamForServer = serverRamAllocation.get(currentServer) || 0;
+            const serverTotalBudget = serverRamAllocation.get(currentServer) || 0;
+            const ramUsedByServer = currentServerScripts.ramUsed;
+            const availableRamForServer = Math.max(0, serverTotalBudget - ramUsedByServer);
 
             // Calculate maximum batches we can afford with available RAM
             const { timePerBatch, actualBatchLimit, ramNeededPerBatch } = serverStats;
@@ -452,63 +467,53 @@ export async function main(ns) {
     }
 
     /**
-     * Checks if a server is already being targeted by running scripts by analyzing the composition of running processes.
-     * This method is stateless and doesn't rely on potentially outdated script arguments.
+     * Scans all running scripts on all executable servers once per tick to gather information about each target.
      * @param {NS} ns - The Netscript API.
-     * @param {string} target - The target server to check.
-     * @returns {{isTargeted: boolean, isPrep: boolean, isHgw: boolean}} - Object indicating if server is targeted.
-     *   - isHgw: True if a full HGW script cycle is running.
-     *   - isPrep: True if only Grow and/or Weaken scripts are running (server is being prepped or is in recovery).
+     * @returns {Map<string, {ramUsed: number, hasHack: boolean, hasGrow: boolean, hasWeaken: boolean, isPrep: boolean}>}
      */
-    function isServerBeingTargeted(ns, target, isFirstRun = false) {
-        // Fast-path: Check our in-memory recovery state first for O(1) lookup.
-        if (recoveringServers.has(target)) {
-            return { isTargeted: true, isPrep: true, isHgw: false };
-        }
+    function getRunningScriptInfo(ns) {
+        const scriptInfoByTarget = new Map();
 
-        let hasHack = false;
-        let hasGrow = false;
-        let hasWeaken = false;
-
-        const hackScriptName = hackScript.startsWith("/") ? hackScript.substring(1) : hackScript;
-        const growScriptName = growScript.startsWith("/") ? growScript.substring(1) : growScript;
-        const weakenScriptName = weakenScript.startsWith("/") ? weakenScript.substring(1) : weakenScript;
+        const hackScriptName = hackScript.substring(1);
+        const growScriptName = growScript.substring(1);
+        const weakenScriptName = weakenScript.substring(1);
 
         for (const server of executableServers) {
             const runningScripts = ns.ps(server);
 
             for (const script of runningScripts) {
-                // Check if the script is targeting our server
-                if (script.args.length > 0 && script.args[0] === target) {
-                    // Fast path for explicit prep operations, which are always highest priority to identify.
-                    if (script.args.includes("prep")) {
-                        return { isTargeted: true, isPrep: true, isHgw: false };
+                if (script.args.length > 0) {
+                    const target = script.args[0];
+
+                    if (!scriptInfoByTarget.has(target)) {
+                        scriptInfoByTarget.set(target, {
+                            ramUsed: 0,
+                            hasHack: false,
+                            hasGrow: false,
+                            hasWeaken: false,
+                            isPrep: false,
+                        });
                     }
 
-                    // If not prep, check if it's part of an HGW batch.
+                    const info = scriptInfoByTarget.get(target);
+                    const scriptRam = ns.getScriptRam(script.filename, server);
+                    if (scriptRam > 0) {
+                        info.ramUsed += scriptRam * script.threads;
+                    }
+
+                    if (script.args.includes("prep")) {
+                        info.isPrep = true;
+                    }
+
                     if (script.args.includes("hgw")) {
-                        if (!isFirstRun) {
-                            return { isTargeted: true, isPrep: false, isHgw: true };
-                        }
-                        if (script.filename === hackScriptName) hasHack = true;
-                        else if (script.filename === growScriptName) hasGrow = true;
-                        else if (script.filename === weakenScriptName) hasWeaken = true;
+                        if (script.filename === hackScriptName) info.hasHack = true;
+                        else if (script.filename === growScriptName) info.hasGrow = true;
+                        else if (script.filename === weakenScriptName) info.hasWeaken = true;
                     }
                 }
             }
-            // Optimization: if we've found at least one of each HGW type, we know its state and can stop searching.
-            if (hasHack && hasGrow && hasWeaken) {
-                break;
-            }
         }
-
-        // Determine state based on what we found.
-        const isHgw = hasHack && hasGrow && hasWeaken;
-        // A server is in prep/recovery if it has only Grow/Weaken scripts running (no Hack scripts).
-        const isPrep = !hasHack && (hasGrow || hasWeaken);
-        const isTargeted = isPrep || isHgw;
-
-        return { isTargeted, isPrep, isHgw };
+        return scriptInfoByTarget;
     }
 
     /**
