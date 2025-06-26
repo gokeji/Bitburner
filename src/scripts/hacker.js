@@ -35,6 +35,7 @@ export async function main(ns) {
     let ignoreServers = [];
 
     let tickCounter = 0;
+    let threadOverestimation = 1.0; // Multiplier to scale up ram usage if we're underutilizing it
 
     // Global priorities map that persists across the scheduling loop
     let globalPrioritiesMap = new Map();
@@ -145,6 +146,7 @@ export async function main(ns) {
             }
         }
 
+        // Just logging server desync
         if (outOfSyncServers > 0) {
             const avgPercentChange = totalPercentChange / outOfSyncServers;
             const avgMsChange = totalMsChange / outOfSyncServers;
@@ -186,7 +188,7 @@ export async function main(ns) {
 
         // Distribute available RAM based on server priority
         const serverRamAllocation = new Map();
-        let ramToDistribute = maxRamAvailable; // Use total network RAM
+        let ramToDistribute = maxRamAvailable * threadOverestimation; // Use total network RAM
 
         for (const server of serversByThroughput) {
             if (ramToDistribute <= 0) break;
@@ -358,6 +360,12 @@ export async function main(ns) {
         ns.print(
             `Used ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(totalRamUsedAfterTick)}/${ns.formatRam(maxRamAvailable)} of RAM - ${ns.formatRam(freeRamAfterTick)} free`,
         );
+        if (ramUtilization < 0.95) {
+            ns.print(`INFO: RAM utilization low: adjusted thread_overestimation to ${threadOverestimation}`);
+        } else {
+            ns.print(`INFO: RAM utilization high: adjusted thread_overestimation to ${threadOverestimation}`);
+        }
+        threadOverestimation = 0.95 / ramUtilization; // Always aim for 90% utilization
 
         const serverSuccessRate = totalServersAttempted > 0 ? totalServersSucceeded / totalServersAttempted : 1;
         ns.print(
@@ -450,7 +458,6 @@ export async function main(ns) {
         }
 
         // Calculate grow security change based on the number of threads
-        // ns.growthAnalyzeSecurity() returns 0 for servers at optimal state, so use the known constant
         const growthSecurityChange = growthThreads * 0.004;
 
         const weakenTarget = hackSecurityChange + growthSecurityChange;
