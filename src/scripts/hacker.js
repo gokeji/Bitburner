@@ -875,6 +875,11 @@ export async function main(ns) {
         const totalBatches = Math.floor(batches);
         const { timePerBatch } = serverStats;
 
+        if (ns.getServerSecurityLevel(target) > ns.getServerMinSecurityLevel(target)) {
+            ns.print(`WARN: ${target} is not prepped, skipping batch hack`);
+            return 0;
+        }
+
         for (let i = 0; i < totalBatches; i++) {
             const batchResult = runBatchHack(ns, target, timePerBatch * i + timeDriftDelay, serverStats);
             if (!batchResult.success) {
