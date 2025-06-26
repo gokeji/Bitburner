@@ -23,7 +23,6 @@ export async function main(ns) {
     const BASE_SCRIPT_DELAY = 50; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 50; // ms delay between batches
     const TICK_DELAY = 8000; // ms delay between ticks
-    const RAM_RESERVATION_FACTOR = 0.5; // Factor to multiply the reservation period by
 
     const HOME_SERVER_RESERVED_RAM = 640; // GB reserved for home server
     let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
@@ -62,6 +61,8 @@ export async function main(ns) {
      */
     let serverRamCache = new Map();
 
+    let maxRamAvailable = 0;
+
     ns.disableLog("ALL");
 
     if (ns.args.length > 0) {
@@ -88,6 +89,8 @@ export async function main(ns) {
             const weakenTime = ns.formulas.hacking.weakenTime(optimalServer, player);
             return weakenTime < MAX_WEAKEN_TIME;
         });
+
+        maxRamAvailable = executableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
 
         // Run contract solving script each tick
         runSolveContractsScript(ns);
@@ -174,7 +177,21 @@ export async function main(ns) {
         let serverIndex = 0;
         let successfullyProcessedServers = []; // Track servers that have been successfully processed this tick
 
-        while (totalRamUsed < totalRamAvailable && serverIndex < serversByThroughput.length) {
+        // Distribute available RAM based on server priority
+        const serverRamAllocation = new Map();
+        let ramToDistribute = totalRamAvailable;
+
+        for (const server of serversByThroughput) {
+            if (ramToDistribute <= 0) break;
+            const serverStats = globalPrioritiesMap.get(server);
+            if (!serverStats) continue;
+
+            const ramToAllocate = Math.min(ramToDistribute, serverStats.ramForMaxThroughput);
+            serverRamAllocation.set(server, ramToAllocate);
+            ramToDistribute -= ramToAllocate;
+        }
+
+        while (serverIndex < serversByThroughput.length) {
             const currentServer = serversByThroughput[serverIndex];
             serverIndex++; // Increment server index
 
@@ -251,12 +268,8 @@ export async function main(ns) {
                 continue; // Move on to next server
             }
 
-            // Calculate available RAM for this server after reserving for higher priority servers
-            const availableRamForServer = calculateAvailableRamForServer(
-                ns,
-                currentServer,
-                totalRamAvailable - totalRamUsed,
-            );
+            // Calculate available RAM for this server from its allocation
+            const availableRamForServer = serverRamAllocation.get(currentServer) || 0;
 
             // Calculate maximum batches we can afford with available RAM
             const { timePerBatch, actualBatchLimit, ramNeededPerBatch } = serverStats;
@@ -293,8 +306,15 @@ export async function main(ns) {
             ns.print("INFO: No servers could be processed this tick");
         }
 
+        const totalRamUsedAfterTick = maxRamAvailable - totalRamAvailable + totalRamUsed;
+        const freeRamAfterTick = maxRamAvailable - totalRamUsedAfterTick;
+        const ramUtilization = totalRamUsedAfterTick / maxRamAvailable;
+        ns.print(
+            `Used ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(totalRamUsedAfterTick)}/${ns.formatRam(maxRamAvailable)} of RAM - ${ns.formatRam(freeRamAfterTick)} free`,
+        );
+
         // XP farming: Use all remaining RAM for weaken scripts
-        xpFarm(ns);
+        // xpFarm(ns);
 
         await ns.sleep(TICK_DELAY);
     }
@@ -499,7 +519,6 @@ export async function main(ns) {
      * @returns {Map<string, {priority: number, ramNeededPerBatch: number, throughput: number, weakenTime: number, hackThreads: number, growthThreads: number, weakenThreadsNeeded: number, hackChance: number}>} - Map of server names to their calculated priorities.
      */
     function calculateTargetServerPriorities(ns) {
-        const maxRamAvailable = executableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
         const prioritiesMap = new Map();
 
         for (const server of hackableServers) {
@@ -536,6 +555,8 @@ export async function main(ns) {
                 growthThreads * GROW_SCRIPT_RAM_USAGE +
                 weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
 
+            const ramForMaxThroughput = theoreticalBatchLimit * ramNeededPerBatch;
+
             // Calculate actual throughput (money per second) using ACTUAL hack percentage
             const moneyPerBatch = actualHackPercentage * maxMoney * hackChance;
             const actualBatchLimit = Math.min(maxRamAvailable / ramNeededPerBatch, theoreticalBatchLimit);
@@ -557,6 +578,7 @@ export async function main(ns) {
                 maxSecurityIncreasePerBatch: totalSecurityIncrease,
                 dynamicDelay: dynamicDelay,
                 timePerBatch: timePerBatch,
+                ramForMaxThroughput: ramForMaxThroughput,
             });
         }
 
@@ -1011,73 +1033,6 @@ export async function main(ns) {
                 `WARN Host: ${host}, Target: ${target}, Threads: ${threads}, SleepTime: ${sleepTime}, StockArg: ${stockArg}, IsPrep: ${isPrep}, HackTime: ${hackTime}`,
             );
         }
-    }
-
-    /**
-     * Calculates how much RAM should be reserved for higher priority servers during the target server's batch cycle.
-     * This ensures higher priority servers can maintain continuous batch streams without being starved by lower priority allocations.
-     * @param {NS} ns - The Netscript API.
-     * @param {string} targetServer - The server we're considering scheduling batches for.
-     * @returns {number} - Total RAM that should be reserved for higher priority servers (in GB).
-     */
-    function calculateReservedRam(ns, targetServer) {
-        const targetStats = globalPrioritiesMap.get(targetServer);
-        if (!targetStats) {
-            return 0;
-        }
-
-        // Calculate the reservation period (target server's cycle duration)
-        const reservationPeriod = targetStats.weakenTime + TICK_DELAY; // ms
-        const ticksInReservationPeriod = Math.ceil(reservationPeriod / TICK_DELAY) * RAM_RESERVATION_FACTOR;
-
-        // Get all servers sorted by priority (throughput) descending
-        const sortedServers = Array.from(globalPrioritiesMap.entries()).sort(
-            (a, b) => b[1].throughput - a[1].throughput,
-        );
-
-        let totalReservedRam = 0;
-
-        // For each higher priority server, calculate how much RAM they'll need
-        for (const [serverName, serverStats] of sortedServers) {
-            // Stop when we reach the target server (all remaining servers have lower priority)
-            if (serverName === targetServer) {
-                break;
-            }
-
-            // Skip reserving RAM for servers that are not being batched for HGW
-            // They don't need RAM to be reserved
-            const { isHgw } = isServerBeingTargeted(ns, serverName, tickCounter === 0);
-            if (!isHgw) {
-                continue;
-            }
-
-            // Calculate how many batches this higher priority server could want during the reservation period
-            // Each tick, they can schedule up to maxBatchesThisTick, or their actualBatchLimit, whichever is lower
-            const { timePerBatch } = serverStats;
-            const maxBatchesThisTick = Math.floor(TICK_DELAY / timePerBatch);
-            const totalBatchesWanted =
-                Math.min(serverStats.actualBatchLimit, maxBatchesThisTick) * ticksInReservationPeriod;
-
-            // Calculate RAM needed for these batches
-            const ramForThisServer = totalBatchesWanted * serverStats.ramNeededPerBatch;
-            totalReservedRam += ramForThisServer;
-        }
-
-        return totalReservedRam;
-    }
-
-    /**
-     * Calculates how much RAM is available for the target server after reserving RAM for higher priority servers.
-     * @param {NS} ns - The Netscript API.
-     * @param {string} targetServer - The server we're considering scheduling batches for.
-     * @param {number} totalRamAvailable - Total RAM available across all servers.
-     * @returns {number} - RAM available for the target server after reservations (in GB).
-     */
-    function calculateAvailableRamForServer(ns, targetServer, totalRamAvailable) {
-        const reservedRam = calculateReservedRam(ns, targetServer);
-        const availableRam = Math.max(0, totalRamAvailable - reservedRam);
-
-        return availableRam;
     }
 
     /**
