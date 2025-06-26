@@ -35,7 +35,7 @@ export async function main(ns) {
     let ignoreServers = [];
 
     let tickCounter = 0;
-    let threadOverestimation = 1.0; // Multiplier to scale up ram usage if we're underutilizing it
+    let ramOverestimation = 1.0; // Multiplier to scale up ram usage if we're underutilizing it
 
     // Global priorities map that persists across the scheduling loop
     let globalPrioritiesMap = new Map();
@@ -188,7 +188,7 @@ export async function main(ns) {
 
         // Distribute available RAM based on server priority
         const serverRamAllocation = new Map();
-        let ramToDistribute = maxRamAvailable * threadOverestimation; // Use total network RAM
+        let ramToDistribute = maxRamAvailable * ramOverestimation; // Use total network RAM
 
         for (const server of serversByThroughput) {
             if (ramToDistribute <= 0) break;
@@ -357,19 +357,13 @@ export async function main(ns) {
         const totalRamUsedAfterTick = maxRamAvailable - totalRamAvailable + totalRamUsed;
         const freeRamAfterTick = maxRamAvailable - totalRamUsedAfterTick;
         const ramUtilization = totalRamUsedAfterTick / maxRamAvailable;
-        ns.print(
-            `Used ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(totalRamUsedAfterTick)}/${ns.formatRam(maxRamAvailable)} of RAM - ${ns.formatRam(freeRamAfterTick)} free`,
-        );
-        if (ramUtilization < 0.95) {
-            ns.print(`INFO: RAM utilization low: adjusted thread_overestimation to ${threadOverestimation}`);
-        } else {
-            ns.print(`INFO: RAM utilization high: adjusted thread_overestimation to ${threadOverestimation}`);
-        }
-        threadOverestimation = 0.95 / ramUtilization; // Always aim for 90% utilization
 
         const serverSuccessRate = totalServersAttempted > 0 ? totalServersSucceeded / totalServersAttempted : 1;
+
+        // Both ram utilization and server success rate should be compensated for
+        ramOverestimation = 1 / ramUtilization / serverSuccessRate;
         ns.print(
-            `Server Success Rate: ${ns.formatPercent(serverSuccessRate)} (${ns.formatNumber(totalServersSucceeded)}/${ns.formatNumber(totalServersAttempted)} servers scheduled overall)`,
+            `INFO: RAM: ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(freeRamAfterTick)} free | Batch Success: ${ns.formatPercent(serverSuccessRate)} | RAM Overestimation: ${ns.formatNumber(ramOverestimation, 2)}`,
         );
 
         // XP farming: Use all remaining RAM for weaken scripts
