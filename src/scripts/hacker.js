@@ -40,6 +40,7 @@ export async function main(ns) {
     // Global priorities map that persists across the scheduling loop
     let globalPrioritiesMap = new Map();
     let previousGlobalPrioritiesMap = new Map();
+    const recoveringServers = new Set(); // In-memory state for servers in active recovery
 
     // automatically backdoor these servers. Requires singularity functions.
     let backdoorServers = new Set([
@@ -197,6 +198,7 @@ export async function main(ns) {
                     const message = `INFO: ${currentServer} is fully prepped with lingering G/W scripts. Clearing them to start HGW.`;
                     ns.print(message);
                     killAllScriptsForTarget(ns, currentServer, ["grow", "weaken"]);
+                    recoveringServers.delete(currentServer); // Server is no longer in recovery
                     // Invalidate the state for this tick, as the server is now truly idle.
                     isPrep = false;
                     isTargeted = false;
@@ -219,6 +221,7 @@ export async function main(ns) {
                     )}) breached threshold (${ns.formatNumber(securityThreshold, 2)}). Recovering.`;
                     ns.print(message);
                     killAllScriptsForTarget(ns, currentServer, ["hack"]);
+                    recoveringServers.add(currentServer); // Tag server for fast-path recovery check
                     continue; // Skip processing this server for HGW/prep this tick
                 }
             }
@@ -437,7 +440,12 @@ export async function main(ns) {
      *   - isHgw: True if a full HGW script cycle is running.
      *   - isPrep: True if only Grow and/or Weaken scripts are running (server is being prepped or is in recovery).
      */
-    function isServerBeingTargeted(ns, target) {
+    function isServerBeingTargeted(ns, target, isFirstRun = false) {
+        // Fast-path: Check our in-memory recovery state first for O(1) lookup.
+        if (recoveringServers.has(target)) {
+            return { isTargeted: true, isPrep: true, isHgw: false };
+        }
+
         let hasHack = false;
         let hasGrow = false;
         let hasWeaken = false;
@@ -459,6 +467,9 @@ export async function main(ns) {
 
                     // If not prep, check if it's part of an HGW batch.
                     if (script.args.includes("hgw")) {
+                        if (!isFirstRun) {
+                            return { isTargeted: true, isPrep: false, isHgw: true };
+                        }
                         if (script.filename === hackScriptName) hasHack = true;
                         else if (script.filename === growScriptName) hasGrow = true;
                         else if (script.filename === weakenScriptName) hasWeaken = true;
@@ -1035,7 +1046,7 @@ export async function main(ns) {
 
             // Skip reserving RAM for servers that are not being batched for HGW
             // They don't need RAM to be reserved
-            const { isHgw } = isServerBeingTargeted(ns, serverName);
+            const { isHgw } = isServerBeingTargeted(ns, serverName, tickCounter === 0);
             if (!isHgw) {
                 continue;
             }
