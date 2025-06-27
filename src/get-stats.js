@@ -14,6 +14,13 @@ let processCache = new Map(); // server -> {processes, timestamp}
 // Hacking money rate tracking (similar to karma.js)
 let hackingMoneyHistory = [];
 
+// Modify this to match your scripts
+const hgwScripts = {
+    "kamu/weaken.js": "weaken",
+    "kamu/grow.js": "grow",
+    "kamu/hack.js": "hack",
+};
+
 /**
  *
  * @param {NS} ns
@@ -186,14 +193,6 @@ function getCachedProcesses(ns, server) {
 // Updated: Count total threads attacking a server from distributed-hack.js system
 function get_distributed_attack_info(ns, targetServer) {
     const allServers = get_servers(ns, true);
-    const kamuScripts = {
-        "kamu/weaken.js": "weaken",
-        "kamu/grow.js": "grow",
-        "kamu/hack.js": "hack",
-        "scripts/grow.js": "grow",
-        "scripts/hack.js": "hack",
-        "scripts/weaken.js": "weaken",
-    };
 
     let totalThreads = 0;
     let threadCounts = {
@@ -207,13 +206,13 @@ function get_distributed_attack_info(ns, targetServer) {
         hack: 0,
     };
 
-    // Check all servers for kamu scripts targeting this server
+    // Check all servers for hgw scripts targeting this server
     for (const server of allServers) {
         const processes = getCachedProcesses(ns, server);
         for (const process of processes) {
-            // Check if it's a kamu script targeting our server
-            if (kamuScripts[process.filename] && process.args.length >= 1 && process.args[0] === targetServer) {
-                const actionType = kamuScripts[process.filename];
+            // Check if it's a hgw script targeting our server
+            if (hgwScripts[process.filename] && process.args.length >= 1 && process.args[0] === targetServer) {
+                const actionType = hgwScripts[process.filename];
                 threadCounts[actionType] += process.threads;
                 totalThreads += process.threads;
                 scriptCounts[actionType] += 1;
