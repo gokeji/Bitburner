@@ -1,5 +1,4 @@
 import { NS } from "@ns";
-import { calculatePortfolioValue } from "./scripts/stock-market.js";
 
 const REFRESH_RATE = 150;
 const CACHE_EXPIRY_MS = 10000; // Cache server list for 10 seconds
@@ -71,24 +70,7 @@ export async function main(ns) {
         const chartData = generate_chart_data(ns, servers);
         const hackingRate = getHackingMoneyRate();
 
-        // Get stock portfolio information
-        let stockInfo = "";
-        if (calculatePortfolioValue) {
-            try {
-                const portfolio = calculatePortfolioValue(ns);
-                if (portfolio.hasPositions) {
-                    const profitSign = portfolio.totalProfit >= 0 ? "+" : "";
-                    stockInfo = ` | Stocks: ${ns.formatNumber(portfolio.totalValue, 2)} (${profitSign}${ns.formatNumber(portfolio.totalProfit, 2)})`;
-                } else {
-                    stockInfo = " | Stocks: 0 (0)";
-                }
-            } catch (e) {
-                // Stock API might not be available
-                stockInfo = " | Stocks: 0 (0)";
-            }
-        }
-
-        const timeHeader = `Time: ${new Date().toLocaleTimeString()} - Hack Monitor - Hacking Rate: ${ns.formatNumber(hackingRate)}/s${stockInfo}`;
+        const timeHeader = `Time: ${new Date().toLocaleTimeString()} - Hack Monitor - Hacking Rate: ${ns.formatNumber(hackingRate)}/s`;
         const separator = "=".repeat(charsWidth);
         const dashSeparator = "-".repeat(charsWidth);
         const tableHeader = get_table_header();
