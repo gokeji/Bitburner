@@ -35,7 +35,6 @@ export async function main(ns) {
     let ignoreServers = [];
 
     let tickCounter = 0;
-    let ramOverestimation = 1.0; // Multiplier to scale up ram usage if we're underutilizing it
 
     // Global priorities map that persists across the scheduling loop
     let globalPrioritiesMap = new Map();
@@ -187,7 +186,7 @@ export async function main(ns) {
 
         // Distribute available RAM based on server priority
         const serverRamAllocation = new Map();
-        let ramToDistribute = maxRamAvailable * ramOverestimation; // Use total network RAM
+        let ramToDistribute = maxRamAvailable; // Use total network RAM
 
         for (const server of serversByThroughput) {
             if (ramToDistribute <= 0) break;
@@ -365,10 +364,8 @@ export async function main(ns) {
 
         const serverSuccessRate = totalServersAttempted > 0 ? totalServersNotDiscarded / totalServersAttempted : 1;
 
-        // Both ram utilization and server success rate should be compensated for
-        ramOverestimation = 1 / ramUtilization / serverSuccessRate;
         ns.print(
-            `INFO: RAM: ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(freeRamAfterTick)} free | Batch Success: ${ns.formatPercent(serverSuccessRate)} | RAM Overestimation: ${ns.formatNumber(ramOverestimation, 2)}`,
+            `INFO: RAM: ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(freeRamAfterTick)} free | Batch Success: ${ns.formatPercent(serverSuccessRate)}`,
         );
 
         // XP farming: Use all remaining RAM for weaken scripts
