@@ -10,8 +10,8 @@ const IPVGO_OPPONENTS = [
     // "Slum Snakes", // crime success rate
     "The Black Hand", // hacking money
     // "Tetrads", // strength, defense, dexterity, and agility levels
-    "Daedalus", // reputation gain
-    "Illuminati", // faster hack(), grow(), and weaken()
+    // "Daedalus", // reputation gain
+    // "Illuminati", // faster hack(), grow(), and weaken()
     // "????????????", // w0r1d_d43m0n Hacking Levels
 ];
 
@@ -41,7 +41,7 @@ export async function main(ns) {
 
     startUpgradeServersIfNotRunning(ns);
 
-    startIpvgoIfNotRunning(ns);
+    restartIpvgo(ns);
 
     if (!lowRamMode) {
         // Start TOR and program managers
@@ -88,9 +88,15 @@ export async function main(ns) {
     ns.tprint("INFO Stock trader and share ram started - Autoplay complete");
 }
 
+/**
+ * @param {NS} ns
+ * @param {string} scriptName
+ * @param {string} hostname
+ * @returns {number}
+ */
 function isScriptRunning(ns, scriptName, hostname) {
-    const runningScripts = ns.ps(hostname).map((process) => process.filename);
-    return runningScripts.includes(scriptName);
+    const runningProcesses = ns.ps(hostname);
+    return runningProcesses.filter((process) => process.filename.includes(scriptName))[0]?.pid ?? 0;
 }
 
 /**
@@ -125,13 +131,12 @@ function startDistributedHackIfNotRunning(ns) {
     startScriptIfNotRunning(ns, "scripts/hacker.js", HOST_NAME, 1, SERVER_TO_START_SHARING_RAM_ON);
 }
 
-function startIpvgoIfNotRunning(ns) {
+function restartIpvgo(ns) {
     // Check if "master/ipvgo.js" is running on HOST_NAME (different check script name)
-    let ipvgoRunning = isScriptRunning(ns, "ipvgo-smart.js", HOST_NAME);
+    let ipvgoPid = isScriptRunning(ns, "ipvgo-smart.js", HOST_NAME);
 
-    if (ipvgoRunning) {
-        ns.tprint("ipvgo-smart.js is already running");
-        return;
+    if (ipvgoPid) {
+        ns.kill(ipvgoPid);
     }
 
     startScriptIfNotRunning(ns, "ipvgo-smart.js", HOST_NAME, 1, ...IPVGO_OPPONENTS);

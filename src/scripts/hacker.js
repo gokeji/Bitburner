@@ -610,10 +610,7 @@ export async function main(ns) {
             const moneyPerBatch = actualHackPercentage * maxMoney * hackChance;
             const throughput = (batchLimitForSustainedThroughput * moneyPerBatch) / (weakenTime / 1000); // money per second
 
-            const isServerReady =
-                serverInfo.hackDifficulty <= serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD &&
-                serverInfo.moneyAvailable >= serverInfo.moneyMax * PREP_MONEY_THRESHOLD;
-            if (!isServerReady) {
+            if (serverInfo.hackDifficulty > serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD) {
                 // Server needs prep, set RAM allocation to 0 to prevent wasted allocation
                 ramForMaxThroughput = 0;
             }

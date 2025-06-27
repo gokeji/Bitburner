@@ -4,6 +4,7 @@ import { calculatePortfolioValue } from "./stock-market.js";
 
 const argsSchema = [
     ["buy", false], // Set to true to actually purchase the augmentations
+    ["force-buy", false], // Set to true to force purchase the augmentations in order
     ["hacking-rep-only", false], // Set to true to only show augments that boost hacking or reputation
     ["hacking-only", false], // Set to true to only show augments that boost hacking
 ];
@@ -59,15 +60,16 @@ function validateNeuroFluxReputation(ns, player, currentNeuroFluxGovernorLevel, 
  * @param {NS} ns - NetScript object
  * @param {Object} validation - Validation result from validateNeuroFluxReputation
  * @param {boolean} isPurchasing - Whether the user is attempting to purchase
+ * @param {boolean} forceBuy - Whether the user is forcing the purchase
  */
-function displayNeuroFluxStatus(ns, validation, isPurchasing) {
+function displayNeuroFluxStatus(ns, validation, isPurchasing, forceBuy) {
     if (validation.maxRepReq === 0) return; // No NeuroFlux to purchase
 
     if (!validation.canPurchase) {
         ns.print(
             `\n❌ NeuroFlux Governor Level ${validation.finalLevel}: Need ${ns.formatNumber(validation.maxRepReq)} rep, have ${ns.formatNumber(validation.maxAvailableRep)} (${validation.bestFaction || "no faction"})`,
         );
-        if (isPurchasing) {
+        if (isPurchasing && !forceBuy) {
             ns.print("=== PURCHASE ABORTED ===");
             ns.print("Purchase cancelled to prevent reputation shortage for NeuroFlux Governor upgrades.");
         } else {
@@ -476,6 +478,7 @@ export async function main(ns) {
     const shouldPurchase = flags.buy;
     const hackingRepOnly = flags["hacking-rep-only"];
     const hackingOnly = flags["hacking-only"];
+    const forceBuy = flags["force-buy"];
 
     ns.ui.openTail(); // Open tail because there's a lot of good output
     ns.ui.resizeTail(1000, 600);
@@ -755,11 +758,11 @@ export async function main(ns) {
         currentNeuroFluxPurchaseLevel,
         result.neurofluxCount,
     );
-    displayNeuroFluxStatus(ns, neuroFluxValidation, shouldPurchase);
+    displayNeuroFluxStatus(ns, neuroFluxValidation, shouldPurchase, forceBuy);
 
     if (shouldPurchase) {
         // Check if we should proceed with purchase
-        if (!neuroFluxValidation.canPurchase && result.neurofluxCount > 0) {
+        if (!neuroFluxValidation.canPurchase && result.neurofluxCount > 0 && !forceBuy) {
             return;
         }
 
