@@ -24,7 +24,7 @@ export async function main(ns) {
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
 
-    const HOME_SERVER_RESERVED_RAM = 80; // GB reserved for home server
+    const HOME_SERVER_RESERVED_RAM = 640; // GB reserved for home server
     let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
     let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
@@ -64,7 +64,7 @@ export async function main(ns) {
     let serverRamCache = new Map();
 
     let maxRamAvailable = 0;
-    let totalRamAvailable = 0;
+    let totalFreeRam = 0;
 
     ns.disableLog("ALL");
 
@@ -74,7 +74,7 @@ export async function main(ns) {
 
     // Global counters for server success tracking
     let totalServersAttempted = 0;
-    let totalServersSucceeded = 0;
+    let totalServersNotDiscarded = 0;
 
     // Main loop
     while (true) {
@@ -98,8 +98,8 @@ export async function main(ns) {
         });
 
         maxRamAvailable = executableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
-        totalRamAvailable = getTotalAvailableRam(ns);
-        ns.print(`Total RAM Available: ${ns.formatRam(totalRamAvailable)}`);
+        totalFreeRam = getTotalFreeRam(ns);
+        ns.print(`Total RAM Available: ${ns.formatRam(totalFreeRam)}`);
 
         // Run contract solving script each tick
         runSolveContractsScript(ns);
@@ -314,10 +314,12 @@ export async function main(ns) {
                     }
                 }
 
+                totalServersAttempted++;
                 if (serverInfo.hackDifficulty > serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD) {
                     ns.print(`WARN: ${currentServer} is not prepped, skipping batch hack`);
                     continue;
                 }
+                totalServersNotDiscarded++;
 
                 // Schedule batches for the highest priority server
                 const ramUsedForBatches = scheduleBatchHackCycles(
@@ -329,11 +331,8 @@ export async function main(ns) {
                     timeDriftDelay,
                 );
 
-                totalServersAttempted++;
-
                 // Ensure we made progress to avoid infinite loop
                 if (ramUsedForBatches > 0) {
-                    totalServersSucceeded++;
                     successfullyProcessedServers.push(currentServer);
                     totalRamUsed += ramUsedForBatches;
 
@@ -359,11 +358,11 @@ export async function main(ns) {
             ns.print("INFO: No servers could be processed this tick");
         }
 
-        const totalRamUsedAfterTick = maxRamAvailable - totalRamAvailable + totalRamUsed;
+        const totalRamUsedAfterTick = maxRamAvailable - totalFreeRam + totalRamUsed;
         const freeRamAfterTick = maxRamAvailable - totalRamUsedAfterTick;
         const ramUtilization = totalRamUsedAfterTick / maxRamAvailable;
 
-        const serverSuccessRate = totalServersAttempted > 0 ? totalServersSucceeded / totalServersAttempted : 1;
+        const serverSuccessRate = totalServersAttempted > 0 ? totalServersNotDiscarded / totalServersAttempted : 1;
 
         // Both ram utilization and server success rate should be compensated for
         ramOverestimation = 1 / ramUtilization / serverSuccessRate;
@@ -487,7 +486,7 @@ export async function main(ns) {
      * @param {NS} ns - The Netscript API.
      * @returns {number} - Total available RAM in GB.
      */
-    function getTotalAvailableRam(ns) {
+    function getTotalFreeRam(ns) {
         // Calculate total from the cache
         let totalRam = 0;
         serverRamCache.clear();
@@ -1259,8 +1258,8 @@ export async function main(ns) {
         const totalRamRequired = getTotalRamRequired(operations);
 
         // Calculate scaling factor
-        if (totalRamRequired > totalRamAvailable) {
-            scalingFactor = totalRamAvailable / totalRamRequired;
+        if (totalRamRequired > totalFreeRam) {
+            scalingFactor = totalFreeRam / totalRamRequired;
         }
 
         // Scale down operations if necessary

@@ -92,7 +92,7 @@ export async function main(ns) {
         const totalRam = allUsableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
         const usedRam = allUsableServers.reduce((acc, server) => acc + ns.getServerUsedRam(server), 0);
         const ramUtilization = usedRam / totalRam;
-        const footer = `Target servers: ${servers.length} | Usable servers: ${allUsableServers.length} (Purchased: ${purchasedServerCount}) | CPU cores: ${allUsableServers.reduce((acc, server) => acc + ns.getServer(server).cpuCores, 0)} | RAM: ${ns.formatRam(usedRam, 2)} / ${ns.formatRam(totalRam, 2)} (${ns.formatPercent(ramUtilization, 2)})`;
+        const footer = `Target servers: ${servers.length} | Usable servers: ${allUsableServers.length} (Purchased: ${purchasedServerCount}/${ns.getPurchasedServerLimit()}) | CPU cores: ${allUsableServers.reduce((acc, server) => acc + ns.getServer(server).cpuCores, 0)} | RAM: ${ns.formatRam(usedRam, 2)} / ${ns.formatRam(totalRam, 2)} (${ns.formatPercent(ramUtilization, 2)})`;
 
         // Clear and display all content at once to reduce flashing
         ns.clearLog();

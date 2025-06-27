@@ -2,7 +2,8 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    ns.print(ns.getMoneySources().sinceInstall.hacking);
+    const toPrint = ns.getPurchasedServerLimit();
+    ns.print(toPrint);
     // ns.print(favorToRep(34));
     // ns.print(repToFavor(300000));
     // ns.print(calculateFavorAfterResetting(34, 300000));
