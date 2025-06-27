@@ -6,9 +6,9 @@ const PROCESS_CACHE_EXPIRY_MS = 5000; // Cache process data for 5 seconds
 
 // Global caches to reduce expensive operations
 let serverListCache = null;
-let serverListCacheTime = 0;
+let serverListCacheTime = 5000;
 let allServersCache = null;
-let allServersCacheTime = 0;
+let allServersCacheTime = 5000;
 let processCache = new Map(); // server -> {processes, timestamp}
 
 // Hacking money rate tracking (similar to karma.js)
@@ -65,7 +65,7 @@ export async function main(ns) {
         }
 
         // Rescan for servers on each iteration, but use cache to reduce overhead
-        var servers = get_servers(ns, false);
+        var servers = getServers(ns, false);
 
         // Dynamically adjust window size based on current server count
         const windowWidth = charsWidth * 10; // 120 characters * 8px per char
@@ -82,7 +82,7 @@ export async function main(ns) {
         const dashSeparator = "-".repeat(charsWidth);
         const tableHeader = get_table_header();
 
-        const allUsableServers = get_servers(ns, true).filter((server) => {
+        const allUsableServers = getServers(ns, true).filter((server) => {
             // RAM greater than 0 and has root access
             return ns.getServerMaxRam(server) > 0 && ns.hasRootAccess(server);
         });
@@ -117,7 +117,7 @@ export async function main(ns) {
 /**
  * @param {NS} ns
  **/
-function get_servers(ns, all = false) {
+function getServers(ns, all = false) {
     /*
 	Scans and iterates through all servers.
 	If all is false, only servers with root access and have money are returned.
@@ -140,6 +140,7 @@ function get_servers(ns, all = false) {
         if (!ns.hasRootAccess(server)) return true;
         if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) return true;
         if (ns.getServerMaxMoney(server) === 0) return true;
+        if (server === "home") return true;
         return false;
     };
 
@@ -151,12 +152,14 @@ function get_servers(ns, all = false) {
             var con = s[j];
             if (servers.indexOf(con) < 0) {
                 servers.push(con);
-                if (all || !shouldExclude(con)) {
-                    result.push(con);
-                }
+                result.push(con);
             }
         }
         i += 1;
+    }
+
+    if (!all) {
+        result = result.filter((server) => !shouldExclude(server));
     }
 
     // Cache the results
@@ -192,7 +195,7 @@ function getCachedProcesses(ns, server) {
 
 // Updated: Count total threads attacking a server from distributed-hack.js system
 function get_distributed_attack_info(ns, targetServer) {
-    const allServers = get_servers(ns, true);
+    const allServers = getServers(ns, true);
 
     let totalThreads = 0;
     let threadCounts = {
@@ -484,6 +487,9 @@ function cleanupCaches() {
             processCache.delete(server);
         }
     }
+
+    serverListCache = null;
+    allServersCache = null;
 }
 
 // Function to update hacking money rate tracking (similar to karma.js)

@@ -1346,7 +1346,7 @@ export async function main(ns) {
         // Step 3: Allocate weaken operations (can be split across multiple servers)
         for (const weakenOp of weakenOperations) {
             const opKey = weakenOp.id || "weaken";
-            const preferHigherCoreCount = true;
+            const preferHigherCoreCount = false; // Weaken scales with core count but not as much as grow
             const allocation = allocateRamForOperation(
                 sortedServersByCoreCount,
                 serverRamAvailable,
