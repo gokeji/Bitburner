@@ -24,7 +24,7 @@ export async function main(ns) {
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
 
-    const HOME_SERVER_RESERVED_RAM = 640; // GB reserved for home server
+    const HOME_SERVER_RESERVED_RAM = 80; // GB reserved for home server
     let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
     let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
@@ -314,6 +314,12 @@ export async function main(ns) {
                         timeDriftDelay = 0;
                     }
                 }
+
+                if (serverInfo.hackDifficulty > serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD) {
+                    ns.print(`WARN: ${currentServer} is not prepped, skipping batch hack`);
+                    continue;
+                }
+
                 // Schedule batches for the highest priority server
                 const ramUsedForBatches = scheduleBatchHackCycles(
                     ns,
@@ -361,13 +367,13 @@ export async function main(ns) {
         const serverSuccessRate = totalServersAttempted > 0 ? totalServersSucceeded / totalServersAttempted : 1;
 
         // Both ram utilization and server success rate should be compensated for
-        ramOverestimation = 1 / ramUtilization / serverSuccessRate;
+        ramOverestimation = 1.1 / ramUtilization / serverSuccessRate;
         ns.print(
             `INFO: RAM: ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(freeRamAfterTick)} free | Batch Success: ${ns.formatPercent(serverSuccessRate)} | RAM Overestimation: ${ns.formatNumber(ramOverestimation, 2)}`,
         );
 
         // XP farming: Use all remaining RAM for weaken scripts
-        // xpFarm(ns);
+        xpFarm(ns);
 
         await ns.sleep(TICK_DELAY);
     }
@@ -887,11 +893,6 @@ export async function main(ns) {
         // Ensure we only attempt whole batches to avoid floating point precision issues
         const totalBatches = Math.floor(batches);
         const { timePerBatch } = serverStats;
-
-        if (ns.getServerSecurityLevel(target) > ns.getServerMinSecurityLevel(target)) {
-            ns.print(`WARN: ${target} is not prepped, skipping batch hack`);
-            return 0;
-        }
 
         const weakenTimeCompletionTarget = 0 * BASE_SCRIPT_DELAY; // Target the midpoint of the 400ms H-G-W window
         const weakenTimeFinishOffset = (timeDriftDelay + serverStats.weakenTime) % timePerBatch;
