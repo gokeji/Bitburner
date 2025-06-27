@@ -825,7 +825,7 @@ export async function main(ns) {
             operations.push({ type: "weaken", threads: initialWeakenThreads, id: "initial_weaken" });
         }
         if (needsGrow) {
-            operations.push({ type: "grow", threads: growthThreads, allowSplit: true });
+            operations.push({ type: "grow", threads: growthThreads });
             operations.push({ type: "weaken", threads: finalWeakenThreads, id: "final_weaken" });
         }
 
@@ -977,9 +977,9 @@ export async function main(ns) {
                 executeHack(ns, server, target, threads, hackDelay, false, false, hackTime);
             }
 
-            // Execute grow operation (single server only)
-            const [[growServer, growThreadsActual]] = allocation.grow; // Get the single entry
-            executeGrow(ns, growServer, target, growThreadsActual, growDelay, false, false, growthTime);
+            for (const [server, threads] of allocation.grow) {
+                executeGrow(ns, server, target, threads, growDelay, false, false, growthTime);
+            }
 
             // Execute weaken operations (can be split across multiple servers)
             for (const [server, threads] of allocation.weaken) {
@@ -1142,11 +1142,10 @@ export async function main(ns) {
     /**
      * Allocates RAM for a single operation across available servers.
      *
-     * @param {Array<[string, number]>} sortedServers - Array of [serverName, availableRam] sorted by RAM (largest first)
+     * @param {Array<[string, number]>} sortedServers - Array of [serverName, availableRam] sorted by core count (highest first)
      * @param {Map<string, number>} serverRamAvailable - Map of server names to available RAM (for updates)
      * @param {number} ramPerThread - RAM cost per thread for this operation type
      * @param {number} totalThreadsNeeded - Total number of threads needed
-     * @param {boolean} allowSplit - Whether to allow splitting across multiple servers
      * @returns {{allocations: Map<string, number>, totalRamUsed: number} | false} -
      *   Returns allocation map and total RAM used, or false if allocation failed
      */
@@ -1155,19 +1154,16 @@ export async function main(ns) {
         serverRamAvailable,
         ramPerThread,
         totalThreadsNeeded,
-        allowSplit = true,
+        preferHigherCoreCount = true,
     ) {
         const allocations = new Map();
         let totalRamUsed = 0;
         let remainingThreads = totalThreadsNeeded;
 
-        // Determine iteration order based on allowSplit:
-        // - Non-splittable operations (allowSplit=false) use largest servers first to minimize fragmentation
-        // - Splittable operations (allowSplit=true) use smallest servers first to preserve larger servers
-        const serversToIterate = allowSplit ? [...sortedServers].reverse() : sortedServers;
+        const serversToIterate = preferHigherCoreCount ? sortedServers : [...sortedServers].reverse();
 
         // Single loop handles both splittable and non-splittable operations
-        for (const [server] of serversToIterate) {
+        for (const server of serversToIterate) {
             // FIX: Get the most current available RAM from the map, not the stale value from the sorted array
             const availableRam = serverRamAvailable.get(server) || 0;
             if (remainingThreads <= 0) break;
@@ -1186,22 +1182,17 @@ export async function main(ns) {
                 break; // We're done
             } else {
                 // Server doesn't have enough RAM for all needs
-                if (!allowSplit) {
-                    // Cannot split, so we fail
-                    return false;
-                } else {
-                    // Can split, so take what we can and continue
-                    if (threadsCanAllocate > 0) {
-                        const ramUsed = threadsCanAllocate * ramPerThread;
-                        allocations.set(server, threadsCanAllocate);
+                // Can split, so take what we can and continue
+                if (threadsCanAllocate > 0) {
+                    const ramUsed = threadsCanAllocate * ramPerThread;
+                    allocations.set(server, threadsCanAllocate);
 
-                        // Update available RAM in the map
-                        serverRamAvailable.set(server, availableRam - ramUsed);
-                        totalRamUsed += ramUsed;
-                        remainingThreads -= threadsCanAllocate;
-                    }
-                    // Continue to next server for remaining threads
+                    // Update available RAM in the map
+                    serverRamAvailable.set(server, availableRam - ramUsed);
+                    totalRamUsed += ramUsed;
+                    remainingThreads -= threadsCanAllocate;
                 }
+                // Continue to next server for remaining threads
             }
         }
 
@@ -1301,8 +1292,10 @@ export async function main(ns) {
         // Create a copy of server RAM availability to track allocations
         const serverRamAvailable = new Map(serverRamCache);
 
-        // Sort servers by available RAM (largest first) - do this once and reuse
-        const sortedServersByRam = Array.from(serverRamAvailable.entries()).sort((a, b) => b[1] - a[1]); // Sort by RAM descending (largest first)
+        // Sort servers by available core count (highest first) - do this once and reuse
+        const sortedServersByCoreCount = Array.from(serverRamAvailable.keys()).sort(
+            (a, b) => ns.getServer(a).cpuCores - ns.getServer(b).cpuCores,
+        );
 
         // Separate operations by type
         const growOperations = scaledOperations.filter((op) => op.type === "grow");
@@ -1310,16 +1303,15 @@ export async function main(ns) {
         const weakenOperations = scaledOperations.filter((op) => op.type === "weaken");
 
         // Step 1: Allocate grow operations first (must be on single servers)
-        // Will automatically use largest servers first since allowSplit=false
         for (const growOp of growOperations) {
             const opKey = growOp.id || "grow";
-            const canSplit = growOp.allowSplit === true;
+            const preferHigherCoreCount = true;
             const allocation = allocateRamForOperation(
-                sortedServersByRam,
+                sortedServersByCoreCount,
                 serverRamAvailable,
                 GROW_SCRIPT_RAM_USAGE,
                 growOp.threads,
-                canSplit, // Grow can be split for prep, but not for batches
+                preferHigherCoreCount,
             );
 
             if (!allocation) {
@@ -1332,15 +1324,14 @@ export async function main(ns) {
         }
 
         // Step 2: Allocate hack operations (can be split across multiple servers)
-        // Will automatically use smallest servers first since allowSplit=true
         for (const hackOp of hackOperations) {
             const opKey = hackOp.id || "hack";
             const allocation = allocateRamForOperation(
-                sortedServersByRam,
+                sortedServersByCoreCount,
                 serverRamAvailable,
                 HACK_SCRIPT_RAM_USAGE,
                 hackOp.threads,
-                true, // Hack can be split (will use smallest servers first)
+                false,
             );
 
             if (!allocation) {
@@ -1353,15 +1344,15 @@ export async function main(ns) {
         }
 
         // Step 3: Allocate weaken operations (can be split across multiple servers)
-        // Will automatically use smallest servers first since allowSplit=true
         for (const weakenOp of weakenOperations) {
             const opKey = weakenOp.id || "weaken";
+            const preferHigherCoreCount = true;
             const allocation = allocateRamForOperation(
-                sortedServersByRam,
+                sortedServersByCoreCount,
                 serverRamAvailable,
                 WEAKEN_SCRIPT_RAM_USAGE,
                 weakenOp.threads,
-                true, // Weaken can be split (will use smallest servers first)
+                preferHigherCoreCount,
             );
 
             if (!allocation) {
