@@ -267,11 +267,6 @@ export async function main(ns) {
                 }
             }
 
-            const securityLevel = serverInfo.hackDifficulty;
-            const minSecurityLevel = serverInfo.minDifficulty;
-            const currentMoney = serverInfo.moneyAvailable;
-            const maxMoney = serverInfo.moneyMax;
-
             // Continue to next server if it's already being prepped
             if (isPrep) {
                 // ns.print(`INFO: Server ${currentServer} is already being prepped`);
@@ -279,8 +274,8 @@ export async function main(ns) {
             }
 
             if (
-                (currentMoney < maxMoney * PREP_MONEY_THRESHOLD ||
-                    securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD) &&
+                (serverInfo.moneyAvailable < serverInfo.moneyMax * PREP_MONEY_THRESHOLD ||
+                    serverInfo.hackDifficulty > serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD) &&
                 !isTargeted // Do not prep if it has HGW scripts running on it or prep scripts
             ) {
                 const prepRamUsed = prepServer(ns, currentServer, successfullyProcessedServers.length + 1);
@@ -291,17 +286,30 @@ export async function main(ns) {
                 continue; // Move on to next server
             }
 
+            totalServersAttempted++;
+            if (serverStats.ramForMaxThroughput === 0) {
+                ns.print(`WARN: ${currentServer} is not prepped, skipping batch hack`);
+                continue;
+            }
+            totalServersNotDiscarded++;
+
             // Calculate available RAM for this server from its allocation
             const serverTotalBudget = serverRamAllocation.get(currentServer) || 0;
             const ramUsedByServer = currentServerScripts.ramUsed;
-            const availableRamForServer = Math.max(0, serverTotalBudget - ramUsedByServer);
+            const remainingRamForSustainedThroughput = Math.max(0, serverTotalBudget - ramUsedByServer);
 
             // Calculate maximum batches we can afford with available RAM
-            const { timePerBatch, actualBatchLimit, ramNeededPerBatch } = serverStats;
-            const maxAffordableBatches = Math.floor(availableRamForServer / ramNeededPerBatch);
+            const { timePerBatch, batchLimitForSustainedThroughput, ramNeededPerBatch } = serverStats;
+            const targetBatchesForSustainedThroughput = Math.floor(
+                remainingRamForSustainedThroughput / ramNeededPerBatch,
+            );
             const maxBatchesThisTick = Math.floor(TICK_DELAY / timePerBatch);
 
-            const batchesToSchedule = Math.min(actualBatchLimit, maxBatchesThisTick, maxAffordableBatches);
+            const batchesToSchedule = Math.min(
+                batchLimitForSustainedThroughput,
+                maxBatchesThisTick,
+                targetBatchesForSustainedThroughput,
+            );
 
             if (batchesToSchedule > 0) {
                 let timeDriftDelay = 0;
@@ -313,13 +321,6 @@ export async function main(ns) {
                         timeDriftDelay = 0;
                     }
                 }
-
-                totalServersAttempted++;
-                if (serverInfo.hackDifficulty > serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD) {
-                    ns.print(`WARN: ${currentServer} is not prepped, skipping batch hack`);
-                    continue;
-                }
-                totalServersNotDiscarded++;
 
                 // Schedule batches for the highest priority server
                 const ramUsedForBatches = scheduleBatchHackCycles(
@@ -559,9 +560,9 @@ export async function main(ns) {
 
     /**
      * Calculates the priority of each server based on throughput (money per second).
+     * Sets throughput to 0 for servers that need prep (wrong security/money), which prevents
+     * RAM allocation and allows proper accounting in the main loop.
      * @param {NS} ns - The Netscript API.
-     * @param {number} availableRam - The amount of RAM available for allocation.
-     * @param {string[]} excludeServers - Array of server names to exclude from calculations.
      * @returns {Map<string, {priority: number, ramNeededPerBatch: number, throughput: number, weakenTime: number, hackThreads: number, growthThreads: number, weakenThreadsNeeded: number, hackChance: number}>} - Map of server names to their calculated priorities.
      */
     function calculateTargetServerPriorities(ns) {
@@ -600,12 +601,28 @@ export async function main(ns) {
                 growthThreads * GROW_SCRIPT_RAM_USAGE +
                 weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
 
-            const ramForMaxThroughput = theoreticalBatchLimit * ramNeededPerBatch;
+            let ramForMaxThroughput = theoreticalBatchLimit * ramNeededPerBatch;
+            let throughput = 0; // Default to 0 for servers that can't be batched
 
-            // Calculate actual throughput (money per second) using ACTUAL hack percentage
-            const moneyPerBatch = actualHackPercentage * maxMoney * hackChance;
-            const actualBatchLimit = Math.min(maxRamAvailable / ramNeededPerBatch, theoreticalBatchLimit);
-            const throughput = (actualBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
+            // Calculate batch limits (needed for server stats regardless of readiness)
+            const batchLimitForSustainedThroughput = Math.min(
+                maxRamAvailable / ramNeededPerBatch,
+                theoreticalBatchLimit,
+            );
+
+            // Check if server is properly prepped for batching
+            const isServerReady =
+                serverInfo.hackDifficulty <= serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD &&
+                serverInfo.moneyAvailable >= serverInfo.moneyMax * PREP_MONEY_THRESHOLD;
+
+            if (isServerReady) {
+                // Calculate actual throughput (money per second) using ACTUAL hack percentage
+                const moneyPerBatch = actualHackPercentage * maxMoney * hackChance;
+                throughput = (batchLimitForSustainedThroughput * moneyPerBatch) / (weakenTime / 1000); // money per second
+            } else {
+                // Server needs prep, set RAM allocation to 0 to prevent wasted allocation
+                ramForMaxThroughput = 0;
+            }
 
             prioritiesMap.set(server, {
                 priority: throughput,
@@ -618,8 +635,7 @@ export async function main(ns) {
                 growthThreads: growthThreads,
                 weakenThreadsNeeded: weakenThreadsNeeded,
                 hackChance: hackChance,
-                actualBatchLimit: actualBatchLimit,
-                theoreticalBatchLimit: theoreticalBatchLimit,
+                batchLimitForSustainedThroughput: batchLimitForSustainedThroughput,
                 maxSecurityIncreasePerBatch: totalSecurityIncrease,
                 timePerBatch: timePerBatch,
                 ramForMaxThroughput: ramForMaxThroughput,
