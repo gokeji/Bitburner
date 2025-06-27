@@ -97,10 +97,13 @@ export async function main(ns) {
             // RAM greater than 0 and has root access
             return ns.getServerMaxRam(server) > 0 && ns.hasRootAccess(server);
         });
-        const footer = `Target servers: ${servers.length} | Total usable servers: ${allUsableServers.length} | Total RAM: ${ns.formatRam(
-            allUsableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0),
-            2,
-        )} | Total CPU cores: ${allUsableServers.reduce((acc, server) => acc + ns.getServer(server).cpuCores, 0)}`;
+        const purchasedServerCount = allUsableServers.filter(
+            (server) => ns.getServer(server).purchasedByPlayer && server !== "home",
+        ).length;
+        const totalRam = allUsableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
+        const usedRam = allUsableServers.reduce((acc, server) => acc + ns.getServerUsedRam(server), 0);
+        const ramUtilization = usedRam / totalRam;
+        const footer = `Target servers: ${servers.length} | Usable servers: ${allUsableServers.length} (Purchased: ${purchasedServerCount}) | CPU cores: ${allUsableServers.reduce((acc, server) => acc + ns.getServer(server).cpuCores, 0)} | RAM: ${ns.formatRam(usedRam, 2)} / ${ns.formatRam(totalRam, 2)} (${ns.formatPercent(ramUtilization, 2)})`;
 
         // Clear and display all content at once to reduce flashing
         ns.clearLog();
