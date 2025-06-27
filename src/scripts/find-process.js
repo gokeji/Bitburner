@@ -14,7 +14,7 @@ export function autocomplete(data, args) {
 export async function main(ns) {
     const shouldKill = ns.args.includes("kill");
     const shouldTail = ns.args.includes("tail");
-    const scriptName = ns.args.find((arg) => !["kill", "tail"].includes(arg));
+    const scriptName = ns.args.find((arg) => !["kill", "tail", "run"].includes(arg));
 
     let foundPid = 0;
     let actualScriptName = "";

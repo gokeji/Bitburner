@@ -1,4 +1,5 @@
 import { NS } from "@ns";
+import { calculatePortfolioValue } from "./scripts/stock-market.js";
 
 const REFRESH_RATE = 150;
 const CACHE_EXPIRY_MS = 10000; // Cache server list for 10 seconds
@@ -10,6 +11,9 @@ let serverListCacheTime = 0;
 let allServersCache = null;
 let allServersCacheTime = 0;
 let processCache = new Map(); // server -> {processes, timestamp}
+
+// Hacking money rate tracking (similar to karma.js)
+let hackingMoneyHistory = [];
 
 /**
  *
@@ -28,98 +32,93 @@ export async function main(ns) {
             }
         });
 
-    // Check for chart mode argument
-    const isChartMode = ns.args.includes("--chart") || ns.args.includes("-c");
-
     const charsWidth = 128; // Updated to include 8-char priority column + 6-char batch column + separators
 
-    if (isChartMode) {
-        // Chart mode: dynamic updating terminal display
-        ns.ui.openTail();
+    // Chart mode: dynamic updating terminal display
+    ns.ui.openTail();
 
-        // Initial window setup (will be adjusted dynamically)
-        ns.ui.resizeTail(charsWidth * 10, 400);
-        ns.ui.moveTail(320, 0);
+    // Initial window setup (will be adjusted dynamically)
+    ns.ui.resizeTail(charsWidth * 10, 400);
+    ns.ui.moveTail(320, 0);
 
-        let cleanupCounter = 0;
-        cleanupCaches();
+    let cleanupCounter = 0;
+    cleanupCaches();
 
-        while (true) {
-            // Update profit data from distributed-hack.js
-            update_distributed_hack_profits(ns);
-
-            // Cleanup caches every 30 seconds to prevent memory leaks
-            cleanupCounter++;
-            if (cleanupCounter % Math.floor(30000 / REFRESH_RATE) === 0) {
-                // Every 30 seconds
-                cleanupCaches();
-            }
-
-            // Rescan for servers on each iteration, but use cache to reduce overhead
-            var servers = get_servers(ns, false);
-
-            // Dynamically adjust window size based on current server count
-            const windowWidth = charsWidth * 10; // 120 characters * 8px per char
-            const windowHeight = Math.min((servers.length + 6) * 26, 800); // lines * 16px per line
-
-            ns.ui.resizeTail(windowWidth, windowHeight);
-
-            // Generate all content first to minimize flashing
-            const chartData = generate_chart_data(ns, servers);
-            const timeHeader = `Time: ${new Date().toLocaleTimeString()} - Distributed Hack Monitor`;
-            const separator = "=".repeat(charsWidth);
-            const dashSeparator = "-".repeat(charsWidth);
-            const tableHeader = get_table_header();
-
-            const allUsableServers = get_servers(ns, true).filter((server) => {
-                // RAM greater than 0 and has root access
-                return ns.getServerMaxRam(server) > 0 && ns.hasRootAccess(server);
-            });
-            const footer = `Target servers: ${servers.length} | Total usable servers: ${allUsableServers.length} | Total RAM: ${ns.formatRam(
-                allUsableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0),
-                2,
-            )} | Total CPU cores: ${allUsableServers.reduce((acc, server) => acc + ns.getServer(server).cpuCores, 0)}`;
-
-            // Clear and display all content at once to reduce flashing
-            ns.clearLog();
-            ns.print(timeHeader);
-            ns.print(separator);
-            ns.print(tableHeader);
-            ns.print(dashSeparator);
-
-            // Display server data
-            for (const serverLine of chartData) {
-                ns.print(serverLine);
-            }
-
-            // Add footer with summary
-            ns.print(separator);
-            ns.print(footer);
-
-            await ns.sleep(REFRESH_RATE);
-        }
-    } else {
-        // Normal mode: single output with formatted table
+    while (true) {
         // Update profit data from distributed-hack.js
         update_distributed_hack_profits(ns);
 
-        const servers = get_servers(ns, false);
-        const chartData = generate_chart_data(ns, servers);
+        // Update hacking money rate tracking
+        updateHackingMoneyRate(ns);
 
-        // Add header
-        ns.tprint(`Distributed Hack Server Stats - ${new Date().toLocaleTimeString()}`);
-        ns.tprint("=".repeat(charsWidth));
-        ns.tprint(get_table_header());
-        ns.tprint("-".repeat(charsWidth));
+        // Cleanup caches every 30 seconds to prevent memory leaks
+        cleanupCounter++;
+        if (cleanupCounter % Math.floor(30000 / REFRESH_RATE) === 0) {
+            // Every 30 seconds
+            cleanupCaches();
+        }
+
+        // Rescan for servers on each iteration, but use cache to reduce overhead
+        var servers = get_servers(ns, false);
+
+        // Dynamically adjust window size based on current server count
+        const windowWidth = charsWidth * 10; // 120 characters * 8px per char
+        const windowHeight = Math.min((servers.length + 6) * 26, 800); // lines * 16px per line
+
+        ns.ui.resizeTail(windowWidth, windowHeight);
+
+        // Generate all content first to minimize flashing
+        const chartData = generate_chart_data(ns, servers);
+        const hackingRate = getHackingMoneyRate();
+
+        // Get stock portfolio information
+        let stockInfo = "";
+        if (calculatePortfolioValue) {
+            try {
+                const portfolio = calculatePortfolioValue(ns);
+                if (portfolio.hasPositions) {
+                    const profitSign = portfolio.totalProfit >= 0 ? "+" : "";
+                    stockInfo = ` | Stocks: ${ns.formatNumber(portfolio.totalValue, 2)} (${profitSign}${ns.formatNumber(portfolio.totalProfit, 2)})`;
+                } else {
+                    stockInfo = " | Stocks: 0 (0)";
+                }
+            } catch (e) {
+                // Stock API might not be available
+                stockInfo = " | Stocks: 0 (0)";
+            }
+        }
+
+        const timeHeader = `Time: ${new Date().toLocaleTimeString()} - Hack Monitor - Hacking Rate: ${ns.formatNumber(hackingRate)}/s${stockInfo}`;
+        const separator = "=".repeat(charsWidth);
+        const dashSeparator = "-".repeat(charsWidth);
+        const tableHeader = get_table_header();
+
+        const allUsableServers = get_servers(ns, true).filter((server) => {
+            // RAM greater than 0 and has root access
+            return ns.getServerMaxRam(server) > 0 && ns.hasRootAccess(server);
+        });
+        const footer = `Target servers: ${servers.length} | Total usable servers: ${allUsableServers.length} | Total RAM: ${ns.formatRam(
+            allUsableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0),
+            2,
+        )} | Total CPU cores: ${allUsableServers.reduce((acc, server) => acc + ns.getServer(server).cpuCores, 0)}`;
+
+        // Clear and display all content at once to reduce flashing
+        ns.clearLog();
+        ns.print(timeHeader);
+        ns.print(separator);
+        ns.print(tableHeader);
+        ns.print(dashSeparator);
 
         // Display server data
         for (const serverLine of chartData) {
-            ns.tprint(serverLine);
+            ns.print(serverLine);
         }
 
         // Add footer with summary
-        ns.tprint("=".repeat(charsWidth));
-        ns.tprint(`Total servers: ${servers.length}`);
+        ns.print(separator);
+        ns.print(footer);
+
+        await ns.sleep(REFRESH_RATE);
     }
 }
 
@@ -334,7 +333,7 @@ function pad_str(string, len) {
  * @param {string} server
  * @returns {string}
  */
-function get_server_data(ns, server, useFormulas = true) {
+function get_server_data(ns, server, useFormulas = false) {
     /*
 	Creates the info text for each server. Currently gets money, security, RAM, distributed attack info, priority, and batch time.
 	*/
@@ -348,16 +347,17 @@ function get_server_data(ns, server, useFormulas = true) {
     var priority = get_hacking_priority(ns, server); // Get hacking priority
     var weakenTimeMs = ns.getWeakenTime(server); // Get weaken time (batch time)
 
-    // if (useFormulas) {
-    //     // Create optimal server state for formulas API calculations
-    //     const calcServer = {
-    //         ...ns.getServer(server),
-    //         hackDifficulty: ns.getServer(server).minDifficulty,
-    //         moneyAvailable: ns.getServer(server).moneyMax,
-    //     };
-    //     const player = ns.getPlayer();
-    //     weakenTimeMs = ns.formulas.hacking.weakenTime(calcServer, player);
-    // }
+    if (useFormulas) {
+        // Show optimal weaken time vs real time weaken time
+        // Create optimal server state for formulas API calculations
+        const calcServer = {
+            ...ns.getServer(server),
+            hackDifficulty: ns.getServer(server).minDifficulty,
+            moneyAvailable: ns.getServer(server).moneyMax,
+        };
+        const player = ns.getPlayer();
+        weakenTimeMs = ns.formulas.hacking.weakenTime(calcServer, player);
+    }
 
     // Format money with M suffix for millions
     var formatMoney = (amount, digits = 0) => {
@@ -500,4 +500,25 @@ function cleanupCaches() {
             processCache.delete(server);
         }
     }
+}
+
+// Function to update hacking money rate tracking (similar to karma.js)
+function updateHackingMoneyRate(ns) {
+    var hackingMoney = ns.getMoneySources().sinceInstall.hacking;
+    var now = Date.now();
+
+    // Keep 60 seconds of history (same as karma.js)
+    hackingMoneyHistory.push({ money: hackingMoney, time: now });
+    hackingMoneyHistory = hackingMoneyHistory.filter((entry) => now - entry.time <= 60000);
+}
+
+// Function to calculate hacking money rate
+function getHackingMoneyRate() {
+    var rate = 0;
+    if (hackingMoneyHistory.length >= 2) {
+        var oldest = hackingMoneyHistory[0];
+        var latest = hackingMoneyHistory[hackingMoneyHistory.length - 1];
+        rate = (latest.money - oldest.money) / ((latest.time - oldest.time) / 1000);
+    }
+    return rate;
 }
