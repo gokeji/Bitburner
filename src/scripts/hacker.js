@@ -64,6 +64,7 @@ export async function main(ns) {
     let serverRamCache = new Map();
 
     let maxRamAvailable = 0;
+    let totalRamAvailable = 0;
 
     ns.disableLog("ALL");
 
@@ -97,6 +98,8 @@ export async function main(ns) {
         });
 
         maxRamAvailable = executableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
+        totalRamAvailable = getTotalAvailableRam(ns);
+        ns.print(`Total RAM Available: ${ns.formatRam(totalRamAvailable)}`);
 
         // Run contract solving script each tick
         runSolveContractsScript(ns);
@@ -109,10 +112,6 @@ export async function main(ns) {
                 ns.scp(scriptsToCopy, server, "home");
             }
         }
-
-        // Get the total amount of RAM available
-        const totalRamAvailable = getTotalAvailableRam(ns);
-        ns.print(`Total RAM Available: ${ns.formatRam(totalRamAvailable)}`);
 
         // Calculate global priorities map once per tick (without excluding any servers)
         globalPrioritiesMap = calculateTargetServerPriorities(ns);
@@ -367,13 +366,13 @@ export async function main(ns) {
         const serverSuccessRate = totalServersAttempted > 0 ? totalServersSucceeded / totalServersAttempted : 1;
 
         // Both ram utilization and server success rate should be compensated for
-        ramOverestimation = 1.1 / ramUtilization / serverSuccessRate;
+        ramOverestimation = 1 / ramUtilization / serverSuccessRate;
         ns.print(
             `INFO: RAM: ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(freeRamAfterTick)} free | Batch Success: ${ns.formatPercent(serverSuccessRate)} | RAM Overestimation: ${ns.formatNumber(ramOverestimation, 2)}`,
         );
 
         // XP farming: Use all remaining RAM for weaken scripts
-        xpFarm(ns);
+        // xpFarm(ns);
 
         await ns.sleep(TICK_DELAY);
     }
@@ -821,21 +820,14 @@ export async function main(ns) {
         // Find servers for prep operations with proper RAM accounting
         const allocation = allocateServersForOperations(ns, operations);
 
-        // Display prep information
-        const prepOperations = [];
-        if (needsInitialWeaken) prepOperations.push(`${initialWeakenThreads}W`);
-        if (needsGrow) prepOperations.push(`${growthThreads}G`);
-        if (needsGrow) prepOperations.push(`${finalWeakenThreads}W`);
-
-        const totalPrepRam = initialWeakenRam + growRam + finalWeakenRam;
-
-        if (!allocation) {
-            ns.print(`INFO: PREP - ${target} Failed. Need ${ns.formatRam(totalPrepRam)} ram`);
+        if (!allocation.success) {
+            const isPartial = allocation.scalingFactor < 1;
+            ns.print(
+                `INFO: ${isPartial ? "Partial " : ""}PREP - ${target} Failed. Need ${ns.formatRam(allocation.scaledTotalRamRequired)} ram.`,
+            );
             return false;
         } else {
-            ns.print(
-                `SUCCESS ${serverIndex}. ${target}: PREP ${ns.formatRam(allocation.totalRamUsed)} for ${prepOperations.join(" + ")}`,
-            );
+            ns.print(`SUCCESS ${serverIndex}. ${target}: PREP ${ns.formatRam(allocation.totalRamUsed)}`);
         }
 
         // Update the server RAM cache - this is handled by allocateServersForOperations
@@ -946,13 +938,10 @@ export async function main(ns) {
         const allocation = allocateServersForOperations(ns, operations);
 
         // If not enough RAM to run H G and W, return failure
-        if (!allocation) {
-            const hackRamUsed = hackThreads * HACK_SCRIPT_RAM_USAGE;
-            const growRamUsed = growthThreads * GROW_SCRIPT_RAM_USAGE;
-            const weakenRamUsed = weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
-            const totalRamUsed = hackRamUsed + growRamUsed + weakenRamUsed;
-
-            ns.print(`INFO: No servers found for batch hack ${target}, need ${ns.formatRam(totalRamUsed)} ram`);
+        if (!allocation.success) {
+            ns.print(
+                `INFO: No servers found for batch hack ${target}, need ${ns.formatRam(allocation.scaledTotalRamRequired)} ram`,
+            );
             return { success: false, ramUsed: 0 }; // Not enough RAM to run H G and W
         }
 
@@ -1214,6 +1203,7 @@ export async function main(ns) {
     /**
      * Allocates servers for any combination of HGW operations and updates global RAM cache.
      * This function can handle both batch operations and prep operations with flexible allocation.
+     * If there isn't enough total RAM for all operations, it will scale down all operations proportionally.
      *
      * @param {NS} ns - The Netscript API.
      * @param {Array<{type: 'hack'|'grow'|'weaken', threads: number, id?: string}>} operations - Array of operations needed.
@@ -1222,7 +1212,7 @@ export async function main(ns) {
      *   - threads: number of threads needed
      *   - id: optional identifier to distinguish multiple operations of the same type (e.g., 'initial_weaken', 'final_weaken')
      *
-     * @returns {Object|false} - Returns allocation result or false if not enough RAM.
+     * @returns {Object} - Returns allocation result.
      *   Success format: {
      *     hack: Map<string, number>,     // serverName -> threads (can be split across multiple servers)
      *     grow: Map<string, number>,     // serverName -> threads (single server only)
@@ -1230,11 +1220,12 @@ export async function main(ns) {
      *     initial_weaken: Map<string, number>, // if id='initial_weaken'
      *     final_weaken: Map<string, number>,   // if id='final_weaken'
      *     // ... other operations with custom ids
-     *     totalRamUsed: number
+     *     totalRamUsed: number,
+     *     scalingFactor: number          // Factor by which operations were scaled (1.0 = no scaling)
      *   }
      *
      * Key behaviors:
-     * 1. All operations must be satisfied or the function returns false
+     * 1. If insufficient total RAM, scales down all operations proportionally
      * 2. Grow operations must be allocated to a single server (cannot be split)
      * 3. Hack and weaken operations can be split across multiple servers
      * 4. Grow operations are allocated first to ensure they get priority
@@ -1242,9 +1233,57 @@ export async function main(ns) {
      * 6. Updates global serverRamCache and removes servers with insufficient RAM (< 1.75GB)
      */
     function allocateServersForOperations(ns, operations) {
+        let scalingFactor = 1.0;
+
+        function getTotalRamRequired(operations) {
+            return operations.reduce((total, op) => {
+                let ramPerThread;
+                switch (op.type) {
+                    case "hack":
+                        ramPerThread = HACK_SCRIPT_RAM_USAGE;
+                        break;
+                    case "grow":
+                        ramPerThread = GROW_SCRIPT_RAM_USAGE;
+                        break;
+                    case "weaken":
+                        ramPerThread = WEAKEN_SCRIPT_RAM_USAGE;
+                        break;
+                    default:
+                        return total;
+                }
+                return total + op.threads * ramPerThread;
+            }, 0);
+        }
+
+        // Calculate total RAM required for all operations
+        const totalRamRequired = getTotalRamRequired(operations);
+
+        // Calculate scaling factor
+        if (totalRamRequired > totalRamAvailable) {
+            scalingFactor = totalRamAvailable / totalRamRequired;
+        }
+
+        // Scale down operations if necessary
+        const scaledOperations = operations.map((op) => ({
+            ...op,
+            threads: Math.max(1, Math.ceil(op.threads * scalingFactor)),
+        }));
+
+        const scaledTotalRamRequired = getTotalRamRequired(scaledOperations);
+
+        // Result object to store allocations
+        const result = {
+            success: true,
+            totalRamUsed: 0,
+            scalingFactor: scalingFactor,
+            totalRamRequired: totalRamRequired,
+            scaledTotalRamRequired: scaledTotalRamRequired,
+        };
+
         // Validate input
         if (!operations || operations.length === 0) {
-            return false;
+            result.success = false;
+            return result;
         }
 
         // Create a copy of server RAM availability to track allocations
@@ -1254,14 +1293,9 @@ export async function main(ns) {
         const sortedServersByRam = Array.from(serverRamAvailable.entries()).sort((a, b) => b[1] - a[1]); // Sort by RAM descending (largest first)
 
         // Separate operations by type
-        const growOperations = operations.filter((op) => op.type === "grow");
-        const hackOperations = operations.filter((op) => op.type === "hack");
-        const weakenOperations = operations.filter((op) => op.type === "weaken");
-
-        // Result object to store allocations
-        const result = {
-            totalRamUsed: 0,
-        };
+        const growOperations = scaledOperations.filter((op) => op.type === "grow");
+        const hackOperations = scaledOperations.filter((op) => op.type === "hack");
+        const weakenOperations = scaledOperations.filter((op) => op.type === "weaken");
 
         // Step 1: Allocate grow operations first (must be on single servers)
         // Will automatically use largest servers first since allowSplit=false
@@ -1277,7 +1311,8 @@ export async function main(ns) {
             );
 
             if (!allocation) {
-                return false; // Cannot allocate grow operation
+                result.success = false;
+                return result; // Cannot allocate grow operation
             }
 
             result[opKey] = allocation.allocations;
@@ -1297,7 +1332,8 @@ export async function main(ns) {
             );
 
             if (!allocation) {
-                return false; // Cannot allocate hack operation
+                result.success = false;
+                return result; // Cannot allocate hack operation
             }
 
             result[opKey] = allocation.allocations;
@@ -1317,7 +1353,8 @@ export async function main(ns) {
             );
 
             if (!allocation) {
-                return false; // Cannot allocate weaken operation
+                result.success = false;
+                return result; // Cannot allocate weaken operation
             }
 
             result[opKey] = allocation.allocations;
