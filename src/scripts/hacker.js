@@ -599,7 +599,6 @@ export async function main(ns) {
                 weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
 
             let ramForMaxThroughput = theoreticalBatchLimit * ramNeededPerBatch;
-            let throughput = 0; // Default to 0 for servers that can't be batched
 
             // Calculate batch limits (needed for server stats regardless of readiness)
             const batchLimitForSustainedThroughput = Math.min(
@@ -607,16 +606,14 @@ export async function main(ns) {
                 theoreticalBatchLimit,
             );
 
-            // Check if server is properly prepped for batching
+            // Calculate actual throughput (money per second) using ACTUAL hack percentage
+            const moneyPerBatch = actualHackPercentage * maxMoney * hackChance;
+            const throughput = (batchLimitForSustainedThroughput * moneyPerBatch) / (weakenTime / 1000); // money per second
+
             const isServerReady =
                 serverInfo.hackDifficulty <= serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD &&
                 serverInfo.moneyAvailable >= serverInfo.moneyMax * PREP_MONEY_THRESHOLD;
-
-            if (isServerReady) {
-                // Calculate actual throughput (money per second) using ACTUAL hack percentage
-                const moneyPerBatch = actualHackPercentage * maxMoney * hackChance;
-                throughput = (batchLimitForSustainedThroughput * moneyPerBatch) / (weakenTime / 1000); // money per second
-            } else {
+            if (!isServerReady) {
                 // Server needs prep, set RAM allocation to 0 to prevent wasted allocation
                 ramForMaxThroughput = 0;
             }
@@ -830,7 +827,7 @@ export async function main(ns) {
         }
 
         // Find servers for prep operations with proper RAM accounting
-        const allocation = allocateServersForOperations(ns, operations);
+        const allocation = allocateServersForOperations(ns, operations, true);
 
         if (!allocation.success) {
             const isPartial = allocation.scalingFactor < 1;
@@ -1235,7 +1232,7 @@ export async function main(ns) {
      * 5. Remaining operations are allocated to remaining servers
      * 6. Updates global serverRamCache and removes servers with insufficient RAM (< 1.75GB)
      */
-    function allocateServersForOperations(ns, operations) {
+    function allocateServersForOperations(ns, operations, allowPartial = false) {
         let scalingFactor = 1.0;
 
         function getTotalRamRequired(operations) {
@@ -1261,8 +1258,8 @@ export async function main(ns) {
         // Calculate total RAM required for all operations
         const totalRamRequired = getTotalRamRequired(operations);
 
-        // Calculate scaling factor
-        if (totalRamRequired > totalFreeRam) {
+        // Calculate scaling factor if partial allocation is allowed
+        if (totalRamRequired > totalFreeRam && allowPartial) {
             scalingFactor = totalFreeRam / totalRamRequired;
         }
 
@@ -1272,7 +1269,7 @@ export async function main(ns) {
             threads: Math.max(1, Math.ceil(op.threads * scalingFactor)),
         }));
 
-        const scaledTotalRamRequired = getTotalRamRequired(scaledOperations);
+        const scaledTotalRamRequired = getTotalRamRequired(operations);
 
         // Result object to store allocations
         const result = {
