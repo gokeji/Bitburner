@@ -1,6 +1,6 @@
 import { NS } from "@ns";
 
-const REFRESH_RATE = 150;
+const REFRESH_RATE = 500;
 const CACHE_EXPIRY_MS = 10000; // Cache server list for 10 seconds
 const PROCESS_CACHE_EXPIRY_MS = 5000; // Cache process data for 5 seconds
 

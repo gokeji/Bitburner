@@ -8,8 +8,8 @@ const SERVER_TO_START_SHARING_RAM_ON = "b-05";
 const IPVGO_OPPONENTS = [
     // "Netburners", // increased hacknet production
     // "Slum Snakes", // crime success rate
-    "The Black Hand", // hacking money
-    // "Tetrads", // strength, defense, dexterity, and agility levels
+    // "The Black Hand", // hacking money
+    "Tetrads", // strength, defense, dexterity, and agility levels
     // "Daedalus", // reputation gain
     // "Illuminati", // faster hack(), grow(), and weaken()
     // "????????????", // w0r1d_d43m0n Hacking Levels
@@ -69,7 +69,8 @@ export async function main(ns) {
             .reduce((acc, server) => acc + ns.getPurchasedServerCost(ns.getServer(server).maxRam), 0);
 
         // if MAX_SERVER_VALUE is -1, don't start until we have b-24 server
-        const noMaxServerValueCondition = MAX_SERVER_VALUE === -1 && ns.getPurchasedServers().length < 24;
+        const noMaxServerValueCondition =
+            MAX_SERVER_VALUE === -1 && ns.getPurchasedServers().length < ns.getPurchasedServerLimit();
 
         // Start stock trader and also share ram after we purchase the server to share ram on
         if (totalServerValue > MAX_SERVER_VALUE && !noMaxServerValueCondition) {

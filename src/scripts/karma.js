@@ -14,9 +14,9 @@ export async function main(ns) {
         var karma = ns.heart.break();
         var now = Date.now();
 
-        // Keep 10 seconds of history
+        // Keep 60 seconds of history
         karmaHistory.push({ karma, time: now });
-        karmaHistory = karmaHistory.filter((entry) => now - entry.time <= 20000);
+        karmaHistory = karmaHistory.filter((entry) => now - entry.time <= 60000);
 
         ns.clearLog(); // Clear the Log window
 

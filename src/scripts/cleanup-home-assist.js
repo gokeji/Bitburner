@@ -11,20 +11,21 @@ function disable_logs(ns) {
     logs.forEach((log) => ns.disableLog(log));
 }
 
-async function cleanup_home_assist_processes(ns, typesToKill) {
-    const servers = new Set(["home"]);
+async function cleanup_home_assist_processes(ns, targetProcess, targetServer) {
+    let servers = new Set(["home"]);
     scanAll(ns, "home", servers);
     ns.tprint(`Found ${servers.size} servers`);
 
     let totalKilled = 0;
     let killReport = {};
 
-    if (typesToKill.includes("hack")) {
+    if (!targetProcess || targetProcess === "hack") {
         // First kill all hack scripts
         const { totalKilled: totalKilledHack, killReport: killReportHack } = cleanScriptOnAllServers(
             ns,
             "kamu/hack.js",
             servers,
+            targetServer,
         );
         totalKilled += totalKilledHack;
         killReport.hack = killReportHack;
@@ -32,12 +33,13 @@ async function cleanup_home_assist_processes(ns, typesToKill) {
         await ns.sleep(200);
     }
 
-    if (typesToKill.includes("grow")) {
+    if (!targetProcess || targetProcess === "grow") {
         // Then kill all grow scripts
         const { totalKilled: totalKilledGrow, killReport: killReportGrow } = cleanScriptOnAllServers(
             ns,
             "kamu/grow.js",
             servers,
+            targetServer,
         );
         totalKilled += totalKilledGrow;
         killReport.grow = killReportGrow;
@@ -45,12 +47,13 @@ async function cleanup_home_assist_processes(ns, typesToKill) {
         await ns.sleep(200);
     }
 
-    if (typesToKill.includes("weaken")) {
+    if (!targetProcess || targetProcess === "weaken") {
         // Then kill all weaken scripts
         const { totalKilled: totalKilledWeaken, killReport: killReportWeaken } = cleanScriptOnAllServers(
             ns,
             "kamu/weaken.js",
             servers,
+            targetServer,
         );
         totalKilled += totalKilledWeaken;
         killReport.weaken = killReportWeaken;
@@ -62,12 +65,22 @@ async function cleanup_home_assist_processes(ns, typesToKill) {
     };
 }
 
-function cleanScriptOnAllServers(ns, script, servers) {
+/**
+ * Kills all instances of a script on all servers
+ * @param {NS} ns
+ * @param {string} script
+ * @param {Set<string>} servers
+ * @param {string} targetServer
+ * @returns {{totalKilled: number, killReport: Record<string, number>}}
+ */
+function cleanScriptOnAllServers(ns, script, servers, targetServer) {
     let totalKilled = 0;
     const killReport = {};
 
     for (const server of servers) {
-        const processes = ns.ps(server).filter((p) => p.filename === script);
+        const processes = ns
+            .ps(server)
+            .filter((p) => p.filename === script && (!targetServer || p.args[0] === targetServer));
         let killedOnServer = 0;
 
         processes.forEach((p) => {
@@ -90,9 +103,10 @@ function cleanScriptOnAllServers(ns, script, servers) {
 export async function main(ns) {
     disable_logs(ns);
 
-    const typesToKill = ns.args.length > 0 ? ns.args : ["hack", "grow", "weaken"];
+    const targetProcess = ns.args[0];
+    const targetServer = ns.args[1];
 
-    const { totalKilled, killReport } = await cleanup_home_assist_processes(ns, typesToKill);
+    const { totalKilled, killReport } = await cleanup_home_assist_processes(ns, targetProcess, targetServer);
 
     if (totalKilled > 0) {
         const totalHacked = killReport.hack ? Object.values(killReport.hack).reduce((acc, curr) => acc + curr, 0) : 0;
