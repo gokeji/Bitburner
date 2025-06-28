@@ -39,7 +39,6 @@ export async function main(ns) {
 
     // Global priorities map that persists across the scheduling loop
     let globalPrioritiesMap = new Map();
-    let previousGlobalPrioritiesMap = new Map();
     const recoveringServers = new Set(); // In-memory state for servers in active recovery
     let serverBatchTimings = new Map(); // Stores the original batch timings for each server
 
@@ -131,58 +130,6 @@ export async function main(ns) {
 
         // Calculate global priorities map once per tick (without excluding any servers)
         globalPrioritiesMap = calculateTargetServerPriorities(ns);
-
-        // Check for weakenTime desync by comparing with the previous tick
-        let outOfSyncServers = 0;
-        let totalPercentChange = 0;
-        let totalMsChange = 0;
-        let outOfSyncChanges = [];
-
-        for (const [server, currentStats] of globalPrioritiesMap.entries()) {
-            if (previousGlobalPrioritiesMap.has(server)) {
-                const previousStats = previousGlobalPrioritiesMap.get(server);
-                // Use a small tolerance for floating point comparisons
-                if (Math.abs(currentStats.weakenTime - previousStats.weakenTime) > 0.001) {
-                    outOfSyncServers++;
-                    const msChange = currentStats.weakenTime - previousStats.weakenTime;
-                    const percentChange =
-                        previousStats.weakenTime !== 0 ? (msChange / previousStats.weakenTime) * 100 : 0;
-                    totalMsChange += msChange;
-                    totalPercentChange += percentChange;
-
-                    // Store the change data for this server
-                    outOfSyncChanges.push({
-                        server: server,
-                        msChange: msChange,
-                        percentChange: percentChange,
-                        priority: currentStats.priority,
-                    });
-                }
-            }
-        }
-
-        // Just logging server desync
-        if (outOfSyncServers > 0) {
-            const avgPercentChange = totalPercentChange / outOfSyncServers;
-            const avgMsChange = totalMsChange / outOfSyncServers;
-
-            const warnMessage = `WARN: ${outOfSyncServers} servers are out of sync. Avg weakenTime change: ${ns.formatNumber(avgMsChange, 2)}ms (${ns.formatNumber(avgPercentChange, 2)}%). Player Level: ${ns.getPlayer().skills.hacking}. HackingMult: ${ns.getPlayer().mults.hacking_speed}.`;
-
-            ns.print(warnMessage);
-
-            // Sort by priority (throughput) and show top 3
-            outOfSyncChanges.sort((a, b) => b.priority - a.priority);
-            const topThreeChanges = outOfSyncChanges.slice(0, 3);
-
-            for (let i = 0; i < topThreeChanges.length; i++) {
-                const change = topThreeChanges[i];
-                const changeMessage = `Top ${i + 1} Priority Server: ${change.server} - ${ns.formatNumber(change.msChange, 2)}ms change (${ns.formatNumber(change.percentChange, 2)}%)`;
-                ns.print(changeMessage);
-            }
-        }
-
-        // Update the previous state for the next tick's comparison
-        previousGlobalPrioritiesMap = new Map(globalPrioritiesMap);
 
         const runningScriptInfo = getRunningScriptInfo(ns);
 
@@ -363,7 +310,6 @@ export async function main(ns) {
                     timeDriftDelay,
                 );
 
-                // Ensure we made progress to avoid infinite loop
                 if (ramUsedForBatches > 0) {
                     successfullyProcessedServers.push(currentServer);
                     totalRamUsed += ramUsedForBatches;
@@ -396,8 +342,12 @@ export async function main(ns) {
 
         const serverSuccessRate = totalServersAttempted > 0 ? totalServersNotDiscarded / totalServersAttempted : 1;
 
+        const { avgPercentChange, avgMsChange, outOfSyncServers } = getWeakenTimeDrift(ns);
+        ns.print(avgMsChange, avgPercentChange, outOfSyncServers);
+        const weakenTimeDriftMessage = `Weaken Time Drift: ${ns.formatNumber(avgMsChange, 2)}ms (${ns.formatPercent(avgPercentChange, 2)})`;
+
         ns.print(
-            `INFO: RAM: ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(freeRamAfterTick)} free | Batch Success: ${ns.formatPercent(serverSuccessRate)} ${ns.formatNumber(totalServersNotDiscarded)}/${ns.formatNumber(totalServersAttempted)}`,
+            `INFO: RAM: ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(freeRamAfterTick)} free | Batch Success: ${ns.formatPercent(serverSuccessRate)} ${ns.formatNumber(totalServersNotDiscarded)}/${ns.formatNumber(totalServersAttempted)} | ${weakenTimeDriftMessage}`,
         );
 
         // XP farming: Use all remaining RAM for weaken scripts
@@ -1494,5 +1444,47 @@ export async function main(ns) {
         if (executableServersCache && now - executableServersCacheTime > CACHE_EXPIRY_MS * 3) {
             executableServersCache = null;
         }
+    }
+
+    function getWeakenTimeDrift(ns) {
+        // Check for weakenTime desync by comparing with original batch timings
+        let outOfSyncServers = 0;
+        let totalPercentChange = 0;
+        let totalMsChange = 0;
+
+        for (const [server, { originalWeakenTime }] of serverBatchTimings.entries()) {
+            const serverStats = globalPrioritiesMap.get(server);
+            if (!serverStats) {
+                ns.print(`WARN: No server stats found for ${server}`);
+                continue;
+            }
+
+            if (serverBatchTimings.has(server)) {
+                // Use a small tolerance for floating point comparisons
+                if (Math.abs(serverStats.weakenTime - originalWeakenTime) > 0.001) {
+                    outOfSyncServers++;
+                    const msChange = serverStats.weakenTime - originalWeakenTime;
+                    const percentChange = originalWeakenTime !== 0 ? (msChange / originalWeakenTime) * 100 : 0;
+                    totalMsChange += msChange;
+                    totalPercentChange += percentChange;
+                }
+            }
+        }
+
+        if (outOfSyncServers > 0) {
+            const avgPercentChange = totalPercentChange / outOfSyncServers;
+            const avgMsChange = totalMsChange / outOfSyncServers;
+
+            return {
+                avgPercentChange,
+                avgMsChange,
+                outOfSyncServers,
+            };
+        }
+        return {
+            avgPercentChange: 0,
+            avgMsChange: 0,
+            outOfSyncServers: 0,
+        };
     }
 }
