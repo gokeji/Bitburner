@@ -17,9 +17,10 @@ export async function main(ns) {
     const GROW_SCRIPT_RAM_USAGE = 1.75;
     const WEAKEN_SCRIPT_RAM_USAGE = 1.75;
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
 
-    let hackPercentage = 0.5;
+    let hackPercentage = 0.9;
+    const MIN_MONEY_PROTECTION_THRESHOLD = (1 - hackPercentage) / 2; // 5% of max money before recovery
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
@@ -138,7 +139,7 @@ export async function main(ns) {
                         server: server,
                         msChange: msChange,
                         percentChange: percentChange,
-                        priority: currentStats.throughput,
+                        priority: currentStats.priority,
                     });
                 }
             }
@@ -173,11 +174,11 @@ export async function main(ns) {
         var throughputPortHandle = ns.getPortHandle(4);
         throughputPortHandle.clear(); // Clear old data
         for (let [server, stats] of globalPrioritiesMap.entries()) {
-            throughputPortHandle.write(JSON.stringify({ server: server, profit: stats.throughput }));
+            throughputPortHandle.write(JSON.stringify({ server: server, profit: stats.priority }));
         }
 
         const serversByThroughput = Array.from(globalPrioritiesMap.entries())
-            .sort((a, b) => b[1].throughput - a[1].throughput)
+            .sort((a, b) => b[1].priority - a[1].priority)
             .map(([server]) => server);
 
         let totalRamUsed = 0;
@@ -249,11 +250,21 @@ export async function main(ns) {
                 // A healthy stream of batches should hover around minSecurity. If it gets this high, something is wrong.
                 const securityThreshold = serverInfo.minDifficulty + maxSecurityIncrease * 1.5;
 
-                if (serverInfo.hackDifficulty > securityThreshold) {
-                    const message = `WARN: Security on ${currentServer} (${ns.formatNumber(
-                        serverInfo.hackDifficulty,
-                        2,
-                    )}) breached threshold (${ns.formatNumber(securityThreshold, 2)}). Recovering.`;
+                if (
+                    serverInfo.hackDifficulty > securityThreshold ||
+                    serverInfo.moneyAvailable < serverInfo.moneyMax * MIN_MONEY_PROTECTION_THRESHOLD
+                ) {
+                    let message = "";
+                    if (serverInfo.hackDifficulty > securityThreshold) {
+                        message = `WARN: Security on ${currentServer} (${ns.formatNumber(
+                            serverInfo.hackDifficulty,
+                            2,
+                        )}) breached threshold (${ns.formatNumber(securityThreshold, 2)}). Recovering.`;
+                    } else {
+                        message = `WARN: Money on ${currentServer} ($${ns.formatNumber(
+                            serverInfo.moneyAvailable,
+                        )}) below 20% of max money. Recovering.`;
+                    }
                     ns.print(message);
                     killAllScriptsForTarget(ns, currentServer, ["hack"]);
                     recoveringServers.add(currentServer); // Tag server for fast-path recovery check
@@ -283,6 +294,11 @@ export async function main(ns) {
                     successfullyProcessedServers.push(currentServer);
                 }
                 continue; // Move on to next server
+            }
+
+            if (!serverRamAllocation.has(currentServer)) {
+                // Server does not have any batches allocated anyways, skip
+                continue;
             }
 
             totalServersAttempted++;
@@ -365,7 +381,7 @@ export async function main(ns) {
         const serverSuccessRate = totalServersAttempted > 0 ? totalServersNotDiscarded / totalServersAttempted : 1;
 
         ns.print(
-            `INFO: RAM: ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(freeRamAfterTick)} free | Batch Success: ${ns.formatPercent(serverSuccessRate)}`,
+            `INFO: RAM: ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(freeRamAfterTick)} free | Batch Success: ${ns.formatPercent(serverSuccessRate)} ${ns.formatNumber(totalServersNotDiscarded)}/${ns.formatNumber(totalServersAttempted)}`,
         );
 
         // XP farming: Use all remaining RAM for weaken scripts
@@ -513,9 +529,9 @@ export async function main(ns) {
     function getRunningScriptInfo(ns) {
         const scriptInfoByTarget = new Map();
 
-        const hackScriptName = hackScript.substring(1);
-        const growScriptName = growScript.substring(1);
-        const weakenScriptName = weakenScript.substring(1);
+        const hackScriptName = hackScript.startsWith("/") ? hackScript.substring(1) : hackScript;
+        const growScriptName = growScript.startsWith("/") ? growScript.substring(1) : growScript;
+        const weakenScriptName = weakenScript.startsWith("/") ? weakenScript.substring(1) : weakenScript;
 
         for (const server of executableServers) {
             const runningScripts = ns.ps(server);
@@ -600,7 +616,6 @@ export async function main(ns) {
 
             let ramForMaxThroughput = theoreticalBatchLimit * ramNeededPerBatch;
 
-            // Calculate batch limits (needed for server stats regardless of readiness)
             const batchLimitForSustainedThroughput = Math.min(
                 maxRamAvailable / ramNeededPerBatch,
                 theoreticalBatchLimit,
@@ -616,7 +631,7 @@ export async function main(ns) {
             }
 
             prioritiesMap.set(server, {
-                priority: throughput,
+                priority: throughput / ramNeededPerBatch,
                 ramNeededPerBatch: ramNeededPerBatch,
                 throughput: throughput,
                 weakenTime: weakenTime,
@@ -725,6 +740,7 @@ export async function main(ns) {
         const result = [];
 
         const isHackable = (server) => {
+            if (!ns.hasRootAccess(server)) return false;
             if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) return false;
             if (ns.getServerMaxMoney(server) === 0) return false;
             if (server === "home") return false;
@@ -1340,7 +1356,7 @@ export async function main(ns) {
         // Step 3: Allocate weaken operations (can be split across multiple servers)
         for (const weakenOp of weakenOperations) {
             const opKey = weakenOp.id || "weaken";
-            const preferHigherCoreCount = false; // Weaken scales with core count but not as much as grow
+            const preferHigherCoreCount = true;
             const allocation = allocateRamForOperation(
                 sortedServersByCoreCount,
                 serverRamAvailable,
