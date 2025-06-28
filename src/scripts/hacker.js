@@ -19,7 +19,7 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
 
-    let hackPercentage = 1.0;
+    let hackPercentage = 0.5;
     const MIN_MONEY_PROTECTION_THRESHOLD = (1 - hackPercentage) / 2; // 5% of max money before recovery
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
@@ -350,7 +350,7 @@ export async function main(ns) {
         );
 
         // XP farming: Use all remaining RAM for weaken scripts
-        xpFarm(ns);
+        // xpFarm(ns);
 
         await ns.sleep(TICK_DELAY);
     }
@@ -834,8 +834,11 @@ export async function main(ns) {
 
         if (!allocation.success) {
             const isPartial = allocation.scalingFactor < 1;
+            const operationsDescription = allocation.operations
+                .map((op) => `${op.threads}${op.type.substring(0, 1).toUpperCase()}`)
+                .join("-");
             ns.print(
-                `INFO: ${isPartial ? "Partial " : ""}PREP - ${target} Failed. Need ${ns.formatRam(allocation.scaledTotalRamRequired)} ram.`,
+                `INFO: ${isPartial ? `Partial ${ns.formatNumber(allocation.scalingFactor, 5)}X ` : ""}PREP - ${target} Failed. Need ${operationsDescription} (${ns.formatRam(allocation.scaledTotalRamRequired)} ram)`,
             );
             return false;
         } else {
@@ -1269,10 +1272,10 @@ export async function main(ns) {
         // Scale down operations if necessary
         const scaledOperations = operations.map((op) => ({
             ...op,
-            threads: Math.max(1, Math.ceil(op.threads * scalingFactor)),
+            threads: Math.max(1, Math.floor(op.threads * scalingFactor)),
         }));
 
-        const scaledTotalRamRequired = getTotalRamRequired(operations);
+        const scaledTotalRamRequired = getTotalRamRequired(scaledOperations);
 
         // Result object to store allocations
         const result = {
@@ -1281,6 +1284,7 @@ export async function main(ns) {
             scalingFactor: scalingFactor,
             totalRamRequired: totalRamRequired,
             scaledTotalRamRequired: scaledTotalRamRequired,
+            operations: scaledOperations,
         };
 
         // Validate input
