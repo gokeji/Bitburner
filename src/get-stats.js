@@ -7,8 +7,8 @@ const PROCESS_CACHE_EXPIRY_MS = 5000; // Cache process data for 5 seconds
 // Global caches to reduce expensive operations
 let serverListCache = null;
 let serverListCacheTime = 5000;
-let allServersCache = null;
-let allServersCacheTime = 5000;
+let executableServersCache = null;
+let executableServersCacheTime = 5000;
 let processCache = new Map(); // server -> {processes, timestamp}
 
 // Hacking money rate tracking (similar to karma.js)
@@ -65,7 +65,7 @@ export async function main(ns) {
         }
 
         // Rescan for servers on each iteration, but use cache to reduce overhead
-        var servers = getServers(ns, false);
+        var servers = getServers(ns, "hackable");
 
         // Dynamically adjust window size based on current server count
         const windowWidth = charsWidth * 10; // 120 characters * 8px per char
@@ -82,10 +82,7 @@ export async function main(ns) {
         const dashSeparator = "-".repeat(charsWidth);
         const tableHeader = get_table_header();
 
-        const allUsableServers = getServers(ns, true).filter((server) => {
-            // RAM greater than 0 and has root access
-            return ns.getServerMaxRam(server) > 0 && ns.hasRootAccess(server);
-        });
+        const allUsableServers = getServers(ns, "executable");
         const purchasedServerCount = allUsableServers.filter(
             (server) => ns.getServer(server).purchasedByPlayer && server !== "home",
         ).length;
@@ -116,56 +113,68 @@ export async function main(ns) {
 
 /**
  * @param {NS} ns
+ * @param {"executable" | "hackable"} type
  **/
-function getServers(ns, all = false) {
+function getServers(ns, type) {
     /*
 	Scans and iterates through all servers.
 	If all is false, only servers with root access and have money are returned.
 	*/
     const now = Date.now();
-    const cacheKey = all ? "all" : "hackable";
 
     // Check if we have a valid cache
-    if (cacheKey === "all" && allServersCache && now - allServersCacheTime < CACHE_EXPIRY_MS) {
-        return allServersCache;
+    if (type === "executable" && executableServersCache && now - executableServersCacheTime < CACHE_EXPIRY_MS) {
+        return executableServersCache;
     }
-    if (cacheKey === "hackable" && serverListCache && now - serverListCacheTime < CACHE_EXPIRY_MS) {
+    if (type === "hackable" && serverListCache && now - serverListCacheTime < CACHE_EXPIRY_MS) {
         return serverListCache;
     }
 
-    var servers = ["home"];
-    var result = ["home"];
+    // Use efficient BFS implementation with Set for O(1) lookups
+    const discovered = new Set(["home"]); // Track all discovered servers
+    const toScan = ["home"]; // Queue of servers to scan
 
-    const shouldExclude = (server) => {
-        if (!ns.hasRootAccess(server)) return true;
-        if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) return true;
-        if (ns.getServerMaxMoney(server) === 0) return true;
-        if (server === "home") return true;
-        return false;
+    const hackableServerFilter = (server) => {
+        if (!ns.hasRootAccess(server)) return false;
+        if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) return false;
+        if (ns.getServerMaxMoney(server) === 0) return false;
+        if (server === "home") return false;
+        return true;
     };
 
-    var i = 0;
-    while (i < servers.length) {
-        var server = servers[i];
-        var s = ns.scan(server);
-        for (var j in s) {
-            var con = s[j];
-            if (servers.indexOf(con) < 0) {
-                servers.push(con);
-                result.push(con);
+    const executableServerFilter = (server) => {
+        if (!ns.hasRootAccess(server)) return false;
+        if (ns.getServerMaxRam(server) === 0) return false;
+        return true;
+    };
+
+    // BFS traversal of the server network
+    while (toScan.length > 0) {
+        const server = toScan.shift(); // Process next server in queue
+
+        // Scan for connected servers and add new ones to the queue
+        const connectedServers = ns.scan(server);
+        for (const connectedServer of connectedServers) {
+            if (!discovered.has(connectedServer)) {
+                toScan.push(connectedServer);
+                discovered.add(connectedServer);
             }
         }
-        i += 1;
     }
 
-    if (!all) {
-        result = result.filter((server) => !shouldExclude(server));
+    // Convert to array and filter based on type
+    let result = Array.from(discovered);
+
+    if (type === "executable") {
+        result = result.filter(executableServerFilter);
+    } else if (type === "hackable") {
+        result = result.filter(hackableServerFilter);
     }
 
     // Cache the results
-    if (all) {
-        allServersCache = result;
-        allServersCacheTime = now;
+    if (type === "executable") {
+        executableServersCache = result;
+        executableServersCacheTime = now;
     } else {
         serverListCache = result;
         serverListCacheTime = now;
@@ -195,7 +204,7 @@ function getCachedProcesses(ns, server) {
 
 // Updated: Count total threads attacking a server from distributed-hack.js system
 function get_distributed_attack_info(ns, targetServer) {
-    const allServers = getServers(ns, true);
+    const executableServers = getServers(ns, "executable");
 
     let totalThreads = 0;
     let threadCounts = {
@@ -210,7 +219,7 @@ function get_distributed_attack_info(ns, targetServer) {
     };
 
     // Check all servers for hgw scripts targeting this server
-    for (const server of allServers) {
+    for (const server of executableServers) {
         const processes = getCachedProcesses(ns, server);
         for (const process of processes) {
             // Check if it's a hgw script targeting our server
@@ -489,7 +498,7 @@ function cleanupCaches() {
     }
 
     serverListCache = null;
-    allServersCache = null;
+    executableServersCache = null;
 }
 
 // Function to update hacking money rate tracking (similar to karma.js)

@@ -85,7 +85,7 @@ export async function main(ns) {
     // Cache cleanup counter
     let cleanupCounter = 0;
 
-    // Main loop
+    // === Main loop ===
     while (true) {
         tickCounter++;
         cleanupCounter++;
@@ -343,7 +343,6 @@ export async function main(ns) {
         const serverSuccessRate = totalServersAttempted > 0 ? totalServersNotDiscarded / totalServersAttempted : 1;
 
         const { avgPercentChange, avgMsChange, outOfSyncServers } = getWeakenTimeDrift(ns);
-        ns.print(avgMsChange, avgPercentChange, outOfSyncServers);
         const weakenTimeDriftMessage = `Weaken Time Drift: ${ns.formatNumber(avgMsChange, 2)}ms (${ns.formatPercent(avgPercentChange, 2)})`;
 
         ns.print(
@@ -717,7 +716,7 @@ export async function main(ns) {
         // Cache miss - perform BFS traversal
         const discovered = new Set(["home"]); // Track all discovered servers
         const toScan = ["home"]; // Queue of servers to scan
-        const result = [];
+        const resultSet = new Set();
 
         const isHackable = (server) => {
             if (!ns.hasRootAccess(server)) return false;
@@ -730,6 +729,7 @@ export async function main(ns) {
 
         const isExecutable = (server) => {
             if (!ns.hasRootAccess(server)) return false;
+            if (ns.getServerMaxRam(server) === 0) return false;
             if (ignoreServers.includes(server)) return false;
             return true;
         };
@@ -743,24 +743,25 @@ export async function main(ns) {
             backdoorIfNeeded(ns, server);
 
             if (getServerOptions === "all" && !ignoreServers.includes(server)) {
-                result.push(server);
+                resultSet.add(server);
             } else if (getServerOptions === "hackableOnly" && isHackable(server)) {
-                result.push(server);
+                resultSet.add(server);
             } else if (getServerOptions === "executableOnly" && isExecutable(server)) {
-                result.push(server);
+                resultSet.add(server);
             }
 
             // Scan for connected servers and add new ones to the queue
             const connectedServers = ns.scan(server);
             for (const connectedServer of connectedServers) {
                 if (!discovered.has(connectedServer)) {
-                    discovered.add(connectedServer);
                     toScan.push(connectedServer);
+                    discovered.add(connectedServer);
                 }
             }
         }
 
         // Move home server to end of list so leftover free RAM can be used for "home" server
+        const result = Array.from(resultSet);
         const homeIndex = result.indexOf("home");
         if (homeIndex > -1) {
             const homeServer = result.splice(homeIndex, 1)[0];
