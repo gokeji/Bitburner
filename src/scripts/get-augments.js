@@ -6,6 +6,7 @@ const argsSchema = [
     ["buy", false], // Set to true to actually purchase the augmentations
     ["force-buy", false], // Set to true to force purchase the augmentations in order
     ["hacking-rep-only", false], // Set to true to only show augments that boost hacking or reputation
+    ["hacking-rep-and-combat", false], // Set to true to only show augments that boost hacking, reputation, and combat
     ["hacking-only", false], // Set to true to only show augments that boost hacking
 ];
 
@@ -256,7 +257,7 @@ function calculateTotalStatIncrease(ns, augmentations) {
 /**
  * Calculates optimization score based on the specified criteria
  * @param {Object} statIncrease - Result from calculateTotalStatIncrease
- * @param {string} optimizeFor - What to optimize for ("hackingLevel", "hackingAndRep", "combat", "all")
+ * @param {string} optimizeFor - What to optimize for ("hackingLevel", "hackingAndRep", "hackingAndRepAndCombat", "all", )
  * @returns {number} The optimization score
  */
 function getOptimizationScore(statIncrease, optimizeFor) {
@@ -264,8 +265,10 @@ function getOptimizationScore(statIncrease, optimizeFor) {
         return statIncrease.relativeHackingLevelBoost;
     } else if (optimizeFor === "hackingAndRep") {
         return statIncrease.relativeHackingLevelBoost * statIncrease.relativeRepBoost;
-    } else if (optimizeFor === "combat") {
-        return statIncrease.relativeCombatBoost;
+    } else if (optimizeFor === "hackingAndRepAndCombat") {
+        return (
+            statIncrease.relativeHackingLevelBoost * statIncrease.relativeRepBoost * statIncrease.relativeCombatBoost
+        );
     } else if (optimizeFor === "all") {
         return (
             statIncrease.relativeHackingLevelBoost * statIncrease.relativeCombatBoost * statIncrease.relativeRepBoost
@@ -478,6 +481,7 @@ export async function main(ns) {
     const shouldPurchase = flags.buy;
     const hackingRepOnly = flags["hacking-rep-only"];
     const hackingOnly = flags["hacking-only"];
+    const hackingRepAndCombat = flags["hacking-rep-and-combat"];
     const forceBuy = flags["force-buy"];
 
     ns.ui.openTail(); // Open tail because there's a lot of good output
@@ -536,6 +540,8 @@ export async function main(ns) {
 
     // Check which augmentations we can afford (both price and reputation) - separate entry for each qualifying faction
     const affordableAugmentations = [];
+    let unaffordableAugmentations = [];
+    const affordableButFilteredOut = [];
 
     for (const augmentation of availableAugmentations) {
         const price = ns.singularity.getAugmentationPrice(augmentation);
@@ -552,44 +558,60 @@ export async function main(ns) {
             "Neuroreceptor Management Implant", // Removes penalty for not focusing on task
         ];
 
-        if (canAffordPrice) {
-            // Check each faction separately - create separate entries for each qualifying faction
-            for (const faction of augFactions) {
-                if (player.factions.includes(faction)) {
-                    const factionRep = ns.singularity.getFactionRep(faction);
-                    if (factionRep >= repReq) {
-                        const hackingBoost = hasHackingBoost(stats);
-                        const repBoost = hasRepBoost(stats);
-                        const combatBoost = hasCombatBoost(stats);
+        // Check each faction separately - create separate entries for each qualifying faction
+        for (const faction of augFactions) {
+            if (player.factions.includes(faction)) {
+                const factionRep = ns.singularity.getFactionRep(faction);
 
-                        // If --hacking-rep-only flag is set, skip augments that don't boost hacking or rep
-                        // Exception: Always include NeuroFlux Governor as it provides hacking boost
-                        if (hackingRepOnly && !hackingBoost && !repBoost && !alwaysIncludeList.includes(augmentation)) {
-                            continue;
-                        }
+                const hackingBoost = hasHackingBoost(stats);
+                const repBoost = hasRepBoost(stats);
+                const combatBoost = hasCombatBoost(stats);
 
-                        if (hackingOnly && !hackingBoost && !alwaysIncludeList.includes(augmentation)) {
-                            continue;
-                        }
+                const aug = {
+                    name: augmentation,
+                    cost: price / 1000000, // Convert to millions for easier reading
+                    faction: faction,
+                    prereqs: prereqs,
+                    hackingBoost: hackingBoost,
+                    repBoost: repBoost,
+                    combatBoost: combatBoost,
+                    repReq: repReq,
+                    stats: stats,
+                };
 
-                        affordableAugmentations.push({
-                            name: augmentation,
-                            cost: price / 1000000, // Convert to millions for easier reading
-                            faction: faction,
-                            prereqs: prereqs,
-                            hackingBoost: hackingBoost,
-                            repBoost: repBoost,
-                            combatBoost: combatBoost,
-                            repReq: repReq,
-                            stats: stats,
-                        });
+                if (factionRep >= repReq && canAffordPrice) {
+                    // If --hacking-rep-only flag is set, skip augments that don't boost hacking or rep
+                    // Exception: Always include NeuroFlux Governor as it provides hacking boost
+                    if (hackingRepOnly && !hackingBoost && !repBoost && !alwaysIncludeList.includes(augmentation)) {
+                        affordableButFilteredOut.push(aug);
+                        continue;
                     }
+
+                    if (hackingOnly && !hackingBoost && !alwaysIncludeList.includes(augmentation)) {
+                        affordableButFilteredOut.push(aug);
+                        continue;
+                    }
+
+                    if (
+                        hackingRepAndCombat &&
+                        !hackingBoost &&
+                        !repBoost &&
+                        !combatBoost &&
+                        !alwaysIncludeList.includes(augmentation)
+                    ) {
+                        affordableButFilteredOut.push(aug);
+                        continue;
+                    }
+
+                    affordableAugmentations.push(aug);
+                } else {
+                    unaffordableAugmentations.push(aug);
                 }
             }
         }
     }
 
-    ns.print(`Affordable Augments: ${affordableAugmentations.length}`);
+    ns.print(`\n=== Affordable Augments: ${affordableAugmentations.length} ===`);
     for (const aug of affordableAugmentations.sort((a, b) => b.cost - a.cost)) {
         const hasHackingBoost = aug.hackingBoost;
         const hasRepBoost = aug.repBoost;
@@ -597,6 +619,16 @@ export async function main(ns) {
         ns.print(
             `$${ns.formatNumber(aug.cost * 1000000)} - ${aug.name} - ${aug.faction} ${hasHackingBoost ? "- 🧠 " : ""}${hasRepBoost ? "- 📈" : ""}${hasCombatBoost ? "- 💪" : ""}`,
         );
+    }
+
+    ns.print(`\n=== Affordable but filtered out: ${affordableButFilteredOut.length} ===`);
+    for (const aug of affordableButFilteredOut.sort((a, b) => b.cost - a.cost)) {
+        ns.print(`$${ns.formatNumber(aug.cost * 1000000)} - ${aug.name} - ${aug.faction}`);
+    }
+
+    ns.print(`\n=== Unaffordable Augments: ${unaffordableAugmentations.length} ===`);
+    for (const aug of unaffordableAugmentations.sort((a, b) => b.cost - a.cost)) {
+        ns.print(`$${ns.formatNumber(aug.cost * 1000000)} - ${aug.name} - ${aug.faction}`);
     }
 
     // Sort by faction first, then by price within each faction
@@ -632,7 +664,13 @@ export async function main(ns) {
     // Optimize the purchase order
     let result = optimizeAugmentPurchases(augmentsForOptimizer, totalBudget);
 
-    const optimizeFor = hackingRepOnly ? "hackingAndRep" : hackingOnly ? "hackingLevel" : "all";
+    const optimizeFor = hackingRepOnly
+        ? "hackingAndRep"
+        : hackingOnly
+          ? "hackingLevel"
+          : hackingRepAndCombat
+            ? "hackingAndRepAndCombat"
+            : "all";
 
     // Calculate total stat increases for the current result
     if (result.purchaseOrder.length > 0) {
@@ -673,6 +711,9 @@ export async function main(ns) {
     }
     if (hackingOnly) {
         ns.print("INFO Filter: Only showing hacking augments");
+    }
+    if (hackingRepAndCombat) {
+        ns.print("INFO Filter: Only showing hacking/reputation/combat augments");
     }
     if (result.maxPriceFilter) {
         ns.print(`INFO Price filter applied: Max $${ns.formatNumber(result.maxPriceFilter * 1000000)}`);

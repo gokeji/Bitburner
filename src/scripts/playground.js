@@ -2,7 +2,7 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const toPrint = ns.getPurchasedServerLimit();
+    const toPrint = ns.getGrowTime("foodnstuff");
     ns.print(toPrint);
     // ns.print(favorToRep(34));
     // ns.print(repToFavor(300000));
