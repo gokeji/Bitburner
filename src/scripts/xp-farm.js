@@ -4,7 +4,7 @@ import { NS } from "@ns";
 export async function main(ns) {
     const args = ns.args;
 
-    const SCRIPT_DELAY = 100; // ms delay between scripts
+    const SCRIPT_DELAY = 20; // ms delay between scripts
 
     if (args.length < 3) {
         ns.tprint("Usage: xp-farm.js <target> <cycles> <growTime> <server1> <threads1> <server2> <threads2> ...");
@@ -44,6 +44,8 @@ export async function main(ns) {
                 if (pid) {
                     cycleThreads += pair.threads;
                     serversUsed++;
+                } else {
+                    ns.tprint(`WARN: Failed to launch grow script on ${pair.server}`);
                 }
             }
         }

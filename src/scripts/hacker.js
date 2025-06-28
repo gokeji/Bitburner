@@ -1110,14 +1110,14 @@ export async function main(ns) {
         for (const server of executableServers) {
             // Use serverRamCache which reflects actual available RAM after all batch scheduling
             const availableRam = serverRamCache.get(server) || 0;
-            const threadsAvailable = Math.floor(availableRam / WEAKEN_SCRIPT_RAM_USAGE);
+            const threadsAvailable = Math.floor(availableRam / GROW_SCRIPT_RAM_USAGE);
 
             if (threadsAvailable > 0) {
                 serverThreadPairs.push(server, threadsAvailable);
                 totalThreads += threadsAvailable;
 
                 // Update serverRamCache to reflect the RAM that will be used
-                serverRamCache.set(server, availableRam - threadsAvailable * WEAKEN_SCRIPT_RAM_USAGE);
+                serverRamCache.set(server, availableRam - threadsAvailable * GROW_SCRIPT_RAM_USAGE);
             }
         }
 
@@ -1129,7 +1129,7 @@ export async function main(ns) {
             const pid = ns.exec(xpFarmScript, "home", 1, ...args);
 
             if (pid) {
-                const remainingRamUsed = totalThreads * WEAKEN_SCRIPT_RAM_USAGE;
+                const remainingRamUsed = totalThreads * GROW_SCRIPT_RAM_USAGE;
                 ns.print(
                     `SUCCESS XP Farm: Launched script with ${growCycles} cycles, ${ns.formatRam(remainingRamUsed)} across ${serverThreadPairs.length / 2} servers`,
                 );
