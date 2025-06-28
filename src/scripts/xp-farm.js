@@ -45,7 +45,7 @@ export async function main(ns) {
                     cycleThreads += pair.threads;
                     serversUsed++;
                 } else {
-                    ns.tprint(`WARN: Failed to launch grow script on ${pair.server}`);
+                    ns.print(`WARN: Failed to launch grow script on ${pair.server}`);
                 }
             }
         }
