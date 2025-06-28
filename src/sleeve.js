@@ -12,7 +12,7 @@ import {
 
 const argsSchema = [
     ["min-shock-recovery", 97], // Minimum shock recovery before attempting to train or do crime (Set to 100 to disable, 0 to recover fully)
-    ["shock-recovery", 0.05], // Set to a number between 0 and 1 to devote that ratio of time to periodic shock recovery (until shock is at 0)
+    ["shock-recovery", 0], // Set to a number between 0 and 1 to devote that ratio of time to periodic shock recovery (until shock is at 0)
     ["crime", null], // If specified, sleeves will perform only this crime regardless of stats
     ["homicide-chance-threshold", 0.25], // Sleeves on crime will automatically start homicide once their chance of success exceeds this ratio
     ["disable-gang-homicide-priority", false], // By default, sleeves will do homicide to farm Karma until we're in a gang. Set this flag to disable this priority.
@@ -20,7 +20,7 @@ const argsSchema = [
     ["buy-cooldown", 60 * 1000], // Must wait this may milliseconds before buying more augs for a sleeve
     ["min-aug-batch", 20], // Must be able to afford at least this many augs before we pull the trigger (or fewer if buying all remaining augs)
     ["reserve", null], // Reserve this much cash before determining spending budgets (defaults to contents of reserve.txt if not specified)
-    ["disable-follow-player", false], // Set to true to disable having Sleeve 0 work for the same faction/company as the player to boost reputation gain rates
+    ["disable-follow-player", true], // Set to true to disable having Sleeve 0 work for the same faction/company as the player to boost reputation gain rates
     ["disable-training", false], // Set to true to disable having sleeves workout at the gym (costs money)
     ["train-to-strength", 50], // Sleeves will go to the gym until they reach this much Str
     ["train-to-defense", 50], // Sleeves will go to the gym until they reach this much Def

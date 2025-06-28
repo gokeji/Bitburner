@@ -93,12 +93,12 @@ function calculateCrimeChance(stats, shock, crimeName) {
     if (!crime) return 0;
 
     // Shock reduces effective stats
-    const shockMultiplier = (100 - shock) / 100;
+    // const shockMultiplier = (100 - shock) / 100;
     const effectiveStats = {
-        strength: stats.strength * shockMultiplier,
-        defense: stats.defense * shockMultiplier,
-        dexterity: stats.dexterity * shockMultiplier,
-        agility: stats.agility * shockMultiplier,
+        strength: stats.strength,
+        defense: stats.defense,
+        dexterity: stats.dexterity,
+        agility: stats.agility,
     };
 
     let chance =
