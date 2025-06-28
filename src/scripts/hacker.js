@@ -350,7 +350,7 @@ export async function main(ns) {
         );
 
         // XP farming: Use all remaining RAM for weaken scripts
-        // xpFarm(ns);
+        xpFarm(ns);
 
         await ns.sleep(TICK_DELAY);
     }
@@ -1100,8 +1100,8 @@ export async function main(ns) {
             return;
         }
 
-        const weakenTime = ns.getWeakenTime(xpTarget);
-        const weakenCycles = Math.max(1, Math.floor(TICK_DELAY / (weakenTime + BASE_SCRIPT_DELAY))); // Kick off at least 1 weaken cycle
+        const growTime = ns.getGrowTime(xpTarget);
+        const growCycles = Math.max(1, Math.floor(TICK_DELAY / (growTime + BASE_SCRIPT_DELAY))); // Kick off at least 1 weaken cycle
 
         // Collect server/thread pairs for all available RAM
         const serverThreadPairs = [];
@@ -1123,7 +1123,7 @@ export async function main(ns) {
 
         if (serverThreadPairs.length > 0) {
             // Build arguments: target, cycles, weakenTime, server1, threads1, server2, threads2, ...
-            const args = [xpTarget, weakenCycles, weakenTime, ...serverThreadPairs];
+            const args = [xpTarget, growCycles, growTime, ...serverThreadPairs];
 
             // Launch the XP farm script on home
             const pid = ns.exec(xpFarmScript, "home", 1, ...args);
@@ -1131,7 +1131,7 @@ export async function main(ns) {
             if (pid) {
                 const remainingRamUsed = totalThreads * WEAKEN_SCRIPT_RAM_USAGE;
                 ns.print(
-                    `SUCCESS XP Farm: Launched script with ${weakenCycles} cycles, ${ns.formatRam(remainingRamUsed)} across ${serverThreadPairs.length / 2} servers`,
+                    `SUCCESS XP Farm: Launched script with ${growCycles} cycles, ${ns.formatRam(remainingRamUsed)} across ${serverThreadPairs.length / 2} servers`,
                 );
             } else {
                 ns.print(`WARN: XP Farm: Failed to launch script`);
