@@ -21,6 +21,7 @@ export function formatNumberShort(num, maxSignificantFigures = 6, maxDecimalPlac
     if (Math.abs(num) > 10 ** (3 * symbols.length))
         // If we've exceeded our max symbol, switch to exponential notation
         return num.toExponential(Math.min(maxDecimalPlaces, maxSignificantFigures - 1));
+    // eslint-disable-next-line no-redeclare
     for (var i = 0, sign = Math.sign(num), num = Math.abs(num); num >= 1000 && i < symbols.length; i++) num /= 1000;
     // TODO: A number like 9.999 once rounded to show 3 sig figs, will become 10.00, which is now 4 sig figs.
     return (
@@ -405,7 +406,7 @@ export async function runCommand_Custom(
     let importFunctions = getExports(ns)
         .filter((e) => command.includes(`${e}`)) // Check if the script includes the name of any functions
         // To avoid false positives, narrow these to "whole word" matches (no alpha characters on either side)
-        .filter((e) => new RegExp(`(^|[^\\w])${e}([^\\w]|\$)`).test(command));
+        .filter((e) => new RegExp(`(^|[^\\w])${e}([^\\w]|$)`).test(command));
     let script =
         (importFunctions.length > 0 ? `import { ${importFunctions.join(", ")} } from 'helpers.js'\n` : "") +
         `export async function main(ns) { ${command} }`;
@@ -768,14 +769,18 @@ export async function getActiveSourceFiles_Custom(
             null,
             silent,
         );
-    } catch {} // If this fails (e.g. presumably due to low RAM or no singularity access), default to an empty dictionary
+    } catch {
+        ns.print("WARN: Failed to get owned source files");
+    } // If this fails (e.g. presumably due to low RAM or no singularity access), default to an empty dictionary
     dictSourceFiles ??= {};
 
     // Try to get reset info
     let resetInfo = /**@returns{ResetInfo}*/ (() => null)();
     try {
         resetInfo = await fnGetNsDataThroughFile(ns, "ns.getResetInfo()", null, null, null, null, null, silent);
-    } catch {} // As above, suppress any errors and use a fall-back to survive low ram conditions.
+    } catch {
+        ns.print("WARN: Failed to get reset info");
+    } // As above, suppress any errors and use a fall-back to survive low ram conditions.
     resetInfo ??= { currentNode: 0 };
 
     // If the user is currently in a given bitnode, they will have its features unlocked. Include these "effective" levels if requested;
@@ -820,7 +825,9 @@ export async function tryGetBitNodeMultipliers_Custom(ns, fnGetNsDataThroughFile
         // We use make use of the "silent" parameter in our requests below because we have a fall-back for low-ram conditions, and don't want to confuse the player with warning/error logs
         canGetBitNodeMultipliers =
             5 in (await getActiveSourceFiles_Custom(ns, fnGetNsDataThroughFile, /*silent:*/ true));
-    } catch {}
+    } catch {
+        ns.print("WARN: Failed to get bitNode multipliers");
+    }
     if (canGetBitNodeMultipliers) {
         try {
             return await fnGetNsDataThroughFile(
@@ -833,7 +840,9 @@ export async function tryGetBitNodeMultipliers_Custom(ns, fnGetNsDataThroughFile
                 null,
                 /*silent:*/ true,
             );
-        } catch {}
+        } catch {
+            ns.print("WARN: Failed to get bitNode multipliers");
+        }
     }
     return await getHardCodedBitNodeMultipliers(ns, fnGetNsDataThroughFile);
 }
