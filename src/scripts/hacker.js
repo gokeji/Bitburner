@@ -342,8 +342,8 @@ export async function main(ns) {
 
         const serverSuccessRate = totalServersAttempted > 0 ? totalServersNotDiscarded / totalServersAttempted : 1;
 
-        const { avgPercentChange, avgMsChange, outOfSyncServers } = getWeakenTimeDrift(ns);
-        const weakenTimeDriftMessage = `Weaken Time Drift: ${ns.formatNumber(avgMsChange, 2)}ms (${ns.formatPercent(avgPercentChange, 2)})`;
+        const { avgPercentChange, avgMsChange, avgCurrentWeakenTime } = getWeakenTimeDrift(ns);
+        const weakenTimeDriftMessage = `Weaken Time Drift: ${ns.formatNumber(avgMsChange, 2)}ms (${ns.formatPercent(avgPercentChange / 100, 2)}) | Avg Weaken: ${ns.formatNumber(avgCurrentWeakenTime / 1000, 1)}s`;
 
         ns.print(
             `INFO: RAM: ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(freeRamAfterTick)} free | Batch Success: ${ns.formatPercent(serverSuccessRate)} ${ns.formatNumber(totalServersNotDiscarded)}/${ns.formatNumber(totalServersAttempted)} | ${weakenTimeDriftMessage}`,
@@ -1452,6 +1452,7 @@ export async function main(ns) {
         let outOfSyncServers = 0;
         let totalPercentChange = 0;
         let totalMsChange = 0;
+        let totalCurrentTime = 0;
 
         for (const [server, { originalWeakenTime }] of serverBatchTimings.entries()) {
             const serverStats = globalPrioritiesMap.get(server);
@@ -1464,10 +1465,12 @@ export async function main(ns) {
                 // Use a small tolerance for floating point comparisons
                 if (Math.abs(serverStats.weakenTime - originalWeakenTime) > 0.001) {
                     outOfSyncServers++;
-                    const msChange = serverStats.weakenTime - originalWeakenTime;
-                    const percentChange = originalWeakenTime !== 0 ? (msChange / originalWeakenTime) * 100 : 0;
+                    const msChange = originalWeakenTime - serverStats.weakenTime;
+                    const percentChange = originalWeakenTime !== 0 ? Math.abs(msChange / originalWeakenTime) * 100 : 0;
+
                     totalMsChange += msChange;
                     totalPercentChange += percentChange;
+                    totalCurrentTime += serverStats.weakenTime;
                 }
             }
         }
@@ -1475,16 +1478,19 @@ export async function main(ns) {
         if (outOfSyncServers > 0) {
             const avgPercentChange = totalPercentChange / outOfSyncServers;
             const avgMsChange = totalMsChange / outOfSyncServers;
+            const avgCurrentWeakenTime = totalCurrentTime / outOfSyncServers;
 
             return {
                 avgPercentChange,
                 avgMsChange,
+                avgCurrentWeakenTime,
                 outOfSyncServers,
             };
         }
         return {
             avgPercentChange: 0,
             avgMsChange: 0,
+            avgCurrentWeakenTime: 0,
             outOfSyncServers: 0,
         };
     }
