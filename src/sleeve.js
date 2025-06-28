@@ -14,7 +14,7 @@ const argsSchema = [
     ["min-shock-recovery", 97], // Minimum shock recovery before attempting to train or do crime (Set to 100 to disable, 0 to recover fully)
     ["shock-recovery", 0.05], // Set to a number between 0 and 1 to devote that ratio of time to periodic shock recovery (until shock is at 0)
     ["crime", null], // If specified, sleeves will perform only this crime regardless of stats
-    ["homicide-chance-threshold", 0.5], // Sleeves on crime will automatically start homicide once their chance of success exceeds this ratio
+    ["homicide-chance-threshold", 0.25], // Sleeves on crime will automatically start homicide once their chance of success exceeds this ratio
     ["disable-gang-homicide-priority", false], // By default, sleeves will do homicide to farm Karma until we're in a gang. Set this flag to disable this priority.
     ["aug-budget", 0.1], // Spend up to this much of current cash on augs per tick (Default is high, because these are permanent for the rest of the BN)
     ["buy-cooldown", 60 * 1000], // Must wait this may milliseconds before buying more augs for a sleeve
@@ -22,14 +22,14 @@ const argsSchema = [
     ["reserve", null], // Reserve this much cash before determining spending budgets (defaults to contents of reserve.txt if not specified)
     ["disable-follow-player", false], // Set to true to disable having Sleeve 0 work for the same faction/company as the player to boost reputation gain rates
     ["disable-training", false], // Set to true to disable having sleeves workout at the gym (costs money)
-    ["train-to-strength", 105], // Sleeves will go to the gym until they reach this much Str
-    ["train-to-defense", 105], // Sleeves will go to the gym until they reach this much Def
-    ["train-to-dexterity", 70], // Sleeves will go to the gym until they reach this much Dex
-    ["train-to-agility", 70], // Sleeves will go to the gym until they reach this much Agi
+    ["train-to-strength", 50], // Sleeves will go to the gym until they reach this much Str
+    ["train-to-defense", 50], // Sleeves will go to the gym until they reach this much Def
+    ["train-to-dexterity", 50], // Sleeves will go to the gym until they reach this much Dex
+    ["train-to-agility", 50], // Sleeves will go to the gym until they reach this much Agi
     ["study-to-hacking", 25], // Sleeves will go to university until they reach this much Hak
-    ["study-to-charisma", 25], // Sleeves will go to university until they reach this much Cha
+    ["study-to-charisma", 0], // Sleeves will go to university until they reach this much Cha
     ["training-reserve", null], // Defaults to global reserve.txt. Can be set to a negative number to allow debt. Sleeves will not train if money is below this amount.
-    ["training-cap-seconds", 2 * 60 * 60 /* 2 hours */], // Time since the start of the bitnode after which we will no longer attempt to train sleeves to their target "train-to" settings
+    ["training-cap-seconds", 5 * 60 * 60 /* 5 hours */], // Time since the start of the bitnode after which we will no longer attempt to train sleeves to their target "train-to" settings
     ["disable-spending-hashes-for-gym-upgrades", false], // Set to true to disable spending hashes on gym upgrades when training up sleeves.
     ["disable-spending-hashes-for-study-upgrades", false], // Set to true to disable spending hashes on study upgrades when smarting up sleeves.
     ["enable-bladeburner-team-building", false], // Set to true to have one sleeve support the main sleeve, and another do recruitment. Otherwise, they will just do more "Infiltrate Synthoids"
@@ -42,7 +42,7 @@ const rerollTime = 61000; // How often we re-roll for each sleeve's chance to be
 const statusUpdateInterval = 10 * 60 * 1000; // Log sleeve status this often, even if their task hasn't changed
 const trainingReserveFile = "/Temp/sleeves-training-reserve.txt";
 const works = ["security", "field", "hacking"]; // When doing faction work, we prioritize physical work since sleeves tend towards having those stats be highest
-const trainStats = ["str", "def", "dex", "agi"];
+const trainStats = ["strength", "defense", "dexterity", "agility"];
 const trainSmarts = ["hacking", "charisma"];
 const sleeveBbContractNames = ["Tracking", "Bounty Hunter", "Retirement"];
 const minBbContracts = 2; // There should be this many contracts remaining before sleeves attempt them
@@ -548,7 +548,9 @@ async function setSleeveTask(ns, i, designatedTask, command, args) {
             log(ns, `SUCCESS: ${strAction}`);
             return true;
         }
-    } catch {}
+    } catch {
+        ns.print(`ERROR: Failed to ${strAction}`);
+    }
     // If assigning the task failed...
     lastRerollTime[i] = 0;
     // If working for a faction, it's possible he current work isn't supported, so try the next one.
