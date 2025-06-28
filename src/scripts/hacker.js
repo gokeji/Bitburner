@@ -63,6 +63,13 @@ export async function main(ns) {
      */
     let serverRamCache = new Map();
 
+    // Server list caching to avoid expensive BFS traversals
+    const CACHE_EXPIRY_MS = 10000; // Cache server lists for 10 seconds
+    let hackableServersCache = null;
+    let hackableServersCacheTime = 0;
+    let executableServersCache = null;
+    let executableServersCacheTime = 0;
+
     let maxRamAvailable = 0;
     let totalFreeRam = 0;
 
@@ -76,12 +83,21 @@ export async function main(ns) {
     let totalServersAttempted = 0;
     let totalServersNotDiscarded = 0;
 
+    // Cache cleanup counter
+    let cleanupCounter = 0;
+
     // Main loop
     while (true) {
         tickCounter++;
+        cleanupCounter++;
 
         // Clear terminal and start new tick
         ns.print(`\n=== Tick ${tickCounter} ===`);
+
+        // Cleanup server caches every 30 seconds to prevent memory leaks
+        if (cleanupCounter % Math.floor(30000 / TICK_DELAY) === 0) {
+            cleanupServerCaches();
+        }
 
         // Get all servers
         executableServers = getServers(ns, "executableOnly");
@@ -726,15 +742,29 @@ export async function main(ns) {
     /**
      * Gets all servers that are accessible to the player.
      * Also handles nuking servers, backdooring faction servers, and solving contracts.
+     * Uses caching to avoid expensive BFS traversals on every call.
      * @param {NS} ns - The Netscript API.
-     * @param {"hackableOnly" | "executableOnly" | "all"} getServerOptions - Whether to include all servers or just the ones that are accessible.
+     * @param {"hackableOnly" | "executableOnly"} getServerOptions - Whether to include all servers or just the ones that are accessible.
      * @returns {string[]} - List of server names.
      */
     function getServers(ns, getServerOptions) {
-        /*
-	Scans and iterates through all servers using BFS to avoid infinite loops.
-	Returns servers based on the specified filter criteria.
-	*/
+        const now = Date.now();
+        if (
+            getServerOptions === "hackableOnly" &&
+            hackableServersCache &&
+            now - hackableServersCacheTime < CACHE_EXPIRY_MS
+        ) {
+            return hackableServersCache;
+        }
+        if (
+            getServerOptions === "executableOnly" &&
+            executableServersCache &&
+            now - executableServersCacheTime < CACHE_EXPIRY_MS
+        ) {
+            return executableServersCache;
+        }
+
+        // Cache miss - perform BFS traversal
         const discovered = new Set(["home"]); // Track all discovered servers
         const toScan = ["home"]; // Queue of servers to scan
         const result = [];
@@ -785,6 +815,15 @@ export async function main(ns) {
         if (homeIndex > -1) {
             const homeServer = result.splice(homeIndex, 1)[0];
             result.push(homeServer);
+        }
+
+        // Cache the results based on the requested type
+        if (getServerOptions === "hackableOnly") {
+            hackableServersCache = result;
+            hackableServersCacheTime = now;
+        } else if (getServerOptions === "executableOnly") {
+            executableServersCache = result;
+            executableServersCacheTime = now;
         }
 
         return result;
@@ -1439,6 +1478,21 @@ export async function main(ns) {
 
             const message = `RECOVERY: Killed ${killedCount} HGW scripts targeting ${target} (${hackKilled}H, ${growKilled}G, ${weakenKilled}W)`;
             ns.print(message);
+        }
+    }
+
+    /**
+     * Cleanup old cache entries to prevent memory leaks.
+     * Should be called periodically to clear expired caches.
+     */
+    function cleanupServerCaches() {
+        const now = Date.now();
+
+        if (hackableServersCache && now - hackableServersCacheTime > CACHE_EXPIRY_MS * 3) {
+            hackableServersCache = null;
+        }
+        if (executableServersCache && now - executableServersCacheTime > CACHE_EXPIRY_MS * 3) {
+            executableServersCache = null;
         }
     }
 }
