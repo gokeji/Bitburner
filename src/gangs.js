@@ -1,5 +1,5 @@
 import {
-    log,
+    log as logHelper,
     getConfiguration,
     instanceCount,
     getNsDataThroughFile,
@@ -92,6 +92,7 @@ const argsSchema = [
     ["equipment-budget", null], // Percentage of non-reserved cash to spend per tick on permanent member upgrades (If not specified, uses defaultMaxSpendPerTickTransientEquipment)
     ["money-focus", false], // Always optimize gang crimes for maximum monetary gain. Is otherwise balanced.
     ["reputation-focus", false], // Always optimize gang crimes for maximum reputation gain. Is otherwise balanced.
+    ["no-toast", false], // Don't toast notifications
 ];
 
 export function autocomplete(data, _) {
@@ -124,6 +125,15 @@ export async function main(ns) {
         }
         await ns.sleep(updateInterval);
     }
+}
+
+function log(ns, message, alsoPrintToTerminal = false, toastStyle = "", maxToastLength = Number.MAX_SAFE_INTEGER) {
+    const noToast = options["no-toast"];
+    if (noToast) {
+        if (alsoPrintToTerminal) ns.tprint(message);
+        return;
+    }
+    logHelper(ns, message, alsoPrintToTerminal, toastStyle, maxToastLength);
 }
 
 /** @param {NS} ns
