@@ -5,9 +5,10 @@ import { calculatePortfolioValue } from "./stock-market.js";
 const argsSchema = [
     ["buy", false], // Set to true to actually purchase the augmentations
     ["force-buy", false], // Set to true to force purchase the augmentations in order
-    ["hacking-rep-only", false], // Set to true to only show augments that boost hacking or reputation
-    ["hacking-rep-and-combat", false], // Set to true to only show augments that boost hacking, reputation, and combat
-    ["hacking-only", false], // Set to true to only show augments that boost hacking
+    ["hacking", false], // Set to true to include augments that boost hacking
+    ["rep", false], // Set to true to include augments that boost reputation
+    ["combat", false], // Set to true to include augments that boost combat
+    ["charisma", false], // Set to true to include augments that boost charisma
 ];
 
 /**
@@ -177,6 +178,7 @@ function calculateTotalStatIncrease(ns, augmentations) {
             hackingExpMultiplier) /
         6;
     const averageCombatBoost = (strengthMultiplier + defenseMultiplier + dexterityMultiplier + agilityMultiplier) / 4;
+    const averageCharismaBoost = (charismaMultiplier + charismaExpMultiplier) / 2;
 
     // Calculate relative multipliers (final / original)
     const relativeHackingLevelBoost = hackingMultiplier / player.mults.hacking;
@@ -193,6 +195,7 @@ function calculateTotalStatIncrease(ns, augmentations) {
         averageCombatBoost /
         ((player.mults.strength + player.mults.defense + player.mults.dexterity + player.mults.agility) / 4);
     const relativeRepBoost = repMultiplier / player.mults.faction_rep;
+    const relativeCharismaBoost = averageCharismaBoost / ((player.mults.charisma + player.mults.charisma_exp) / 2);
 
     return {
         totalHacking: {
@@ -221,11 +224,13 @@ function calculateTotalStatIncrease(ns, augmentations) {
         // Average boost calculations
         averageHackingBoost: averageHackingBoost,
         averageCombatBoost: averageCombatBoost,
+        averageCharismaBoost: averageCharismaBoost,
         // Relative multipliers (how much better compared to original)
         relativeHackingLevelBoost: relativeHackingLevelBoost,
         relativeHackingBoost: relativeHackingBoost,
         relativeCombatBoost: relativeCombatBoost,
         relativeRepBoost: relativeRepBoost,
+        relativeCharismaBoost: relativeCharismaBoost,
         neurofluxLevels: neuroFluxToBuy,
         // Store original values for comparison
         originalHacking: {
@@ -257,25 +262,41 @@ function calculateTotalStatIncrease(ns, augmentations) {
 /**
  * Calculates optimization score based on the specified criteria
  * @param {Object} statIncrease - Result from calculateTotalStatIncrease
- * @param {string} optimizeFor - What to optimize for ("hackingLevel", "hackingAndRep", "hackingAndRepAndCombat", "all", )
+ * @param {Object} flags - Object containing individual stat flags {hacking, rep, combat, charisma}
  * @returns {number} The optimization score
  */
-function getOptimizationScore(statIncrease, optimizeFor) {
-    if (optimizeFor === "hackingLevel") {
-        return statIncrease.relativeHackingLevelBoost;
-    } else if (optimizeFor === "hackingAndRep") {
-        return statIncrease.relativeHackingLevelBoost * statIncrease.relativeRepBoost;
-    } else if (optimizeFor === "hackingAndRepAndCombat") {
-        return (
-            statIncrease.relativeHackingLevelBoost * statIncrease.relativeRepBoost * statIncrease.relativeCombatBoost
-        );
-    } else if (optimizeFor === "all") {
-        return (
-            statIncrease.relativeHackingLevelBoost * statIncrease.relativeCombatBoost * statIncrease.relativeRepBoost
-        );
+function getOptimizationScore(statIncrease, flags) {
+    // New flag-based calculation
+    let score = 1.0;
+    let hasAnyFilter = false;
+
+    if (flags.hacking) {
+        score *= statIncrease.relativeHackingLevelBoost; // Use hacking level because it's the most important stat
+        hasAnyFilter = true;
     }
-    // Default to hacking + rep for backward compatibility
-    return statIncrease.relativeHackingLevelBoost * statIncrease.relativeRepBoost;
+    if (flags.rep) {
+        score *= statIncrease.relativeRepBoost;
+        hasAnyFilter = true;
+    }
+    if (flags.combat) {
+        score *= statIncrease.relativeCombatBoost;
+        hasAnyFilter = true;
+    }
+    if (flags.charisma) {
+        score *= statIncrease.relativeCharismaBoost;
+        hasAnyFilter = true;
+    }
+
+    // If no filters are active, optimize for all stats
+    if (!hasAnyFilter) {
+        score =
+            statIncrease.relativeHackingLevelBoost *
+            statIncrease.relativeRepBoost *
+            statIncrease.relativeCombatBoost *
+            statIncrease.relativeCharismaBoost;
+    }
+
+    return score;
 }
 
 /**
@@ -402,10 +423,10 @@ function displayStatIncreases(ns, statIncrease) {
  * @param {NS} ns - NetScript object
  * @param {Array} augmentsForOptimizer - Available augmentations
  * @param {number} totalBudget - Total available budget
- * @param {"hacking" | "rep" | "combat" | "all"} optimizeFor - What to optimize for (hacking, rep, combat, all)
+ * @param {Object} flags - Object containing individual stat flags {hacking, rep, combat, charisma}
  * @returns {Object} Best optimization result with additional stat information
  */
-function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, optimizeFor) {
+function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, flags) {
     // Get all unique prices and sort them descending
     const allPrices = [...new Set(augmentsForOptimizer.map((aug) => aug.cost))].sort((a, b) => b - a);
 
@@ -416,7 +437,13 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, optim
     // Use the shared optimization scoring function
 
     ns.print("\n=== ITERATIVE PRICE FILTERING OPTIMIZATION ===");
-    ns.print(`Finding the best price filter that maximizes ${optimizeFor} stats...`);
+    const activeFilters = [];
+    if (flags.hacking) activeFilters.push("hacking");
+    if (flags.rep) activeFilters.push("reputation");
+    if (flags.combat) activeFilters.push("combat");
+    if (flags.charisma) activeFilters.push("charisma");
+    const filterDescription = activeFilters.length > 0 ? activeFilters.join("/") : "all";
+    ns.print(`Finding the best price filter that maximizes ${filterDescription} stats...`);
     ns.print(`Testing ${allPrices.length} different price thresholds...`);
 
     // Try each price threshold
@@ -431,10 +458,10 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, optim
 
         // Calculate total stat increase for this result
         const statIncrease = calculateTotalStatIncrease(ns, result.purchaseOrder);
-        const totalStatScore = getOptimizationScore(statIncrease, optimizeFor);
+        const totalStatScore = getOptimizationScore(statIncrease, flags);
 
         ns.print(
-            `Max price: $${ns.formatNumber(maxPrice * 1000000)} | Augments: ${result.purchaseOrder.length} | Hacking: ${statIncrease.relativeHackingLevelBoost.toFixed(2)}X | Rep: ${statIncrease.relativeRepBoost.toFixed(2)}X | Combat: ${statIncrease.relativeCombatBoost.toFixed(2)}X | Score: ${totalStatScore.toFixed(3)}X`,
+            `Max price: $${ns.formatNumber(maxPrice * 1000000)} | Augments: ${result.purchaseOrder.length} | Hacking: ${statIncrease.relativeHackingLevelBoost.toFixed(2)}X | Rep: ${statIncrease.relativeRepBoost.toFixed(2)}X | Combat: ${statIncrease.relativeCombatBoost.toFixed(2)}X | Charisma: ${statIncrease.relativeCharismaBoost.toFixed(2)}X | Score: ${totalStatScore.toFixed(3)}X`,
         );
 
         // Update best result if this is better
@@ -465,6 +492,9 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, optim
         ns.print(
             `   Combat boost: +${((bestResult.statIncrease.relativeCombatBoost - 1) * 100).toFixed(1)}% (${bestResult.statIncrease.relativeCombatBoost.toFixed(2)}X)`,
         );
+        ns.print(
+            `   Charisma boost: +${((bestResult.statIncrease.relativeCharismaBoost - 1) * 100).toFixed(1)}% (${bestResult.statIncrease.relativeCharismaBoost.toFixed(2)}X)`,
+        );
         ns.print(`   Total stat score: ${bestTotalStats.toFixed(3)}`);
     }
 
@@ -478,10 +508,11 @@ export async function main(ns) {
     // const hackingLevel = Math.floor(14.14 * (32 * Math.log(100000000000 + 534.6) - 200))
 
     const flags = ns.flags(argsSchema);
-    const shouldPurchase = flags.buy;
-    const hackingRepOnly = flags["hacking-rep-only"];
-    const hackingOnly = flags["hacking-only"];
-    const hackingRepAndCombat = flags["hacking-rep-and-combat"];
+    const shouldPurchase = flags["buy"];
+    const hacking = flags["hacking"];
+    const rep = flags["rep"];
+    const combat = flags["combat"];
+    const charisma = flags["charisma"];
     const forceBuy = flags["force-buy"];
 
     ns.ui.openTail(); // Open tail because there's a lot of good output
@@ -538,6 +569,11 @@ export async function main(ns) {
         return stats.strength > 1 || stats.defense > 1 || stats.dexterity > 1 || stats.agility > 1;
     }
 
+    // Helper function to check if an augmentation has charisma boost
+    function hasCharismaBoost(stats) {
+        return stats.charisma > 1 || stats.charisma_exp > 1;
+    }
+
     // Check which augmentations we can afford (both price and reputation) - separate entry for each qualifying faction
     const affordableAugmentations = [];
     let unaffordableAugmentations = [];
@@ -566,6 +602,7 @@ export async function main(ns) {
                 const hackingBoost = hasHackingBoost(stats);
                 const repBoost = hasRepBoost(stats);
                 const combatBoost = hasCombatBoost(stats);
+                const charismaBoost = hasCharismaBoost(stats);
 
                 const aug = {
                     name: augmentation,
@@ -575,32 +612,28 @@ export async function main(ns) {
                     hackingBoost: hackingBoost,
                     repBoost: repBoost,
                     combatBoost: combatBoost,
+                    charismaBoost: charismaBoost,
                     repReq: repReq,
                     stats: stats,
                 };
 
                 if (factionRep >= repReq && canAffordPrice) {
-                    // If --hacking-rep-only flag is set, skip augments that don't boost hacking or rep
-                    // Exception: Always include NeuroFlux Governor as it provides hacking boost
-                    if (hackingRepOnly && !hackingBoost && !repBoost && !alwaysIncludeList.includes(augmentation)) {
-                        affordableButFilteredOut.push(aug);
-                        continue;
-                    }
+                    // Check if any filtering flags are set
+                    const anyFilterActive = hacking || rep || combat || charisma;
 
-                    if (hackingOnly && !hackingBoost && !alwaysIncludeList.includes(augmentation)) {
-                        affordableButFilteredOut.push(aug);
-                        continue;
-                    }
+                    // If filtering is active, check if this augment matches any selected criteria
+                    if (anyFilterActive && !alwaysIncludeList.includes(augmentation)) {
+                        let matchesFilter = false;
 
-                    if (
-                        hackingRepAndCombat &&
-                        !hackingBoost &&
-                        !repBoost &&
-                        !combatBoost &&
-                        !alwaysIncludeList.includes(augmentation)
-                    ) {
-                        affordableButFilteredOut.push(aug);
-                        continue;
+                        if (hacking && hackingBoost) matchesFilter = true;
+                        if (rep && repBoost) matchesFilter = true;
+                        if (combat && combatBoost) matchesFilter = true;
+                        if (charisma && charismaBoost) matchesFilter = true;
+
+                        if (!matchesFilter) {
+                            affordableButFilteredOut.push(aug);
+                            continue;
+                        }
                     }
 
                     affordableAugmentations.push(aug);
@@ -616,8 +649,9 @@ export async function main(ns) {
         const hasHackingBoost = aug.hackingBoost;
         const hasRepBoost = aug.repBoost;
         const hasCombatBoost = aug.combatBoost;
+        const hasCharismaBoost = aug.charismaBoost;
         ns.print(
-            `$${ns.formatNumber(aug.cost * 1000000)} - ${aug.name} - ${aug.faction} ${hasHackingBoost ? "- 🧠 " : ""}${hasRepBoost ? "- 📈" : ""}${hasCombatBoost ? "- 💪" : ""}`,
+            `$${ns.formatNumber(aug.cost * 1000000)} - ${aug.name} - ${aug.faction} ${hasHackingBoost ? "- 🧠 " : ""}${hasRepBoost ? "- 📈" : ""}${hasCombatBoost ? "- 💪" : ""}${hasCharismaBoost ? "- 🗣️" : ""}`,
         );
     }
 
@@ -658,31 +692,27 @@ export async function main(ns) {
         hackingBoost: aug.hackingBoost,
         repBoost: aug.repBoost,
         combatBoost: aug.combatBoost,
+        charismaBoost: aug.charismaBoost,
         available: true,
     }));
 
     // Optimize the purchase order
     let result = optimizeAugmentPurchases(augmentsForOptimizer, totalBudget);
 
-    const optimizeFor = hackingRepOnly
-        ? "hackingAndRep"
-        : hackingOnly
-          ? "hackingLevel"
-          : hackingRepAndCombat
-            ? "hackingAndRepAndCombat"
-            : "all";
+    // Create flags object for optimization scoring
+    const optimizationFlags = { hacking, rep, combat, charisma };
 
     // Calculate total stat increases for the current result
     if (result.purchaseOrder.length > 0) {
         result.statIncrease = calculateTotalStatIncrease(ns, result.purchaseOrder);
-        result.totalStatScore = getOptimizationScore(result.statIncrease, optimizeFor);
+        result.totalStatScore = getOptimizationScore(result.statIncrease, optimizationFlags);
     }
 
     // If we can't afford all augments, try price filtering optimization
     if (result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
-        ns.print("🔍 Cannot afford all augments with hacking-rep-only filter. Trying price filtering optimization...");
+        ns.print("🔍 Cannot afford all augments with current filter. Trying price filtering optimization...");
 
-        const optimizedResult = optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, optimizeFor);
+        const optimizedResult = optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, optimizationFlags);
         if (optimizedResult) {
             const optimizedTotalStats = optimizedResult.totalStatScore;
 
@@ -705,15 +735,19 @@ export async function main(ns) {
     ns.print("\n");
     ns.print("=== OPTIMAL AUGMENTATION PURCHASE ORDER ===");
     ns.print(`Cost multiplier per purchase: 1.9x`);
-    ns.print("Legend: 🧠 = Improves hacking, 📈 = Improves reputation, 💪 = Improves combat");
-    if (hackingRepOnly) {
-        ns.print("INFO Filter: Only showing hacking/reputation augments");
-    }
-    if (hackingOnly) {
-        ns.print("INFO Filter: Only showing hacking augments");
-    }
-    if (hackingRepAndCombat) {
-        ns.print("INFO Filter: Only showing hacking/reputation/combat augments");
+    ns.print("Legend: 🧠 = Improves hacking, 📈 = Improves reputation, 💪 = Improves combat, 🗣️ = Improves charisma");
+
+    // Display active filters
+    const activeFilters = [];
+    if (hacking) activeFilters.push("hacking");
+    if (rep) activeFilters.push("reputation");
+    if (combat) activeFilters.push("combat");
+    if (charisma) activeFilters.push("charisma");
+
+    if (activeFilters.length > 0) {
+        ns.print(`INFO Filter: Only showing ${activeFilters.join("/")} augments`);
+    } else {
+        ns.print("INFO Filter: Showing all augments (no filters active)");
     }
     if (result.maxPriceFilter) {
         ns.print(`INFO Price filter applied: Max $${ns.formatNumber(result.maxPriceFilter * 1000000)}`);
@@ -725,9 +759,10 @@ export async function main(ns) {
         const hackingMark = aug.hackingBoost ? " 🧠" : "";
         const repMark = aug.repBoost ? " 📈" : "";
         const combatMark = aug.combatBoost ? " 💪" : "";
+        const charismaMark = aug.charismaBoost ? " 🗣️" : "";
         const prereqInfo = aug.prereqs.length > 0 ? `\n      - Requires: ${aug.prereqs.join(", ")}` : "";
         ns.print(
-            `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} [Base: $${ns.formatNumber(aug.cost * 1000000)}] - ${aug.name}${hackingMark}${repMark}${combatMark}${prereqInfo}`,
+            `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} [Base: $${ns.formatNumber(aug.cost * 1000000)}] - ${aug.name}${hackingMark}${repMark}${combatMark}${charismaMark}${prereqInfo}`,
         );
     }
 
@@ -740,9 +775,10 @@ export async function main(ns) {
             const hackingMark = aug.hackingBoost ? " 🧠" : "";
             const repMark = aug.repBoost ? " 📈" : "";
             const combatMark = aug.combatBoost ? " 💪" : "";
+            const charismaMark = aug.charismaBoost ? " 🗣️" : "";
             const prereqInfo = aug.prereqs.length > 0 ? `\n      - Requires: ${aug.prereqs.join(", ")}` : "";
             ns.print(
-                `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} [Base: $${ns.formatNumber(aug.cost * 1000000)}] - ${aug.name}${hackingMark}${repMark}${combatMark}${prereqInfo}`,
+                `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} [Base: $${ns.formatNumber(aug.cost * 1000000)}] - ${aug.name}${hackingMark}${repMark}${combatMark}${charismaMark}${prereqInfo}`,
             );
         }
     }
@@ -765,9 +801,14 @@ export async function main(ns) {
 
     const hackingAugmentsCount = result.purchaseOrder.filter((aug) => aug.hackingBoost).length - result.neurofluxCount;
     const repAugmentsCount = result.purchaseOrder.filter((aug) => aug.repBoost).length - result.neurofluxCount;
+    const combatAugmentsCount = result.purchaseOrder.filter((aug) => aug.combatBoost).length - result.neurofluxCount;
+    const charismaAugmentsCount =
+        result.purchaseOrder.filter((aug) => aug.charismaBoost).length - result.neurofluxCount;
     ns.print(`  - NeuroFlux Governors: ${result.neurofluxCount}`);
     ns.print(`  - Hacking augments: ${hackingAugmentsCount}`);
     ns.print(`  - Reputation augments: ${repAugmentsCount}`);
+    ns.print(`  - Combat augments: ${combatAugmentsCount}`);
+    ns.print(`  - Charisma augments: ${charismaAugmentsCount}`);
     ns.print(`\n`);
 
     if (result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
