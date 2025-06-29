@@ -19,7 +19,7 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
 
-    let hackPercentage = 0.5;
+    let hackPercentage = 0.9;
     const MIN_MONEY_PROTECTION_THRESHOLD = (1 - hackPercentage) / 2; // 5% of max money before recovery
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
@@ -350,7 +350,7 @@ export async function main(ns) {
         );
 
         // XP farming: Use all remaining RAM for weaken scripts
-        // xpFarm(ns);
+        xpFarm(ns);
 
         await ns.sleep(TICK_DELAY);
     }
@@ -1092,6 +1092,8 @@ export async function main(ns) {
     /**
      * XP farming function that launches a separate script to handle XP farming independently.
      * This ensures the main loop is not blocked by XP farming operations.
+     * Only kicks in late game basically because early game we don't have spare ram - need it for batch hacking
+     * Late game the xpFarm cycle is finally faster than our tick time so we can do a few cycles per tick and we will also have left over ram
      * @param {NS} ns - The Netscript API.
      */
     function xpFarm(ns) {
@@ -1104,7 +1106,7 @@ export async function main(ns) {
         }
 
         const growTime = ns.getGrowTime(xpTarget);
-        const growCycles = Math.max(1, Math.floor(TICK_DELAY / (growTime + BASE_SCRIPT_DELAY))); // Kick off at least 1 weaken cycle
+        const growCycles = Math.floor(TICK_DELAY / (growTime + BASE_SCRIPT_DELAY));
 
         // Collect server/thread pairs for all available RAM
         const serverThreadPairs = [];

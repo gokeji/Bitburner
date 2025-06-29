@@ -2,8 +2,17 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const toPrint = ns.getGrowTime("foodnstuff");
-    ns.print(toPrint);
+    while (true) {
+        if (ns.heart.break() < -54000) {
+            ns.singularity.workForFaction("BitRunners", "hacking");
+        } else {
+            ns.singularity.commitCrime("homicide", true);
+        }
+
+        await ns.sleep(5000);
+    }
+    // const toPrint = ns.getGrowTime("foodnstuff");
+    // ns.print(toPrint);
     // ns.print(favorToRep(34));
     // ns.print(repToFavor(300000));
     // ns.print(calculateFavorAfterResetting(34, 300000));

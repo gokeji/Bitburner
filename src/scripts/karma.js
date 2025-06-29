@@ -7,6 +7,9 @@ import { NS } from "@ns";
 export async function main(ns) {
     ns.disableLog("ALL");
     ns.ui.openTail(); // Log Window
+    ns.ui.resizeTail(180, 80);
+    const windowSize = ns.ui.windowSize();
+    ns.ui.moveTail(windowSize[0] - 340, 40);
 
     var karmaHistory = [];
 
@@ -30,6 +33,6 @@ export async function main(ns) {
         ns.print("🔴 Karma: " + ns.formatNumber(karma));
         ns.print("🔴 Rate : " + ns.formatNumber(rate) + "/s");
 
-        await ns.sleep(500);
+        await ns.sleep(1000);
     }
 }

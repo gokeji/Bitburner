@@ -68,7 +68,7 @@ export async function main(ns) {
         var servers = getServers(ns, "hackable");
 
         // Dynamically adjust window size based on current server count
-        const windowWidth = charsWidth * 10; // 120 characters * 8px per char
+        const windowWidth = charsWidth * 9.7; // 120 characters * 8px per char
         const windowHeight = Math.min((servers.length + 6) * 26, 800); // lines * 16px per line
 
         ns.ui.resizeTail(windowWidth, windowHeight);
