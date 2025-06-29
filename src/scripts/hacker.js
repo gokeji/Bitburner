@@ -149,20 +149,9 @@ export async function main(ns) {
         let successfullyProcessedServers = []; // Track servers that have been successfully processed this tick
 
         // Distribute available RAM based on server priority
-        const serverRamAllocation = new Map();
         let ramToDistribute = maxRamAvailable; // Use total network RAM
 
-        for (const server of serversByThroughput) {
-            if (ramToDistribute <= 0) break;
-            const serverStats = globalPrioritiesMap.get(server);
-            if (!serverStats) continue;
-
-            const ramToAllocate = Math.min(ramToDistribute, serverStats.ramForMaxThroughput);
-            serverRamAllocation.set(server, ramToAllocate);
-            ramToDistribute -= ramToAllocate;
-        }
-
-        while (serverIndex < serversByThroughput.length) {
+        while (ramToDistribute > 0 && serverIndex < serversByThroughput.length) {
             const currentServer = serversByThroughput[serverIndex];
             serverIndex++; // Increment server index
 
@@ -255,13 +244,9 @@ export async function main(ns) {
                 if (prepRamUsed !== false) {
                     totalRamUsed += prepRamUsed;
                     successfullyProcessedServers.push(currentServer);
+                    ramToDistribute -= prepRamUsed;
                 }
                 continue; // Move on to next server
-            }
-
-            if (!serverRamAllocation.has(currentServer)) {
-                // Server does not have any batches allocated anyways, skip
-                continue;
             }
 
             totalServersAttempted++;
@@ -272,9 +257,9 @@ export async function main(ns) {
             totalServersNotDiscarded++;
 
             // Calculate available RAM for this server from its allocation
-            const serverTotalBudget = serverRamAllocation.get(currentServer) || 0;
             const ramUsedByServer = currentServerScripts.ramUsed;
-            const remainingRamForSustainedThroughput = Math.max(0, serverTotalBudget - ramUsedByServer);
+            const ramToAllocate = Math.min(ramToDistribute, serverStats.ramForMaxThroughput);
+            const remainingRamForSustainedThroughput = Math.max(0, ramToAllocate - ramUsedByServer);
 
             // Calculate maximum batches we can afford with available RAM
             const { timePerBatch, batchLimitForSustainedThroughput, ramNeededPerBatch } = serverStats;
@@ -311,6 +296,7 @@ export async function main(ns) {
                 );
 
                 if (ramUsedForBatches > 0) {
+                    ramToDistribute -= ramUsedForBatches;
                     successfullyProcessedServers.push(currentServer);
                     totalRamUsed += ramUsedForBatches;
 
