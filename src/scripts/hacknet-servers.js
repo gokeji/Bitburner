@@ -16,26 +16,6 @@ export async function main(ns) {
 
     const isUsingHacknetServers = ns.hacknet.getNodeStats(0).hashCapacity > 0;
 
-    /** @type {Array<HacknetServer>} */
-    let hacknetServers = [];
-    for (let i = 0; i < ns.hacknet.numNodes(); i++) {
-        const nodeStats = ns.hacknet.getNodeStats(i);
-        hacknetServers.push(
-            new HacknetServer(
-                nodeStats.name,
-                nodeStats.level,
-                nodeStats.ram,
-                nodeStats.cores,
-                nodeStats.production,
-                nodeStats.timeOnline,
-                nodeStats.totalProduction,
-                nodeStats.cache,
-                nodeStats.hashCapacity,
-                nodeStats.ramUsed,
-            ),
-        );
-    }
-
     const startingMessage = `Starting hacknet manager. Max payback time: ${maxPaybackHours} hours. Prioritize Netburners (Buy 8 nodes): ${prioritizeNetburnersRequirement}`;
     ns.print(startingMessage);
     ns.tprint(startingMessage);
@@ -55,8 +35,31 @@ export async function main(ns) {
     }
 
     while (true) {
-        let currentNodeStats = [];
+        /** @type {Array<{value: number, cost: number, valueMoney: number, ratio: number, paybackTime: number, paybackHours: number, index: number, type: string}>} */
+        let currentNodeUpgrades = [];
+        /** @type {Array<HacknetServer>} */
+        let hacknetServers = [];
 
+        // Update the current list of hacknet servers
+        for (let i = 0; i < ns.hacknet.numNodes(); i++) {
+            const nodeStats = ns.hacknet.getNodeStats(i);
+            hacknetServers.push(
+                new HacknetServer(
+                    nodeStats.name,
+                    nodeStats.level,
+                    nodeStats.ram,
+                    nodeStats.cores,
+                    nodeStats.production,
+                    nodeStats.timeOnline,
+                    nodeStats.totalProduction,
+                    nodeStats.cache,
+                    nodeStats.hashCapacity,
+                    nodeStats.ramUsed,
+                ),
+            );
+        }
+
+        // Add a new node to the list of upgrades
         let nodeValue = HacknetServer.newBaseServer().getProd(totalHacknetProdMult);
         let nodeCost = ns.hacknet.getPurchaseNodeCost();
         let nodeValueMoney = convertHashToMoney(nodeValue);
@@ -65,7 +68,7 @@ export async function main(ns) {
         let nodePaybackTime = nodeCost / nodeValueMoney;
         let nodePaybackHours = nodePaybackTime / 3600;
 
-        currentNodeStats.push({
+        currentNodeUpgrades.push({
             value: nodeValue,
             cost: nodeCost,
             valueMoney: nodeValueMoney,
@@ -110,7 +113,7 @@ export async function main(ns) {
             let ramPaybackTime = ramCost / ramValueMoney;
             let corePaybackTime = coreCost / coreValueMoney;
 
-            currentNodeStats.push(
+            currentNodeUpgrades.push(
                 {
                     value: levelValue,
                     cost: levelCost,
@@ -144,11 +147,11 @@ export async function main(ns) {
             );
         }
 
-        currentNodeStats.sort((a, b) => a.paybackTime - b.paybackTime);
-        let bestUpgrade = currentNodeStats[0];
+        currentNodeUpgrades.sort((a, b) => a.paybackTime - b.paybackTime);
+        let bestUpgrade = currentNodeUpgrades[0];
 
         // Debug all of the upgrade types before returning
-        for (let upgrade of currentNodeStats) {
+        for (let upgrade of currentNodeUpgrades) {
             ns.print(
                 `Node ${upgrade.index} ${upgrade.type.padEnd(5)}: production: ${ns.formatNumber(upgrade.value, 5).padStart(8)}, cost: ${ns.formatNumber(upgrade.cost).padStart(6)}, moneyValue: ${ns.formatNumber(upgrade.valueMoney).padStart(6)}, ratio: ${upgrade.ratio.toFixed(6).padStart(10)}, payback: ${(upgrade.paybackTime / 3600).toFixed(2).padStart(6)}h`,
             );
@@ -179,8 +182,6 @@ export async function main(ns) {
             break;
         }
 
-        return;
-
         while (ns.getServerMoneyAvailable("home") < bestUpgrade.cost) {
             await ns.sleep(10000);
         }
@@ -208,7 +209,7 @@ export async function main(ns) {
                 break;
         }
 
-        await ns.sleep(10000);
+        await ns.sleep(1000);
     }
 }
 
