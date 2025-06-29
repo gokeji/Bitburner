@@ -19,7 +19,21 @@ export async function main(ns) {
     /** @type {Array<HacknetServer>} */
     let hacknetServers = [];
     for (let i = 0; i < ns.hacknet.numNodes(); i++) {
-        hacknetServers.push(new HacknetServer(ns.hacknet.getNodeStats(i)));
+        const nodeStats = ns.hacknet.getNodeStats(i);
+        hacknetServers.push(
+            new HacknetServer(
+                nodeStats.name,
+                nodeStats.level,
+                nodeStats.ram,
+                nodeStats.cores,
+                nodeStats.production,
+                nodeStats.timeOnline,
+                nodeStats.totalProduction,
+                nodeStats.cache,
+                nodeStats.hashCapacity,
+                nodeStats.ramUsed,
+            ),
+        );
     }
 
     ns.print(`Hacknet hash capacity: ${ns.hacknet.hashCapacity(0)}`);
@@ -85,9 +99,21 @@ export async function main(ns) {
             let ramCost = ns.hacknet.getRamUpgradeCost(idx, 1);
             let coreCost = ns.hacknet.getCoreUpgradeCost(idx, 1);
 
-            let levelValue = hacknetServer.plusLevel(1).getProd(totalHacknetProdMult) - hacknetServer.production;
-            let ramValue = hacknetServer.plusRam(1).getProd(totalHacknetProdMult) - hacknetServer.production;
-            let coreValue = hacknetServer.plusCores(1).getProd(totalHacknetProdMult) - hacknetServer.production;
+            ns.print(
+                `hacknetServer.plusLevel(1).getProd(totalHacknetProdMult): ${hacknetServer.plusLevel(1).getProd(totalHacknetProdMult)}`,
+            );
+            ns.print(`hacknetServer.getProd(totalHacknetProdMult): ${hacknetServer.getProd(totalHacknetProdMult)}`);
+
+            let levelValue =
+                hacknetServer.plusLevel(1).getProd(totalHacknetProdMult) - hacknetServer.getProd(totalHacknetProdMult);
+            let ramValue =
+                hacknetServer.plusRam(1).getProd(totalHacknetProdMult) - hacknetServer.getProd(totalHacknetProdMult);
+            let coreValue =
+                hacknetServer.plusCores(1).getProd(totalHacknetProdMult) - hacknetServer.getProd(totalHacknetProdMult);
+
+            ns.print(`Level value: ${levelValue}`);
+            ns.print(`Ram value: ${ramValue}`);
+            ns.print(`Core value: ${coreValue}`);
 
             // Calculate payback times in seconds
             let levelPaybackTime = levelCost / levelValue;
@@ -260,8 +286,8 @@ class HacknetServer {
         if (this.isHacknetServer()) {
             return calculateHashGainRate(
                 this.level,
+                0, // assume no used ram for optimal production calculation
                 this.ram,
-                ns.getServer(this.name).maxRam,
                 this.cores,
                 totalHacknetProdMult,
             );
@@ -272,7 +298,7 @@ class HacknetServer {
 }
 
 const HashesPerLevel = 0.001;
-export function calculateHashGainRate(level, ramUsed, maxRam, cores, totalHacknetProdMult) {
+function calculateHashGainRate(level, ramUsed, maxRam, cores, totalHacknetProdMult) {
     const baseGain = HashesPerLevel * level;
     const ramMultiplier = Math.pow(1.07, Math.log2(maxRam));
     const coreMultiplier = 1 + (cores - 1) / 5;

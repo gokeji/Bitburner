@@ -1285,12 +1285,6 @@ export async function main(ns) {
 
         const scaledTotalRamRequired = getTotalRamRequired(scaledOperations);
 
-        if (scalingFactor < 1) {
-            ns.print(
-                `INFO: Partial allocation required. Scaling ${ns.formatNumber(scalingFactor)}x: ${ns.formatRam(scaledTotalRamRequired)} of ${ns.formatRam(totalRamRequired)} to fit ${ns.formatRam(totalFreeRam)}`,
-            );
-        }
-
         // Result object to store allocations
         const result = {
             success: true,
@@ -1302,9 +1296,15 @@ export async function main(ns) {
         };
 
         // Validate input
-        if (!operations || operations.length === 0) {
+        if (!operations || operations.length === 0 || scaledTotalRamRequired === 0) {
             result.success = false;
             return result;
+        }
+
+        if (scalingFactor < 1) {
+            ns.print(
+                `INFO: Partial allocation required. Scaling ${ns.formatNumber(scalingFactor)}x: ${ns.formatRam(scaledTotalRamRequired)} of ${ns.formatRam(totalRamRequired)} to fit ${ns.formatRam(totalFreeRam)}`,
+            );
         }
 
         // Create a copy of server RAM availability to track allocations

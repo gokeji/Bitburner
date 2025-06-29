@@ -9,9 +9,9 @@ const IPVGO_OPPONENTS = [
     // "Netburners", // increased hacknet production
     // "Slum Snakes", // crime success rate
     // "The Black Hand", // hacking money
-    // "Tetrads", // strength, defense, dexterity, and agility levels
+    "Tetrads", // strength, defense, dexterity, and agility levels
     "Daedalus", // reputation gain
-    // "Illuminati", // faster hack(), grow(), and weaken()
+    "Illuminati", // faster hack(), grow(), and weaken()
     // "????????????", // w0r1d_d43m0n Hacking Levels
 ];
 
@@ -37,7 +37,9 @@ export async function main(ns) {
     // Start all required scripts if not running
     startDistributedHackIfNotRunning(ns);
 
-    startUpgradeHnetIfNeeded(ns);
+    // startUpgradeHnetIfNeeded(ns);
+    // TODO: Change to hacknet servers
+    // TODO: Start sleeve.js and gang.js
 
     startUpgradeServersIfNotRunning(ns);
 
