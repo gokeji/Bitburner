@@ -25,7 +25,7 @@ export async function main(ns) {
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
 
-    const HOME_SERVER_RESERVED_RAM = 640; // GB reserved for home server
+    const HOME_SERVER_RESERVED_RAM = 200; // GB reserved for home server
     let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
     let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
@@ -1266,9 +1266,14 @@ export async function main(ns) {
         // Calculate total RAM required for all operations
         const totalRamRequired = getTotalRamRequired(operations);
 
-        // Calculate scaling factor if partial allocation is allowed
-        if (totalRamRequired > totalFreeRam && allowPartial) {
-            scalingFactor = totalFreeRam / totalRamRequired;
+        // Calculate scaling factor if requires more than all of the ram we have
+        if (totalRamRequired > maxRamAvailable && allowPartial) {
+            // Scale based on free ram, not max ram
+            // Leave a bit of room in every server in case scripts just barely fit
+            scalingFactor = Math.max(
+                0,
+                (totalFreeRam - (MINIMUM_SCRIPT_RAM_USAGE / 2) * executableServers.length) / totalRamRequired,
+            );
         }
 
         // Scale down operations if necessary
@@ -1278,6 +1283,12 @@ export async function main(ns) {
         }));
 
         const scaledTotalRamRequired = getTotalRamRequired(scaledOperations);
+
+        if (scalingFactor < 1) {
+            ns.print(
+                `INFO: Partial allocation required. Scaling ${ns.formatNumber(scalingFactor)}x: ${ns.formatRam(scaledTotalRamRequired)} of ${ns.formatRam(totalRamRequired)} to fit ${ns.formatRam(totalFreeRam)}`,
+            );
+        }
 
         // Result object to store allocations
         const result = {
