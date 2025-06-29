@@ -17,7 +17,7 @@ export async function main(ns) {
     const GROW_SCRIPT_RAM_USAGE = 1.75;
     const WEAKEN_SCRIPT_RAM_USAGE = 1.75;
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1; // Use extra grow and weak threads to correct for out of sync HGW batches
 
     let hackPercentage = 0.9;
     const MIN_MONEY_PROTECTION_THRESHOLD = (1 - hackPercentage) / 2; // 5% of max money before recovery
@@ -25,8 +25,8 @@ export async function main(ns) {
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
 
-    const HOME_SERVER_RESERVED_RAM = 200; // GB reserved for home server
-    let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    const HOME_SERVER_RESERVED_RAM = 80; // GB reserved for home server
+    let MAX_WEAKEN_TIME = 3 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
     let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
     let SECURITY_LEVEL_THRESHOLD = 0; // Prep servers to be within minSecurityLevel + this amount
@@ -1150,7 +1150,7 @@ export async function main(ns) {
             }
         }
 
-        if (serverThreadPairs.length > 0) {
+        if (serverThreadPairs.length > 0 && growCycles > 0) {
             // Build arguments: target, cycles, weakenTime, server1, threads1, server2, threads2, ...
             const args = [xpTarget, growCycles, growTime, ...serverThreadPairs];
 

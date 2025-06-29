@@ -145,6 +145,7 @@ function getServers(ns, type) {
     const executableServerFilter = (server) => {
         if (!ns.hasRootAccess(server)) return false;
         if (ns.getServerMaxRam(server) === 0) return false;
+        if (server.startsWith("hacknet-server")) return false;
         return true;
     };
 
