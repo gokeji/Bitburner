@@ -74,6 +74,75 @@ function calculateSkillProgress(exp, mult = 1) {
     };
 }
 
+// Crime Stats (updated with actual game data)
+const CRIME_STATS = {
+    Homicide: {
+        difficulty: 1,
+        strength_success_weight: 2,
+        defense_success_weight: 2,
+        dexterity_success_weight: 0.5,
+        agility_success_weight: 0.5,
+        karma_gain: -3, // Karma gained per successful homicide
+        time: 3, // seconds
+        // Experience gains per successful crime
+        strength_exp: 2,
+        defense_exp: 2,
+        dexterity_exp: 2,
+        agility_exp: 2,
+    },
+    Mug: {
+        difficulty: 0.2,
+        strength_success_weight: 1.5,
+        defense_success_weight: 0.5,
+        dexterity_success_weight: 1.5,
+        agility_success_weight: 0.5,
+        karma_gain: -0.25,
+        time: 4, // seconds
+        // Experience gains per successful crime
+        strength_exp: 3,
+        defense_exp: 3,
+        dexterity_exp: 3,
+        agility_exp: 3,
+    },
+};
+
+/**
+ * Calculate crime success chance based on sleeve stats
+ * Formula: chance = (weighted_stats) / (975 * difficulty)
+ * @param {Object} stats - {strength, defense, dexterity, agility}
+ * @param {string} crimeName - Name of the crime
+ * @param {number} intelligence - Intelligence level (default: 0)
+ * @returns {number} Success probability (0-1)
+ */
+function calculateCrimeChance(stats, crimeName, intelligence = 0) {
+    const crime = CRIME_STATS[crimeName];
+    if (!crime) return 0;
+
+    // Shock reduces effective stats
+    // const shockMultiplier = (100 - shock) / 100;
+    const effectiveStats = {
+        strength: stats.strength,
+        defense: stats.defense,
+        dexterity: stats.dexterity,
+        agility: stats.agility,
+    };
+
+    let chance =
+        (crime.strength_success_weight || 0) * effectiveStats.strength +
+        (crime.defense_success_weight || 0) * effectiveStats.defense +
+        (crime.dexterity_success_weight || 0) * effectiveStats.dexterity +
+        (crime.agility_success_weight || 0) * effectiveStats.agility;
+
+    // Add intelligence bonus (simplified - assuming no crime success multipliers)
+    chance += 0.025 * intelligence; // CONSTANTS.IntelligenceCrimeWeight = 0.025
+
+    chance /= MAX_SKILL_LEVEL;
+    chance /= crime.difficulty;
+    chance *= calculateIntelligenceBonus(intelligence, 1);
+
+    return Math.min(chance, 1);
+}
+
 /**
  * Clamps the value on a lower and an upper bound
  * @param {number} value Value to clamp
@@ -88,6 +157,9 @@ function clampNumber(value, min = -Number.MAX_VALUE, max = Number.MAX_VALUE) {
     return Math.max(Math.min(value, max), min);
 }
 
+// Constants for crime calculations
+const MAX_SKILL_LEVEL = 975; // Maximum skill level in Bitburner
+
 // CommonJS exports
 module.exports = {
     sleeveShockReductionPerSecond,
@@ -95,12 +167,39 @@ module.exports = {
     calculateSkill,
     calculateExp,
     calculateSkillProgress,
+    calculateCrimeChance,
     clampNumber,
+    CRIME_STATS,
 };
 
 /**
+ * Helper function to easily calculate crime success rate
+ * @param {number} str - Strength stat
+ * @param {number} def - Defense stat
+ * @param {number} dex - Dexterity stat
+ * @param {number} agi - Agility stat
+ * @param {string} crime - Crime name ('Homicide' or 'Mug')
+ * @param {number} mult - Stat multiplier (default: 1)
+ * @param {number} intelligence - Intelligence level (default: 1)
+ * @returns {Object} Success rate and experience info
+ */
+function crimeSuccess(str, def, dex, agi, crime = "Homicide", mult = 1, intelligence = 1) {
+    const stats = { strength: str, defense: def, dexterity: dex, agility: agi };
+    const chance = calculateCrimeChance(stats, crime, intelligence);
+    return {
+        successRate: (chance * 100).toFixed(2),
+        strExp: calculateExp(str, mult),
+        defExp: calculateExp(def, mult),
+        dexExp: calculateExp(dex, mult),
+        agiExp: calculateExp(agi, mult),
+        totalExpRequired:
+            calculateExp(str, mult) + calculateExp(def, mult) + calculateExp(dex, mult) + calculateExp(agi, mult),
+    };
+}
+
+/**
  * Main function to make all exported functions available in Node.js console
- * Run with: node src/scripts/formulas-node.js
+ * Run with: node src/scripts/formulas.js
  */
 function main() {
     console.log("Bitburner Formulas Console (Node.js Version)");
@@ -110,9 +209,15 @@ function main() {
     console.log("- calculateSkill(exp, mult = 1)");
     console.log("- calculateExp(skill, mult = 1)");
     console.log("- calculateSkillProgress(exp, mult = 1)");
+    console.log("- calculateCrimeChance(stats, crimeName, intelligence = 0)");
+    console.log(
+        "- crimeSuccess(str, def, dex, agi, crime = 'Homicide', mult = 1, intelligence = 0) - Easy helper function",
+    );
     console.log("- clampNumber(value, min = -Number.MAX_VALUE, max = Number.MAX_VALUE)");
-    console.log("\nAll functions are available as global variables in this console.");
-    console.log("Example: calculateSkill(1000) or calculateIntelligenceBonus(50, 0.8)");
+    console.log("\nEasy crime success calculation:");
+    console.log("Example: crimeSuccess(100, 100, 100, 100, 'Homicide', 1, 200)");
+    console.log("Available crimes: 'Homicide', 'Mug'");
+    console.log("Parameters: strength, defense, dexterity, agility, crime, multiplier, intelligence");
     console.log("");
 
     // Make all functions available globally
@@ -121,7 +226,10 @@ function main() {
     global.calculateSkill = calculateSkill;
     global.calculateExp = calculateExp;
     global.calculateSkillProgress = calculateSkillProgress;
+    global.calculateCrimeChance = calculateCrimeChance;
+    global.crimeSuccess = crimeSuccess;
     global.clampNumber = clampNumber;
+    global.CRIME_STATS = CRIME_STATS;
 
     // Start REPL for interactive use
     const repl = require("repl");
@@ -133,7 +241,10 @@ function main() {
     replServer.context.calculateSkill = calculateSkill;
     replServer.context.calculateExp = calculateExp;
     replServer.context.calculateSkillProgress = calculateSkillProgress;
+    replServer.context.calculateCrimeChance = calculateCrimeChance;
+    replServer.context.crimeSuccess = crimeSuccess;
     replServer.context.clampNumber = clampNumber;
+    replServer.context.CRIME_STATS = CRIME_STATS;
 }
 
 // Run main function if this file is executed directly

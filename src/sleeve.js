@@ -22,16 +22,16 @@ const argsSchema = [
     ["reserve", null], // Reserve this much cash before determining spending budgets (defaults to contents of reserve.txt if not specified)
     ["disable-follow-player", true], // Set to true to disable having Sleeve 0 work for the same faction/company as the player to boost reputation gain rates
     ["disable-training", false], // Set to true to disable having sleeves workout at the gym (costs money)
-    ["train-to-strength", 50], // Sleeves will go to the gym until they reach this much Str
-    ["train-to-defense", 50], // Sleeves will go to the gym until they reach this much Def
-    ["train-to-dexterity", 30], // Sleeves will go to the gym until they reach this much Dex
-    ["train-to-agility", 30], // Sleeves will go to the gym until they reach this much Agi
-    ["study-to-hacking", 25], // Sleeves will go to university until they reach this much Hak
+    ["train-to-strength", 55], // Sleeves will go to the gym until they reach this much Str
+    ["train-to-defense", 55], // Sleeves will go to the gym until they reach this much Def
+    ["train-to-dexterity", 40], // Sleeves will go to the gym until they reach this much Dex
+    ["train-to-agility", 40], // Sleeves will go to the gym until they reach this much Agi
+    ["study-to-hacking", 0], // Sleeves will go to university until they reach this much Hak
     ["study-to-charisma", 0], // Sleeves will go to university until they reach this much Cha
     ["training-reserve", null], // Defaults to global reserve.txt. Can be set to a negative number to allow debt. Sleeves will not train if money is below this amount.
-    ["training-cap-seconds", 5 * 60 * 60 /* 5 hours */], // Time since the start of the bitnode after which we will no longer attempt to train sleeves to their target "train-to" settings
-    ["disable-spending-hashes-for-gym-upgrades", false], // Set to true to disable spending hashes on gym upgrades when training up sleeves.
-    ["disable-spending-hashes-for-study-upgrades", false], // Set to true to disable spending hashes on study upgrades when smarting up sleeves.
+    ["training-cap-seconds", 15 * 60 * 60 /* 15 hours */], // Time since the start of the bitnode after which we will no longer attempt to train sleeves to their target "train-to" settings
+    ["disable-spending-hashes-for-gym-upgrades", true], // Set to true to disable spending hashes on gym upgrades when training up sleeves.
+    ["disable-spending-hashes-for-study-upgrades", true], // Set to true to disable spending hashes on study upgrades when smarting up sleeves.
     ["enable-bladeburner-team-building", false], // Set to true to have one sleeve support the main sleeve, and another do recruitment. Otherwise, they will just do more "Infiltrate Synthoids"
     ["disable-bladeburner", false], // Set to true to disable having sleeves workout at the gym (costs money)
     ["failed-bladeburner-contract-cooldown", 30 * 60 * 1000], // Default 30 minutes: time to wait after failing a bladeburner contract before we try again
