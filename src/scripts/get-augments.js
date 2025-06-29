@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 import { optimizeAugmentPurchases } from "./augment-calc.js";
 import { calculatePortfolioValue } from "./stock-market.js";
-import { getSafeBitNodeMultipliers } from "./bitnode-multipliers.js";
+import { getSafeBitNodeMultipliers, BitNodeMultipliers } from "./bitnode-multipliers.js";
 
 const argsSchema = [
     ["buy", false], // Set to true to actually purchase the augmentations
@@ -113,6 +113,7 @@ function getCurrentNeuroFluxPurchaseLevel(ns) {
 function calculateTotalStatIncrease(ns, augmentations) {
     let neuroFluxToBuy = 0;
     const player = ns.getPlayer();
+    /** @type {BitNodeMultipliers} */
     const bitnodeMultiplier = getSafeBitNodeMultipliers(ns);
 
     // Start with current player multipliers - Hacking
@@ -189,8 +190,8 @@ function calculateTotalStatIncrease(ns, augmentations) {
     // This ensures that stat calculations reflect the actual effective multipliers in the current BitNode
     hackingMultiplier *= bitnodeMultiplier.HackingLevelMultiplier;
     hackingSpeedMultiplier *= bitnodeMultiplier.HackingSpeedMultiplier;
-    hackingMoneyMultiplier *= bitnodeMultiplier.HackingMoneyMultiplier;
-    hackingGrowMultiplier *= bitnodeMultiplier.HackingGrowthMultiplier;
+    hackingMoneyMultiplier *= bitnodeMultiplier.ScriptHackMoney;
+    hackingGrowMultiplier *= bitnodeMultiplier.ServerGrowthRate;
     hackingExpMultiplier *= bitnodeMultiplier.HackExpGain;
 
     strengthMultiplier *= bitnodeMultiplier.StrengthLevelMultiplier;
@@ -242,8 +243,8 @@ function calculateTotalStatIncrease(ns, augmentations) {
         (player.mults.hacking * bitnodeMultiplier.HackingLevelMultiplier +
             player.mults.hacking_chance +
             player.mults.hacking_speed * bitnodeMultiplier.HackingSpeedMultiplier +
-            player.mults.hacking_money * bitnodeMultiplier.HackingMoneyMultiplier +
-            player.mults.hacking_grow * bitnodeMultiplier.HackingGrowthMultiplier +
+            player.mults.hacking_money * bitnodeMultiplier.ScriptHackMoney +
+            player.mults.hacking_grow * bitnodeMultiplier.ServerGrowthRate +
             player.mults.hacking_exp * bitnodeMultiplier.HackExpGain) /
         6;
     const relativeHackingBoost = averageHackingBoost / originalAverageHackingBoost;
@@ -322,8 +323,8 @@ function calculateTotalStatIncrease(ns, augmentations) {
             hackingLevel: player.mults.hacking * bitnodeMultiplier.HackingLevelMultiplier,
             hackingChance: player.mults.hacking_chance,
             hackingSpeed: player.mults.hacking_speed * bitnodeMultiplier.HackingSpeedMultiplier,
-            hackingMoney: player.mults.hacking_money * bitnodeMultiplier.HackingMoneyMultiplier,
-            hackingGrow: player.mults.hacking_grow * bitnodeMultiplier.HackingGrowthMultiplier,
+            hackingMoney: player.mults.hacking_money * bitnodeMultiplier.ScriptHackMoney,
+            hackingGrow: player.mults.hacking_grow * bitnodeMultiplier.ServerGrowthRate,
             hackingExp: player.mults.hacking_exp * bitnodeMultiplier.HackExpGain,
         },
         originalCombat: {
