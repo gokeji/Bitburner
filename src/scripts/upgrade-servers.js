@@ -149,9 +149,7 @@ export async function main(ns) {
                 .sort((a, b) => ns.getServerMaxRam(a) - ns.getServerMaxRam(b))[0];
             const smallestServerRam = ns.getServerMaxRam(smallestServer);
 
-            ns.killall(smallestServer);
-            ns.deleteServer(smallestServer);
-            ns.purchaseServer(smallestServer, ramTierToBuy);
+            ns.upgradePurchasedServer(smallestServer, ramTierToBuy);
             const upgradeMessage = `Upgraded server ${smallestServer} from ${smallestServerRam} GB to ${ramTierToBuy} GB RAM for ${ns.formatNumber(ns.getPurchasedServerCost(ramTierToBuy), 2)}`;
             ns.print(upgradeMessage);
             ns.tprint(upgradeMessage);
