@@ -622,7 +622,7 @@ export async function main(ns) {
      * @param {string} server - Server name to nuke
      */
     function nukeServerIfNeeded(ns, server) {
-        if (ns.hasRootAccess(server) || server.startsWith("hacknet-node")) {
+        if (ns.hasRootAccess(server) || server.startsWith("hacknet-server")) {
             return;
         }
 
@@ -731,6 +731,7 @@ export async function main(ns) {
             if (!ns.hasRootAccess(server)) return false;
             if (ns.getServerMaxRam(server) === 0) return false;
             if (ignoreServers.includes(server)) return false;
+            if (server.startsWith("hacknet-server")) return false;
             return true;
         };
 
