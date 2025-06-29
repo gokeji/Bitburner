@@ -36,24 +36,9 @@ export async function main(ns) {
         );
     }
 
-    ns.print(`Hacknet hash capacity: ${ns.hacknet.hashCapacity(0)}`);
-    // ns.print(`Hacknet hash cost: ${ns.hacknet.hashCost()}`);
-    ns.print(`Hacknet node count: ${ns.hacknet.numNodes()}`);
-    ns.print(`Hacknet num hashes: ${ns.hacknet.numHashes()}`);
-    ns.print(`Hacknet max num nodes: ${ns.hacknet.maxNumNodes()}`); // 100
-    const nodeStats0 = ns.hacknet.getNodeStats(0);
-    ns.print(`Hacknet node stats 0: ${JSON.stringify(nodeStats0)}`);
-    ns.print(`Production calc: ${hacknetServers[0].getProd(totalHacknetProdMult)}`);
-    const nodeStats1 = ns.hacknet.getNodeStats(1);
-    ns.print(`Hacknet node stats 1: ${JSON.stringify(nodeStats1)}`);
-    ns.print(`Production calc: ${hacknetServers[1].getProd(totalHacknetProdMult)}`);
-
-    ns.print(
-        `Starting hacknet manager. Max payback time: ${maxPaybackHours} hours. Prioritize Netburners (Buy 8 nodes): ${prioritizeNetburnersRequirement}`,
-    );
-    ns.tprint(
-        `Starting hacknet manager. Max payback time: ${maxPaybackHours} hours. Prioritize Netburners (Buy 8 nodes): ${prioritizeNetburnersRequirement}`,
-    );
+    const startingMessage = `Starting hacknet manager. Max payback time: ${maxPaybackHours} hours. Prioritize Netburners (Buy 8 nodes): ${prioritizeNetburnersRequirement}`;
+    ns.print(startingMessage);
+    ns.tprint(startingMessage);
 
     if (isUsingHacknetServers) {
         ns.print("Using hacknet servers");
@@ -61,20 +46,30 @@ export async function main(ns) {
         ns.print("Not using hacknet servers");
     }
 
+    function convertHashToMoney(hashes) {
+        if (isUsingHacknetServers) {
+            return hashes * 2e6; // 2 million hashes per second
+        } else {
+            return hashes;
+        }
+    }
+
     while (true) {
         let currentNodeStats = [];
 
         let nodeValue = HacknetServer.newBaseServer().getProd(totalHacknetProdMult);
         let nodeCost = ns.hacknet.getPurchaseNodeCost();
+        let nodeValueMoney = convertHashToMoney(nodeValue);
 
         // Calculate payback time for new node
-        let nodePaybackTime = nodeCost / nodeValue;
+        let nodePaybackTime = nodeCost / nodeValueMoney;
         let nodePaybackHours = nodePaybackTime / 3600;
 
         currentNodeStats.push({
             value: nodeValue,
             cost: nodeCost,
-            ratio: nodeValue / nodeCost,
+            valueMoney: nodeValueMoney,
+            ratio: nodeValueMoney / nodeCost,
             paybackTime: nodePaybackTime,
             paybackHours: nodePaybackHours,
             index: ns.hacknet.numNodes(),
@@ -99,11 +94,6 @@ export async function main(ns) {
             let ramCost = ns.hacknet.getRamUpgradeCost(idx, 1);
             let coreCost = ns.hacknet.getCoreUpgradeCost(idx, 1);
 
-            ns.print(
-                `hacknetServer.plusLevel(1).getProd(totalHacknetProdMult): ${hacknetServer.plusLevel(1).getProd(totalHacknetProdMult)}`,
-            );
-            ns.print(`hacknetServer.getProd(totalHacknetProdMult): ${hacknetServer.getProd(totalHacknetProdMult)}`);
-
             let levelValue =
                 hacknetServer.plusLevel(1).getProd(totalHacknetProdMult) - hacknetServer.getProd(totalHacknetProdMult);
             let ramValue =
@@ -111,20 +101,21 @@ export async function main(ns) {
             let coreValue =
                 hacknetServer.plusCores(1).getProd(totalHacknetProdMult) - hacknetServer.getProd(totalHacknetProdMult);
 
-            ns.print(`Level value: ${levelValue}`);
-            ns.print(`Ram value: ${ramValue}`);
-            ns.print(`Core value: ${coreValue}`);
+            let levelValueMoney = convertHashToMoney(levelValue);
+            let ramValueMoney = convertHashToMoney(ramValue);
+            let coreValueMoney = convertHashToMoney(coreValue);
 
             // Calculate payback times in seconds
-            let levelPaybackTime = levelCost / levelValue;
-            let ramPaybackTime = ramCost / ramValue;
-            let corePaybackTime = coreCost / coreValue;
+            let levelPaybackTime = levelCost / levelValueMoney;
+            let ramPaybackTime = ramCost / ramValueMoney;
+            let corePaybackTime = coreCost / coreValueMoney;
 
             currentNodeStats.push(
                 {
                     value: levelValue,
                     cost: levelCost,
-                    ratio: levelValue / levelCost,
+                    valueMoney: levelValueMoney,
+                    ratio: levelValueMoney / levelCost,
                     paybackTime: levelPaybackTime,
                     paybackHours: levelPaybackTime / 3600, // Convert to hours
                     index: idx,
@@ -133,7 +124,8 @@ export async function main(ns) {
                 {
                     value: ramValue,
                     cost: ramCost,
-                    ratio: ramValue / ramCost,
+                    valueMoney: ramValueMoney,
+                    ratio: ramValueMoney / ramCost,
                     paybackTime: ramPaybackTime,
                     paybackHours: ramPaybackTime / 3600,
                     index: idx,
@@ -142,7 +134,8 @@ export async function main(ns) {
                 {
                     value: coreValue,
                     cost: coreCost,
-                    ratio: coreValue / coreCost,
+                    valueMoney: coreValueMoney,
+                    ratio: coreValueMoney / coreCost,
                     paybackTime: corePaybackTime,
                     paybackHours: corePaybackTime / 3600,
                     index: idx,
@@ -157,7 +150,7 @@ export async function main(ns) {
         // Debug all of the upgrade types before returning
         for (let upgrade of currentNodeStats) {
             ns.print(
-                `Node ${upgrade.index} ${upgrade.type.padEnd(5)}: production: ${ns.formatNumber(upgrade.value).padStart(8)}, cost: ${ns.formatNumber(upgrade.cost).padStart(10)}, ratio: ${upgrade.ratio.toFixed(6).padStart(10)}, payback: ${(upgrade.paybackTime / 3600).toFixed(2).padStart(6)}h`,
+                `Node ${upgrade.index} ${upgrade.type.padEnd(5)}: production: ${ns.formatNumber(upgrade.value, 5).padStart(8)}, cost: ${ns.formatNumber(upgrade.cost).padStart(6)}, moneyValue: ${ns.formatNumber(upgrade.valueMoney).padStart(6)}, ratio: ${upgrade.ratio.toFixed(6).padStart(10)}, payback: ${(upgrade.paybackTime / 3600).toFixed(2).padStart(6)}h`,
             );
         }
 
@@ -188,30 +181,34 @@ export async function main(ns) {
 
         return;
 
-        // while (ns.getServerMoneyAvailable("home") < bestUpgrade.cost) {
-        //     await ns.sleep(10000);
-        // }
+        while (ns.getServerMoneyAvailable("home") < bestUpgrade.cost) {
+            await ns.sleep(10000);
+        }
 
-        // switch (bestUpgrade.type) {
-        //     case "level":
-        //         ns.hacknet.upgradeLevel(bestUpgrade.index, 1);
-        //         ns.print(`Upgraded level on node ${bestUpgrade.index}`);
-        //         break;
-        //     case "ram":
-        //         ns.hacknet.upgradeRam(bestUpgrade.index, 1);
-        //         ns.print(`Upgraded ram on node ${bestUpgrade.index}`);
-        //         break;
-        //     case "core":
-        //         ns.hacknet.upgradeCore(bestUpgrade.index, 1);
-        //         ns.print(`Upgraded core on node ${bestUpgrade.index}`);
-        //         break;
-        //     case "node":
-        //         ns.hacknet.purchaseNode();
-        //         ns.print(`Purchased node`);
-        //         break;
-        // }
+        switch (bestUpgrade.type) {
+            case "level":
+                ns.hacknet.upgradeLevel(bestUpgrade.index, 1);
+                ns.print(`Upgraded level on node ${bestUpgrade.index}`);
+                ns.toast(`Upgraded level on node ${bestUpgrade.index}`);
+                break;
+            case "ram":
+                ns.hacknet.upgradeRam(bestUpgrade.index, 1);
+                ns.print(`Upgraded ram on node ${bestUpgrade.index}`);
+                ns.toast(`Upgraded ram on node ${bestUpgrade.index}`);
+                break;
+            case "core":
+                ns.hacknet.upgradeCore(bestUpgrade.index, 1);
+                ns.print(`Upgraded core on node ${bestUpgrade.index}`);
+                ns.toast(`Upgraded core on node ${bestUpgrade.index}`);
+                break;
+            case "node":
+                ns.hacknet.purchaseNode();
+                ns.print(`Purchased node ${ns.hacknet.numNodes()}`);
+                ns.toast(`Purchased node ${ns.hacknet.numNodes()}`);
+                break;
+        }
 
-        // await ns.sleep(10000);
+        await ns.sleep(10000);
     }
 }
 
@@ -230,7 +227,7 @@ class HacknetServer {
     }
 
     static newBaseServer() {
-        return new HacknetServer("hacknet-server-test", 1, 1, 1, 0, 0, 0, 1, 0, 0);
+        return new HacknetServer("hacknet-server-test", 1, 1, 1, 0, 0, 0, 1, 32 * Math.pow(2, 1), 0);
     }
 
     isHacknetServer() {
