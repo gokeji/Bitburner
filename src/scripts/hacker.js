@@ -19,13 +19,13 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1; // Use extra grow and weak threads to correct for out of sync HGW batches
 
-    let hackPercentage = 0.9;
+    let hackPercentage = 0;
     const MIN_MONEY_PROTECTION_THRESHOLD = (1 - hackPercentage) / 2; // 5% of max money before recovery
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
 
-    const HOME_SERVER_RESERVED_RAM = 80; // GB reserved for home server
+    const HOME_SERVER_RESERVED_RAM = 185; // GB reserved for home server
     let MAX_WEAKEN_TIME = 3 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
     let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
@@ -1130,7 +1130,7 @@ export async function main(ns) {
         }
 
         const growTime = ns.getGrowTime(xpTarget);
-        const growCycles = Math.floor(TICK_DELAY / (growTime + BASE_SCRIPT_DELAY));
+        const growCycles = Math.ceil(TICK_DELAY / (growTime + BASE_SCRIPT_DELAY));
 
         // Collect server/thread pairs for all available RAM
         const serverThreadPairs = [];

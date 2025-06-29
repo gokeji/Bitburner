@@ -40,7 +40,7 @@ export async function main(ns) {
         // Execute weaken on each server with specified threads
         for (const pair of serverThreadPairs) {
             if (pair.threads > 0) {
-                const pid = ns.exec(growScript, pair.server, pair.threads, target, 0, "xp", cycle);
+                const pid = ns.exec(growScript, pair.server, pair.threads, target, 0, false, "xp", cycle);
                 if (pid) {
                     cycleThreads += pair.threads;
                     serversUsed++;
