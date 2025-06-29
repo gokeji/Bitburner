@@ -537,6 +537,59 @@ export async function main(ns) {
     }
 
     /**
+     * Calculates the prep stats for a target server to determine what operations are needed.
+     * @param {NS} ns - The Netscript API.
+     * @param {string} target - The target server to analyze.
+     * @returns {Object} - Object containing prep requirements and stats.
+     */
+    function getPrepStats(ns, target) {
+        const cpuCores = 1;
+
+        const serverInfo = ns.getServer(target);
+        const securityLevel = serverInfo.hackDifficulty;
+        const minSecurityLevel = serverInfo.minDifficulty;
+        const currentMoney = serverInfo.moneyAvailable;
+        const maxMoney = serverInfo.moneyMax;
+
+        const weakenAmount = ns.weakenAnalyze(1, cpuCores);
+        const weakenTime = ns.getWeakenTime(target);
+        const growthTime = ns.getGrowTime(target);
+
+        // Check if server is already at min security level
+        const needsInitialWeaken = securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD;
+        const needsGrow = currentMoney < maxMoney * PREP_MONEY_THRESHOLD;
+
+        // Calculate thread requirements
+        const initialWeakenThreads = Math.ceil((securityLevel - minSecurityLevel) / weakenAmount);
+
+        const growthAmount = maxMoney / currentMoney;
+        const growthThreads = Math.ceil(ns.growthAnalyze(target, growthAmount, cpuCores));
+        const growthSecurityChange = growthThreads * 0.004;
+        const finalWeakenThreads = Math.ceil(growthSecurityChange / weakenAmount);
+
+        // Calculate RAM requirements for prep operations
+        const initialWeakenRam = initialWeakenThreads * WEAKEN_SCRIPT_RAM_USAGE;
+        const growRam = growthThreads * GROW_SCRIPT_RAM_USAGE;
+        const finalWeakenRam = finalWeakenThreads * WEAKEN_SCRIPT_RAM_USAGE;
+
+        const totalRamRequired =
+            (needsInitialWeaken ? initialWeakenRam : 0) + (needsGrow ? growRam + finalWeakenRam : 0);
+
+        return {
+            needsInitialWeaken,
+            needsGrow,
+            initialWeakenThreads,
+            initialWeakenRam,
+            growthThreads,
+            growRam,
+            finalWeakenThreads,
+            finalWeakenRam,
+            weakenTime,
+            growthTime,
+        };
+    }
+
+    /**
      * Calculates the priority of each server based on throughput (money per second).
      * Sets throughput to 0 for servers that need prep (wrong security/money), which prevents
      * RAM allocation and allows proper accounting in the main loop.
@@ -790,35 +843,19 @@ export async function main(ns) {
      * @returns {number | false} - Total RAM used to prep the server, or false if not enough RAM available.
      */
     function prepServer(ns, target, serverIndex) {
-        // TODO: - Add way to optimize cpuCores
-        const cpuCores = 1;
-
-        const serverInfo = ns.getServer(target);
-        const securityLevel = serverInfo.hackDifficulty;
-        const minSecurityLevel = serverInfo.minDifficulty;
-        const currentMoney = serverInfo.moneyAvailable;
-        const maxMoney = serverInfo.moneyMax;
-
-        const weakenAmount = ns.weakenAnalyze(1, cpuCores);
-        const weakenTime = ns.getWeakenTime(target);
-        const growthTime = ns.getGrowTime(target);
-
-        // Check if server is already at min security level
-        const needsInitialWeaken = securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD;
-        const needsGrow = currentMoney < maxMoney * PREP_MONEY_THRESHOLD;
-
-        // Calculate thread requirements
-        const initialWeakenThreads = Math.ceil((securityLevel - minSecurityLevel) / weakenAmount);
-
-        const growthAmount = maxMoney / currentMoney;
-        const growthThreads = Math.ceil(ns.growthAnalyze(target, growthAmount, cpuCores));
-        const growthSecurityChange = growthThreads * 0.004;
-        const finalWeakenThreads = Math.ceil(growthSecurityChange / weakenAmount);
-
-        // Calculate RAM requirements for prep operations
-        const initialWeakenRam = initialWeakenThreads * WEAKEN_SCRIPT_RAM_USAGE;
-        const growRam = growthThreads * GROW_SCRIPT_RAM_USAGE;
-        const finalWeakenRam = finalWeakenThreads * WEAKEN_SCRIPT_RAM_USAGE;
+        const prepStats = getPrepStats(ns, target);
+        const {
+            needsInitialWeaken,
+            needsGrow,
+            initialWeakenThreads,
+            growthThreads,
+            finalWeakenThreads,
+            initialWeakenRam,
+            growRam,
+            finalWeakenRam,
+            weakenTime,
+            growthTime,
+        } = prepStats;
 
         // Build operations array for the new allocation function
         const operations = [];

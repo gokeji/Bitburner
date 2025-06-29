@@ -27,8 +27,9 @@ export async function main(ns) {
     }
 
     function convertHashToMoney(hashes) {
+        const sellForMoneyLevel = ns.hacknet.getHashUpgradeLevel("Sell for Money");
         if (isUsingHacknetServers) {
-            return hashes * 2e6; // 2 million hashes per second
+            return hashes * 0.25e6; // 250k hashes per second
         } else {
             return hashes;
         }
@@ -189,27 +190,27 @@ export async function main(ns) {
         switch (bestUpgrade.type) {
             case "level":
                 ns.hacknet.upgradeLevel(bestUpgrade.index, 1);
-                ns.print(`Upgraded level on node ${bestUpgrade.index}`);
+                ns.print(`SUCCESS: Upgraded level on node ${bestUpgrade.index}`);
                 ns.toast(`Upgraded level on node ${bestUpgrade.index}`);
                 break;
             case "ram":
                 ns.hacknet.upgradeRam(bestUpgrade.index, 1);
-                ns.print(`Upgraded ram on node ${bestUpgrade.index}`);
+                ns.print(`SUCCESS: Upgraded ram on node ${bestUpgrade.index}`);
                 ns.toast(`Upgraded ram on node ${bestUpgrade.index}`);
                 break;
             case "core":
                 ns.hacknet.upgradeCore(bestUpgrade.index, 1);
-                ns.print(`Upgraded core on node ${bestUpgrade.index}`);
+                ns.print(`SUCCESS: Upgraded core on node ${bestUpgrade.index}`);
                 ns.toast(`Upgraded core on node ${bestUpgrade.index}`);
                 break;
             case "node":
                 ns.hacknet.purchaseNode();
-                ns.print(`Purchased node ${ns.hacknet.numNodes()}`);
+                ns.print(`SUCCESS: Purchased node ${ns.hacknet.numNodes()}`);
                 ns.toast(`Purchased node ${ns.hacknet.numNodes()}`);
                 break;
         }
 
-        await ns.sleep(1000);
+        await ns.sleep(500);
     }
 }
 
@@ -304,3 +305,17 @@ function calculateHashGainRate(level, ramUsed, maxRam, cores, totalHacknetProdMu
 
     return baseGain * ramMultiplier * coreMultiplier * ramRatio * totalHacknetProdMult;
 }
+
+// enum HashUpgradeEnum {
+//   SellForMoney = "Sell for Money",
+//   SellForCorporationFunds = "Sell for Corporation Funds",
+//   ReduceMinimumSecurity = "Reduce Minimum Security",
+//   IncreaseMaximumMoney = "Increase Maximum Money",
+//   ImproveStudying = "Improve Studying",
+//   ImproveGymTraining = "Improve Gym Training",
+//   ExchangeForCorporationResearch = "Exchange for Corporation Research",
+//   ExchangeForBladeburnerRank = "Exchange for Bladeburner Rank",
+//   ExchangeForBladeburnerSP = "Exchange for Bladeburner SP",
+//   GenerateCodingContract = "Generate Coding Contract",
+//   CompanyFavor = "Company Favor",
+// }
