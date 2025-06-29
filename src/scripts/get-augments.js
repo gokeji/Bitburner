@@ -1,6 +1,7 @@
 import { NS } from "@ns";
 import { optimizeAugmentPurchases } from "./augment-calc.js";
 import { calculatePortfolioValue } from "./stock-market.js";
+import { getSafeBitNodeMultipliers } from "./bitnode-multipliers.js";
 
 const argsSchema = [
     ["buy", false], // Set to true to actually purchase the augmentations
@@ -104,13 +105,15 @@ function getCurrentNeuroFluxPurchaseLevel(ns) {
 
 /**
  * Calculates total stat increases from a list of augmentations (hacking, combat, and reputation)
+ * Applies BitNode multipliers to both current and final stats for accurate comparison
  * @param {NS} ns - NetScript object
  * @param {Array} augmentations - Array of augmentation objects with names
- * @returns {Object} Object with all stat multipliers and original values
+ * @returns {Object} Object with all stat multipliers and original values (BitNode-adjusted)
  */
 function calculateTotalStatIncrease(ns, augmentations) {
     let neuroFluxToBuy = 0;
     const player = ns.getPlayer();
+    const bitnodeMultiplier = getSafeBitNodeMultipliers(ns);
 
     // Start with current player multipliers - Hacking
     let hackingMultiplier = player.mults.hacking;
@@ -182,6 +185,31 @@ function calculateTotalStatIncrease(ns, augmentations) {
         hacknetNodeLevelCostMultiplier *= stats.hacknet_node_level_cost;
     }
 
+    // Apply BitNode multipliers to the final augmented stats
+    // This ensures that stat calculations reflect the actual effective multipliers in the current BitNode
+    hackingMultiplier *= bitnodeMultiplier.HackingLevelMultiplier;
+    hackingSpeedMultiplier *= bitnodeMultiplier.HackingSpeedMultiplier;
+    hackingMoneyMultiplier *= bitnodeMultiplier.HackingMoneyMultiplier;
+    hackingGrowMultiplier *= bitnodeMultiplier.HackingGrowthMultiplier;
+    hackingExpMultiplier *= bitnodeMultiplier.HackExpGain;
+
+    strengthMultiplier *= bitnodeMultiplier.StrengthLevelMultiplier;
+    strengthExpMultiplier *= bitnodeMultiplier.ClassGymExpGain;
+    defenseMultiplier *= bitnodeMultiplier.DefenseLevelMultiplier;
+    defenseExpMultiplier *= bitnodeMultiplier.ClassGymExpGain;
+    dexterityMultiplier *= bitnodeMultiplier.DexterityLevelMultiplier;
+    dexterityExpMultiplier *= bitnodeMultiplier.ClassGymExpGain;
+    agilityMultiplier *= bitnodeMultiplier.AgilityLevelMultiplier;
+    agilityExpMultiplier *= bitnodeMultiplier.ClassGymExpGain;
+
+    repMultiplier *= bitnodeMultiplier.FactionWorkRepGain;
+    charismaMultiplier *= bitnodeMultiplier.CharismaLevelMultiplier;
+    charismaExpMultiplier *= bitnodeMultiplier.ClassGymExpGain;
+
+    hacknetNodeMoneyMultiplier *= bitnodeMultiplier.HacknetNodeMoney;
+    // Note: BitNode multipliers don't directly affect hacknet cost multipliers,
+    // but we keep them as-is since they represent cost reductions from augments
+
     // Calculate average multipliers
     const averageHackingBoost =
         (hackingMultiplier +
@@ -194,37 +222,54 @@ function calculateTotalStatIncrease(ns, augmentations) {
     const averageCombatBoost = (strengthMultiplier + defenseMultiplier + dexterityMultiplier + agilityMultiplier) / 4;
     const averageCharismaBoost = (charismaMultiplier + charismaExpMultiplier) / 2;
     // For hacknet, money is positive (higher is better) while costs are negative (lower is better)
-    // We need to invert the cost multipliers for proper averaging
+    // For costs, we calculate the benefit as (1 - cost_multiplier) + 1 to represent cost reduction benefit
     const averageHacknetBoost =
         (hacknetNodeMoneyMultiplier +
-            (2 - hacknetNodePurchaseCostMultiplier) +
-            (2 - hacknetNodeRamCostMultiplier) +
-            (2 - hacknetNodeCoreCostMultiplier) +
-            (2 - hacknetNodeLevelCostMultiplier)) /
+            (1 - hacknetNodePurchaseCostMultiplier) +
+            1 +
+            (1 - hacknetNodeRamCostMultiplier) +
+            1 +
+            (1 - hacknetNodeCoreCostMultiplier) +
+            1 +
+            (1 - hacknetNodeLevelCostMultiplier) +
+            1) /
         5;
 
-    // Calculate relative multipliers (final / original)
-    const relativeHackingLevelBoost = hackingMultiplier / player.mults.hacking;
-    const relativeHackingBoost =
-        averageHackingBoost /
-        ((player.mults.hacking +
+    // Calculate relative multipliers (final / original, with BitNode multipliers applied to originals)
+    const relativeHackingLevelBoost =
+        hackingMultiplier / (player.mults.hacking * bitnodeMultiplier.HackingLevelMultiplier);
+    const originalAverageHackingBoost =
+        (player.mults.hacking * bitnodeMultiplier.HackingLevelMultiplier +
             player.mults.hacking_chance +
-            player.mults.hacking_speed +
-            player.mults.hacking_money +
-            player.mults.hacking_grow +
-            player.mults.hacking_exp) /
-            6);
-    const relativeCombatBoost =
-        averageCombatBoost /
-        ((player.mults.strength + player.mults.defense + player.mults.dexterity + player.mults.agility) / 4);
-    const relativeRepBoost = repMultiplier / player.mults.faction_rep;
-    const relativeCharismaBoost = averageCharismaBoost / ((player.mults.charisma + player.mults.charisma_exp) / 2);
+            player.mults.hacking_speed * bitnodeMultiplier.HackingSpeedMultiplier +
+            player.mults.hacking_money * bitnodeMultiplier.HackingMoneyMultiplier +
+            player.mults.hacking_grow * bitnodeMultiplier.HackingGrowthMultiplier +
+            player.mults.hacking_exp * bitnodeMultiplier.HackExpGain) /
+        6;
+    const relativeHackingBoost = averageHackingBoost / originalAverageHackingBoost;
+    const originalAverageCombatBoost =
+        (player.mults.strength * bitnodeMultiplier.StrengthLevelMultiplier +
+            player.mults.defense * bitnodeMultiplier.DefenseLevelMultiplier +
+            player.mults.dexterity * bitnodeMultiplier.DexterityLevelMultiplier +
+            player.mults.agility * bitnodeMultiplier.AgilityLevelMultiplier) /
+        4;
+    const relativeCombatBoost = averageCombatBoost / originalAverageCombatBoost;
+    const relativeRepBoost = repMultiplier / (player.mults.faction_rep * bitnodeMultiplier.FactionWorkRepGain);
+    const originalAverageCharismaBoost =
+        (player.mults.charisma * bitnodeMultiplier.CharismaLevelMultiplier +
+            player.mults.charisma_exp * bitnodeMultiplier.ClassGymExpGain) /
+        2;
+    const relativeCharismaBoost = averageCharismaBoost / originalAverageCharismaBoost;
     const originalAverageHacknetBoost =
-        (player.mults.hacknet_node_money +
-            (2 - player.mults.hacknet_node_purchase_cost) +
-            (2 - player.mults.hacknet_node_ram_cost) +
-            (2 - player.mults.hacknet_node_core_cost) +
-            (2 - player.mults.hacknet_node_level_cost)) /
+        (player.mults.hacknet_node_money * bitnodeMultiplier.HacknetNodeMoney +
+            (1 - player.mults.hacknet_node_purchase_cost) +
+            1 +
+            (1 - player.mults.hacknet_node_ram_cost) +
+            1 +
+            (1 - player.mults.hacknet_node_core_cost) +
+            1 +
+            (1 - player.mults.hacknet_node_level_cost) +
+            1) /
         5;
     const relativeHacknetBoost = averageHacknetBoost / originalAverageHacknetBoost;
 
@@ -272,32 +317,32 @@ function calculateTotalStatIncrease(ns, augmentations) {
         relativeCharismaBoost: relativeCharismaBoost,
         relativeHacknetBoost: relativeHacknetBoost,
         neurofluxLevels: neuroFluxToBuy,
-        // Store original values for comparison
+        // Store original values for comparison (with BitNode multipliers applied)
         originalHacking: {
-            hackingLevel: player.mults.hacking,
+            hackingLevel: player.mults.hacking * bitnodeMultiplier.HackingLevelMultiplier,
             hackingChance: player.mults.hacking_chance,
-            hackingSpeed: player.mults.hacking_speed,
-            hackingMoney: player.mults.hacking_money,
-            hackingGrow: player.mults.hacking_grow,
-            hackingExp: player.mults.hacking_exp,
+            hackingSpeed: player.mults.hacking_speed * bitnodeMultiplier.HackingSpeedMultiplier,
+            hackingMoney: player.mults.hacking_money * bitnodeMultiplier.HackingMoneyMultiplier,
+            hackingGrow: player.mults.hacking_grow * bitnodeMultiplier.HackingGrowthMultiplier,
+            hackingExp: player.mults.hacking_exp * bitnodeMultiplier.HackExpGain,
         },
         originalCombat: {
-            strength: player.mults.strength,
-            strengthExp: player.mults.strength_exp,
-            defense: player.mults.defense,
-            defenseExp: player.mults.defense_exp,
-            dexterity: player.mults.dexterity,
-            dexterityExp: player.mults.dexterity_exp,
-            agility: player.mults.agility,
-            agilityExp: player.mults.agility_exp,
+            strength: player.mults.strength * bitnodeMultiplier.StrengthLevelMultiplier,
+            strengthExp: player.mults.strength_exp * bitnodeMultiplier.ClassGymExpGain,
+            defense: player.mults.defense * bitnodeMultiplier.DefenseLevelMultiplier,
+            defenseExp: player.mults.defense_exp * bitnodeMultiplier.ClassGymExpGain,
+            dexterity: player.mults.dexterity * bitnodeMultiplier.DexterityLevelMultiplier,
+            dexterityExp: player.mults.dexterity_exp * bitnodeMultiplier.ClassGymExpGain,
+            agility: player.mults.agility * bitnodeMultiplier.AgilityLevelMultiplier,
+            agilityExp: player.mults.agility_exp * bitnodeMultiplier.ClassGymExpGain,
         },
         originalOther: {
-            rep: player.mults.faction_rep,
-            charisma: player.mults.charisma,
-            charismaExp: player.mults.charisma_exp,
+            rep: player.mults.faction_rep * bitnodeMultiplier.FactionWorkRepGain,
+            charisma: player.mults.charisma * bitnodeMultiplier.CharismaLevelMultiplier,
+            charismaExp: player.mults.charisma_exp * bitnodeMultiplier.ClassGymExpGain,
         },
         originalHacknet: {
-            hacknetNodeMoney: player.mults.hacknet_node_money,
+            hacknetNodeMoney: player.mults.hacknet_node_money * bitnodeMultiplier.HacknetNodeMoney,
             hacknetNodePurchaseCost: player.mults.hacknet_node_purchase_cost,
             hacknetNodeRamCost: player.mults.hacknet_node_ram_cost,
             hacknetNodeCoreCost: player.mults.hacknet_node_core_cost,
@@ -496,11 +541,11 @@ function displayStatIncreases(ns, statIncrease) {
 
     for (const stat of hacknetStats) {
         const increase = stat.final / stat.original;
-        const percentIncrease = (increase - 1) * 100;
+        const percentChange = (increase - 1) * 100;
         const isReduction = stat.name.includes("Cost");
         const displayText = isReduction
-            ? `${ns.formatPercent(stat.original)} -> ${ns.formatPercent(stat.final)} (${percentIncrease.toFixed(1)}% reduction, ${(1 / increase).toFixed(2)}X cheaper)`
-            : `${ns.formatPercent(stat.original)} -> ${ns.formatPercent(stat.final)} (+${percentIncrease.toFixed(1)}%, ${increase.toFixed(2)}X)`;
+            ? `${ns.formatPercent(stat.original)} -> ${ns.formatPercent(stat.final)} (${percentChange.toFixed(1)}% change, ${(1 / increase).toFixed(2)}X cheaper)`
+            : `${ns.formatPercent(stat.original)} -> ${ns.formatPercent(stat.final)} (+${percentChange.toFixed(1)}%, ${increase.toFixed(2)}X)`;
         ns.print(`  ${stat.name.padEnd(14)}: ${displayText}`);
     }
 

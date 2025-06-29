@@ -1,3 +1,5 @@
+import { NS } from "@ns";
+
 /**
  * BitNode Multipliers Reference
  * Use this when getBitNodeMultipliers() is not available
@@ -62,7 +64,7 @@ const defaultMultipliers = {
     GoPower: 1,
 };
 
-class BitNodeMultipliers {
+export class BitNodeMultipliers {
     constructor(overrides = {}) {
         Object.assign(this, defaultMultipliers, overrides);
     }
@@ -462,7 +464,7 @@ export function getSafeBitNodeMultipliers(ns, fallbackBitnode = 1, fallbackLevel
     try {
         return ns.getBitNodeMultipliers();
     } catch (error) {
-        ns.print(`Warning: getBitNodeMultipliers() not available, using fallback BitNode ${fallbackBitnode}`);
+        ns.print(`WARN: getBitNodeMultipliers() not available, using fallback BitNode ${fallbackBitnode}`);
         return getBitNodeMultipliers(fallbackBitnode, fallbackLevel);
     }
 }
