@@ -9,6 +9,7 @@ const argsSchema = [
     ["rep", false], // Set to true to include augments that boost reputation
     ["combat", false], // Set to true to include augments that boost combat
     ["charisma", false], // Set to true to include augments that boost charisma
+    ["hacknet", false], // Set to true to include augments that boost hacknet
 ];
 
 /**
@@ -134,6 +135,13 @@ function calculateTotalStatIncrease(ns, augmentations) {
     let charismaMultiplier = player.mults.charisma;
     let charismaExpMultiplier = player.mults.charisma_exp;
 
+    // Hacknet stats
+    let hacknetNodeMoneyMultiplier = player.mults.hacknet_node_money;
+    let hacknetNodePurchaseCostMultiplier = player.mults.hacknet_node_purchase_cost;
+    let hacknetNodeRamCostMultiplier = player.mults.hacknet_node_ram_cost;
+    let hacknetNodeCoreCostMultiplier = player.mults.hacknet_node_core_cost;
+    let hacknetNodeLevelCostMultiplier = player.mults.hacknet_node_level_cost;
+
     // Apply each augmentation multiplicatively
     for (const aug of augmentations) {
         let augName = aug.name;
@@ -166,6 +174,12 @@ function calculateTotalStatIncrease(ns, augmentations) {
         repMultiplier *= stats.faction_rep;
         charismaMultiplier *= stats.charisma;
         charismaExpMultiplier *= stats.charisma_exp;
+
+        hacknetNodeMoneyMultiplier *= stats.hacknet_node_money;
+        hacknetNodePurchaseCostMultiplier *= stats.hacknet_node_purchase_cost;
+        hacknetNodeRamCostMultiplier *= stats.hacknet_node_ram_cost;
+        hacknetNodeCoreCostMultiplier *= stats.hacknet_node_core_cost;
+        hacknetNodeLevelCostMultiplier *= stats.hacknet_node_level_cost;
     }
 
     // Calculate average multipliers
@@ -179,6 +193,15 @@ function calculateTotalStatIncrease(ns, augmentations) {
         6;
     const averageCombatBoost = (strengthMultiplier + defenseMultiplier + dexterityMultiplier + agilityMultiplier) / 4;
     const averageCharismaBoost = (charismaMultiplier + charismaExpMultiplier) / 2;
+    // For hacknet, money is positive (higher is better) while costs are negative (lower is better)
+    // We need to invert the cost multipliers for proper averaging
+    const averageHacknetBoost =
+        (hacknetNodeMoneyMultiplier +
+            (2 - hacknetNodePurchaseCostMultiplier) +
+            (2 - hacknetNodeRamCostMultiplier) +
+            (2 - hacknetNodeCoreCostMultiplier) +
+            (2 - hacknetNodeLevelCostMultiplier)) /
+        5;
 
     // Calculate relative multipliers (final / original)
     const relativeHackingLevelBoost = hackingMultiplier / player.mults.hacking;
@@ -196,6 +219,14 @@ function calculateTotalStatIncrease(ns, augmentations) {
         ((player.mults.strength + player.mults.defense + player.mults.dexterity + player.mults.agility) / 4);
     const relativeRepBoost = repMultiplier / player.mults.faction_rep;
     const relativeCharismaBoost = averageCharismaBoost / ((player.mults.charisma + player.mults.charisma_exp) / 2);
+    const originalAverageHacknetBoost =
+        (player.mults.hacknet_node_money +
+            (2 - player.mults.hacknet_node_purchase_cost) +
+            (2 - player.mults.hacknet_node_ram_cost) +
+            (2 - player.mults.hacknet_node_core_cost) +
+            (2 - player.mults.hacknet_node_level_cost)) /
+        5;
+    const relativeHacknetBoost = averageHacknetBoost / originalAverageHacknetBoost;
 
     return {
         totalHacking: {
@@ -221,16 +252,25 @@ function calculateTotalStatIncrease(ns, augmentations) {
             charisma: charismaMultiplier,
             charismaExp: charismaExpMultiplier,
         },
+        totalHacknet: {
+            hacknetNodeMoney: hacknetNodeMoneyMultiplier,
+            hacknetNodePurchaseCost: hacknetNodePurchaseCostMultiplier,
+            hacknetNodeRamCost: hacknetNodeRamCostMultiplier,
+            hacknetNodeCoreCost: hacknetNodeCoreCostMultiplier,
+            hacknetNodeLevelCost: hacknetNodeLevelCostMultiplier,
+        },
         // Average boost calculations
         averageHackingBoost: averageHackingBoost,
         averageCombatBoost: averageCombatBoost,
         averageCharismaBoost: averageCharismaBoost,
+        averageHacknetBoost: averageHacknetBoost,
         // Relative multipliers (how much better compared to original)
         relativeHackingLevelBoost: relativeHackingLevelBoost,
         relativeHackingBoost: relativeHackingBoost,
         relativeCombatBoost: relativeCombatBoost,
         relativeRepBoost: relativeRepBoost,
         relativeCharismaBoost: relativeCharismaBoost,
+        relativeHacknetBoost: relativeHacknetBoost,
         neurofluxLevels: neuroFluxToBuy,
         // Store original values for comparison
         originalHacking: {
@@ -255,6 +295,13 @@ function calculateTotalStatIncrease(ns, augmentations) {
             rep: player.mults.faction_rep,
             charisma: player.mults.charisma,
             charismaExp: player.mults.charisma_exp,
+        },
+        originalHacknet: {
+            hacknetNodeMoney: player.mults.hacknet_node_money,
+            hacknetNodePurchaseCost: player.mults.hacknet_node_purchase_cost,
+            hacknetNodeRamCost: player.mults.hacknet_node_ram_cost,
+            hacknetNodeCoreCost: player.mults.hacknet_node_core_cost,
+            hacknetNodeLevelCost: player.mults.hacknet_node_level_cost,
         },
     };
 }
@@ -286,6 +333,10 @@ function getOptimizationScore(statIncrease, flags) {
         score *= statIncrease.relativeCharismaBoost;
         hasAnyFilter = true;
     }
+    if (flags.hacknet) {
+        score *= statIncrease.relativeHacknetBoost;
+        hasAnyFilter = true;
+    }
 
     // If no filters are active, optimize for all stats
     if (!hasAnyFilter) {
@@ -293,7 +344,8 @@ function getOptimizationScore(statIncrease, flags) {
             statIncrease.relativeHackingLevelBoost *
             statIncrease.relativeRepBoost *
             statIncrease.relativeCombatBoost *
-            statIncrease.relativeCharismaBoost;
+            statIncrease.relativeCharismaBoost *
+            statIncrease.relativeHacknetBoost;
     }
 
     return score;
@@ -412,6 +464,46 @@ function displayStatIncreases(ns, statIncrease) {
         );
     }
 
+    // Hacknet Stats Section
+    ns.print("\n🖥️ HACKNET STATS:");
+    const hacknetStats = [
+        {
+            name: "Node Money",
+            original: statIncrease.originalHacknet.hacknetNodeMoney,
+            final: statIncrease.totalHacknet.hacknetNodeMoney,
+        },
+        {
+            name: "Purchase Cost",
+            original: statIncrease.originalHacknet.hacknetNodePurchaseCost,
+            final: statIncrease.totalHacknet.hacknetNodePurchaseCost,
+        },
+        {
+            name: "RAM Cost",
+            original: statIncrease.originalHacknet.hacknetNodeRamCost,
+            final: statIncrease.totalHacknet.hacknetNodeRamCost,
+        },
+        {
+            name: "Core Cost",
+            original: statIncrease.originalHacknet.hacknetNodeCoreCost,
+            final: statIncrease.totalHacknet.hacknetNodeCoreCost,
+        },
+        {
+            name: "Level Cost",
+            original: statIncrease.originalHacknet.hacknetNodeLevelCost,
+            final: statIncrease.totalHacknet.hacknetNodeLevelCost,
+        },
+    ];
+
+    for (const stat of hacknetStats) {
+        const increase = stat.final / stat.original;
+        const percentIncrease = (increase - 1) * 100;
+        const isReduction = stat.name.includes("Cost");
+        const displayText = isReduction
+            ? `${ns.formatPercent(stat.original)} -> ${ns.formatPercent(stat.final)} (${percentIncrease.toFixed(1)}% reduction, ${(1 / increase).toFixed(2)}X cheaper)`
+            : `${ns.formatPercent(stat.original)} -> ${ns.formatPercent(stat.final)} (+${percentIncrease.toFixed(1)}%, ${increase.toFixed(2)}X)`;
+        ns.print(`  ${stat.name.padEnd(14)}: ${displayText}`);
+    }
+
     if (statIncrease.neurofluxLevels > 0) {
         ns.print("");
         ns.print(`🔋 NeuroFlux Levels: ${statIncrease.neurofluxLevels} (1% boost each to all stats)`);
@@ -442,6 +534,7 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, flags
     if (flags.rep) activeFilters.push("reputation");
     if (flags.combat) activeFilters.push("combat");
     if (flags.charisma) activeFilters.push("charisma");
+    if (flags.hacknet) activeFilters.push("hacknet");
     const filterDescription = activeFilters.length > 0 ? activeFilters.join("/") : "all";
     ns.print(`Finding the best price filter that maximizes ${filterDescription} stats...`);
     ns.print(`Testing ${allPrices.length} different price thresholds...`);
@@ -461,7 +554,7 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, flags
         const totalStatScore = getOptimizationScore(statIncrease, flags);
 
         ns.print(
-            `Max price: $${ns.formatNumber(maxPrice * 1000000)} | Augments: ${result.purchaseOrder.length} | Hacking: ${statIncrease.relativeHackingLevelBoost.toFixed(2)}X | Rep: ${statIncrease.relativeRepBoost.toFixed(2)}X | Combat: ${statIncrease.relativeCombatBoost.toFixed(2)}X | Charisma: ${statIncrease.relativeCharismaBoost.toFixed(2)}X | Score: ${totalStatScore.toFixed(3)}X`,
+            `Max price: $${ns.formatNumber(maxPrice * 1000000)} | Augments: ${result.purchaseOrder.length} | Hacking: ${statIncrease.relativeHackingLevelBoost.toFixed(2)}X | Rep: ${statIncrease.relativeRepBoost.toFixed(2)}X | Combat: ${statIncrease.relativeCombatBoost.toFixed(2)}X | Charisma: ${statIncrease.relativeCharismaBoost.toFixed(2)}X | Hacknet: ${statIncrease.relativeHacknetBoost.toFixed(2)}X | Score: ${totalStatScore.toFixed(3)}X`,
         );
 
         // Update best result if this is better
@@ -495,6 +588,9 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, flags
         ns.print(
             `   Charisma boost: +${((bestResult.statIncrease.relativeCharismaBoost - 1) * 100).toFixed(1)}% (${bestResult.statIncrease.relativeCharismaBoost.toFixed(2)}X)`,
         );
+        ns.print(
+            `   Hacknet boost: +${((bestResult.statIncrease.relativeHacknetBoost - 1) * 100).toFixed(1)}% (${bestResult.statIncrease.relativeHacknetBoost.toFixed(2)}X)`,
+        );
         ns.print(`   Total stat score: ${bestTotalStats.toFixed(3)}`);
     }
 
@@ -513,6 +609,7 @@ export async function main(ns) {
     const rep = flags["rep"];
     const combat = flags["combat"];
     const charisma = flags["charisma"];
+    const hacknet = flags["hacknet"];
     const forceBuy = flags["force-buy"];
 
     ns.ui.openTail(); // Open tail because there's a lot of good output
@@ -574,6 +671,17 @@ export async function main(ns) {
         return stats.charisma > 1 || stats.charisma_exp > 1;
     }
 
+    // Helper function to check if an augmentation has hacknet boost
+    function hasHacknetBoost(stats) {
+        return (
+            stats.hacknet_node_money > 1 ||
+            stats.hacknet_node_purchase_cost < 1 ||
+            stats.hacknet_node_ram_cost < 1 ||
+            stats.hacknet_node_core_cost < 1 ||
+            stats.hacknet_node_level_cost < 1
+        );
+    }
+
     // Check which augmentations we can afford (both price and reputation) - separate entry for each qualifying faction
     const affordableAugmentations = [];
     let unaffordableAugmentations = [];
@@ -603,6 +711,7 @@ export async function main(ns) {
                 const repBoost = hasRepBoost(stats);
                 const combatBoost = hasCombatBoost(stats);
                 const charismaBoost = hasCharismaBoost(stats);
+                const hacknetBoost = hasHacknetBoost(stats);
 
                 const aug = {
                     name: augmentation,
@@ -613,13 +722,14 @@ export async function main(ns) {
                     repBoost: repBoost,
                     combatBoost: combatBoost,
                     charismaBoost: charismaBoost,
+                    hacknetBoost: hacknetBoost,
                     repReq: repReq,
                     stats: stats,
                 };
 
                 if (factionRep >= repReq && canAffordPrice) {
                     // Check if any filtering flags are set
-                    const anyFilterActive = hacking || rep || combat || charisma;
+                    const anyFilterActive = hacking || rep || combat || charisma || hacknet;
 
                     // If filtering is active, check if this augment matches any selected criteria
                     if (anyFilterActive && !alwaysIncludeList.includes(augmentation)) {
@@ -629,6 +739,7 @@ export async function main(ns) {
                         if (rep && repBoost) matchesFilter = true;
                         if (combat && combatBoost) matchesFilter = true;
                         if (charisma && charismaBoost) matchesFilter = true;
+                        if (hacknet && hacknetBoost) matchesFilter = true;
 
                         if (!matchesFilter) {
                             affordableButFilteredOut.push(aug);
@@ -650,8 +761,9 @@ export async function main(ns) {
         const hasRepBoost = aug.repBoost;
         const hasCombatBoost = aug.combatBoost;
         const hasCharismaBoost = aug.charismaBoost;
+        const hasHacknetBoost = aug.hacknetBoost;
         ns.print(
-            `$${ns.formatNumber(aug.cost * 1000000)} - ${aug.name} - ${aug.faction} ${hasHackingBoost ? "- 🧠 " : ""}${hasRepBoost ? "- 📈" : ""}${hasCombatBoost ? "- 💪" : ""}${hasCharismaBoost ? "- 🗣️" : ""}`,
+            `$${ns.formatNumber(aug.cost * 1000000)} - ${aug.name} - ${aug.faction} ${hasHackingBoost ? "- 🧠 " : ""}${hasRepBoost ? "- 📈" : ""}${hasCombatBoost ? "- 💪" : ""}${hasCharismaBoost ? "- 🗣️" : ""}${hasHacknetBoost ? "- 🖥️" : ""}`,
         );
     }
 
@@ -693,6 +805,7 @@ export async function main(ns) {
         repBoost: aug.repBoost,
         combatBoost: aug.combatBoost,
         charismaBoost: aug.charismaBoost,
+        hacknetBoost: aug.hacknetBoost,
         available: true,
     }));
 
@@ -700,7 +813,7 @@ export async function main(ns) {
     let result = optimizeAugmentPurchases(augmentsForOptimizer, totalBudget);
 
     // Create flags object for optimization scoring
-    const optimizationFlags = { hacking, rep, combat, charisma };
+    const optimizationFlags = { hacking, rep, combat, charisma, hacknet };
 
     // Calculate total stat increases for the current result
     if (result.purchaseOrder.length > 0) {
@@ -735,7 +848,9 @@ export async function main(ns) {
     ns.print("\n");
     ns.print("=== OPTIMAL AUGMENTATION PURCHASE ORDER ===");
     ns.print(`Cost multiplier per purchase: 1.9x`);
-    ns.print("Legend: 🧠 = Improves hacking, 📈 = Improves reputation, 💪 = Improves combat, 🗣️ = Improves charisma");
+    ns.print(
+        "Legend: 🧠 = Improves hacking, 📈 = Improves reputation, 💪 = Improves combat, 🗣️ = Improves charisma, 🖥️ = Improves hacknet",
+    );
 
     // Display active filters
     const activeFilters = [];
@@ -743,6 +858,7 @@ export async function main(ns) {
     if (rep) activeFilters.push("reputation");
     if (combat) activeFilters.push("combat");
     if (charisma) activeFilters.push("charisma");
+    if (hacknet) activeFilters.push("hacknet");
 
     if (activeFilters.length > 0) {
         ns.print(`INFO Filter: Only showing ${activeFilters.join("/")} augments`);
@@ -760,9 +876,10 @@ export async function main(ns) {
         const repMark = aug.repBoost ? " 📈" : "";
         const combatMark = aug.combatBoost ? " 💪" : "";
         const charismaMark = aug.charismaBoost ? " 🗣️" : "";
+        const hacknetMark = aug.hacknetBoost ? " 🖥️" : "";
         const prereqInfo = aug.prereqs.length > 0 ? `\n      - Requires: ${aug.prereqs.join(", ")}` : "";
         ns.print(
-            `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} [Base: $${ns.formatNumber(aug.cost * 1000000)}] - ${aug.name}${hackingMark}${repMark}${combatMark}${charismaMark}${prereqInfo}`,
+            `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} [Base: $${ns.formatNumber(aug.cost * 1000000)}] - ${aug.name}${hackingMark}${repMark}${combatMark}${charismaMark}${hacknetMark}${prereqInfo}`,
         );
     }
 
@@ -776,9 +893,10 @@ export async function main(ns) {
             const repMark = aug.repBoost ? " 📈" : "";
             const combatMark = aug.combatBoost ? " 💪" : "";
             const charismaMark = aug.charismaBoost ? " 🗣️" : "";
+            const hacknetMark = aug.hacknetBoost ? " 🖥️" : "";
             const prereqInfo = aug.prereqs.length > 0 ? `\n      - Requires: ${aug.prereqs.join(", ")}` : "";
             ns.print(
-                `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} [Base: $${ns.formatNumber(aug.cost * 1000000)}] - ${aug.name}${hackingMark}${repMark}${combatMark}${charismaMark}${prereqInfo}`,
+                `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} [Base: $${ns.formatNumber(aug.cost * 1000000)}] - ${aug.name}${hackingMark}${repMark}${combatMark}${charismaMark}${hacknetMark}${prereqInfo}`,
             );
         }
     }
@@ -804,11 +922,13 @@ export async function main(ns) {
     const combatAugmentsCount = result.purchaseOrder.filter((aug) => aug.combatBoost).length - result.neurofluxCount;
     const charismaAugmentsCount =
         result.purchaseOrder.filter((aug) => aug.charismaBoost).length - result.neurofluxCount;
+    const hacknetAugmentsCount = result.purchaseOrder.filter((aug) => aug.hacknetBoost).length - result.neurofluxCount;
     ns.print(`  - NeuroFlux Governors: ${result.neurofluxCount}`);
     ns.print(`  - Hacking augments: ${hackingAugmentsCount}`);
     ns.print(`  - Reputation augments: ${repAugmentsCount}`);
     ns.print(`  - Combat augments: ${combatAugmentsCount}`);
     ns.print(`  - Charisma augments: ${charismaAugmentsCount}`);
+    ns.print(`  - Hacknet augments: ${hacknetAugmentsCount}`);
     ns.print(`\n`);
 
     if (result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
