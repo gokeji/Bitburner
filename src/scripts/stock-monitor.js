@@ -110,6 +110,8 @@ export async function main(ns) {
 
     var portfolioHistory = [];
 
+    let hasResized = false;
+
     while (true) {
         var portfolio = calculatePortfolioValue(ns);
         var totalMarketCap = calculateTotalMarketCap(ns);
@@ -142,9 +144,9 @@ export async function main(ns) {
         }
 
         ns.print("💰 Market Cap: " + ns.formatNumber(totalMarketCap));
-        ns.print("🏦 Bitnode Stock Returns: " + ns.formatNumber(totalStockValueSinceInstall));
-        ns.print("🏦 Bitnode Stock Rate: " + (totalStockRate >= 0 ? "+" : "") + ns.formatNumber(totalStockRate) + "/s");
-        ns.print("");
+        ns.print("🏦 Bitnode Returns: " + ns.formatNumber(totalStockValueSinceInstall));
+        ns.print("🏦 Bitnode Rate: " + (totalStockRate >= 0 ? "+" : "") + ns.formatNumber(totalStockRate) + "/s");
+        ns.print("\n");
 
         if (portfolio.hasPositions) {
             ns.print("📊 Portfolio Value: " + ns.formatNumber(portfolio.totalValue));
@@ -154,7 +156,7 @@ export async function main(ns) {
                 "💹 Total P&L: " + (portfolio.totalProfit >= 0 ? "+" : "") + ns.formatNumber(portfolio.totalProfit),
             );
             ns.print("💹 P&L Change: " + (profitRate >= 0 ? "+" : "") + ns.formatNumber(profitRate) + "/s");
-            ns.print("");
+            ns.print("\n");
 
             // Show individual positions (limit to top 3 by value)
             var sortedPositions = portfolio.positions.sort((a, b) => b.currentValue - a.currentValue);
@@ -164,6 +166,11 @@ export async function main(ns) {
                 var profitStr = (pos.profit >= 0 ? "+" : "") + ns.formatNumber(pos.profit);
                 var valueStr = ns.formatNumber(pos.currentValue);
                 ns.print(`  ${pos.type} ${pos.symbol}: ${valueStr} (${profitStr})`);
+            }
+
+            if (!hasResized) {
+                ns.ui.resizeTail(320, (10 + portfolio.positions.length) * 28);
+                hasResized = true;
             }
         } else {
             ns.print("📊 No positions held");

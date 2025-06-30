@@ -2,7 +2,7 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const toPrint = ns.singularity.getAugmentationStats("Unstable Circadian Modulator");
+    const toPrint = ns.getPlayer().mults.hacking_money * ns.getBitNodeMultipliers().ScriptHackMoney;
     ns.print(toPrint);
     // ns.print(favorToRep(34));
     // ns.print(repToFavor(300000));

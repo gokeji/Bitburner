@@ -8,7 +8,7 @@ const SERVER_TO_START_SHARING_RAM_ON = "b-05";
 const IPVGO_OPPONENTS = [
     "Netburners", // increased hacknet production
     // "Slum Snakes", // crime success rate
-    // "The Black Hand", // hacking money
+    "The Black Hand", // hacking money
     // "Tetrads", // strength, defense, dexterity, and agility levels
     "Daedalus", // reputation gain
     // "Illuminati", // faster hack(), grow(), and weaken()
@@ -37,9 +37,14 @@ export async function main(ns) {
     // Start all required scripts if not running
     startDistributedHackIfNotRunning(ns);
 
-    // startUpgradeHnetIfNeeded(ns);
-    // TODO: Change to hacknet servers
-    // TODO: Start sleeve.js and gang.js
+    startUpgradeHnetIfNeeded(ns);
+
+    // After unlocking gangs, sleeves should be assigned manually
+    if (ns.heart.break() > -54000) {
+        startSleeveIfNeeded(ns);
+    }
+
+    startGangIfNeeded(ns);
 
     startUpgradeServersIfNotRunning(ns);
 
@@ -147,6 +152,20 @@ function restartIpvgo(ns) {
     // Note: This function checks for a different script name than what it starts
 }
 
+function startSleeveIfNeeded(ns) {
+    const result = startScriptIfNotRunning(ns, "sleeve.js", HOST_NAME, 1);
+    if (result.success) {
+        ns.ui.openTail(result.pid, HOST_NAME);
+    }
+}
+
+function startGangIfNeeded(ns) {
+    const result = startScriptIfNotRunning(ns, "gangs.js", HOST_NAME, 1);
+    if (result.success) {
+        ns.ui.openTail(result.pid, HOST_NAME);
+    }
+}
+
 function startAutoJoinFactionsIfNotRunning(ns) {
     startScriptIfNotRunning(ns, "scripts/auto-join-factions.js");
 }
@@ -189,7 +208,7 @@ function startStockTraderIfNotRunning(ns) {
 }
 
 function startUpgradeHnetIfNeeded(ns) {
-    startScriptIfNotRunning(ns, "scripts/hacknet-manager.js", HOST_NAME, 1, HACKNET_MAX_PAYBACK_TIME);
+    startScriptIfNotRunning(ns, "scripts/hacknet-servers.js", HOST_NAME, 1, HACKNET_MAX_PAYBACK_TIME);
 }
 
 function launchStatsMonitoring(ns) {

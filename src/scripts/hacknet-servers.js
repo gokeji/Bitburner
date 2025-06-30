@@ -3,7 +3,7 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    let maxPaybackHours = parseInt(ns.args[0]) || 0.2; // Stop upgrading if payback time > 12 minutes
+    let maxPaybackHours = parseFloat(ns.args[0]) || 0.2; // Stop upgrading if payback time > 12 minutes
     let prioritizeNetburnersRequirement = ns.args.includes("--netburners"); // If true, prioritize buying 8 nodes
 
     const currentBitnode = ns.getResetInfo().currentNode;
@@ -14,7 +14,7 @@ export async function main(ns) {
     const playerHacknetMultipliers = ns.getHacknetMultipliers();
     let totalHacknetProdMult = bitnodeHacknetNodeMoneyMultiplier * playerHacknetMultipliers.production;
 
-    const isUsingHacknetServers = ns.hacknet.getNodeStats(0).hashCapacity > 0;
+    const isUsingHacknetServers = true; // TODO: Do not hardcode
 
     const startingMessage = `Starting hacknet manager. Max payback time: ${maxPaybackHours} hours. Prioritize Netburners (Buy 8 nodes): ${prioritizeNetburnersRequirement}`;
     ns.print(startingMessage);

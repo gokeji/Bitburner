@@ -26,7 +26,9 @@ export async function main(ns) {
     const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 185; // GB reserved for home server
-    let MAX_WEAKEN_TIME = 3 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    let MAX_WEAKEN_TIME = 15 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    const ALLOW_XP_FARMING = true;
+    const ALLOW_PARTIAL_PREP = false;
 
     let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
     let SECURITY_LEVEL_THRESHOLD = 0; // Prep servers to be within minSecurityLevel + this amount
@@ -101,6 +103,7 @@ export async function main(ns) {
         // Get all servers
         executableServers = getServers(ns, "executableOnly");
         hackableServers = getServers(ns, "hackableOnly").filter((server) => {
+            // return server === "sigma-cosmetics";
             const serverInfo = ns.getServer(server);
             const optimalServer = {
                 ...serverInfo,
@@ -235,6 +238,15 @@ export async function main(ns) {
                 continue;
             }
 
+            // This is a guard against invalid batches that might have 0 threads for very high security servers
+            if (
+                serverStats.hackThreads <= 0 ||
+                serverStats.growthThreads <= 0 ||
+                serverStats.weakenThreadsNeeded <= 0
+            ) {
+                continue;
+            }
+
             if (
                 (serverInfo.moneyAvailable < serverInfo.moneyMax * PREP_MONEY_THRESHOLD ||
                     serverInfo.hackDifficulty > serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD) &&
@@ -336,7 +348,9 @@ export async function main(ns) {
         );
 
         // XP farming: Use all remaining RAM for weaken scripts
-        xpFarm(ns);
+        if (ALLOW_XP_FARMING) {
+            xpFarm(ns);
+        }
 
         await ns.sleep(TICK_DELAY);
     }
@@ -605,11 +619,6 @@ export async function main(ns) {
                 true, // Set to true to use formulas API with optimal conditions
             );
 
-            // This is a guard against invalid batches that might have 0 threads for very high security servers
-            if (hackThreads <= 0 || growthThreads <= 0 || weakenThreadsNeeded <= 0) {
-                continue;
-            }
-
             const timePerBatch = BASE_SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES;
             const theoreticalBatchLimit = weakenTime / timePerBatch;
 
@@ -626,8 +635,13 @@ export async function main(ns) {
             );
 
             // Calculate actual throughput (money per second) using ACTUAL hack percentage
-            const moneyPerBatch = actualHackPercentage * maxMoney * hackChance;
-            const throughput = (batchLimitForSustainedThroughput * moneyPerBatch) / (weakenTime / 1000); // money per second
+            const moneyPerBatch =
+                actualHackPercentage *
+                maxMoney *
+                hackChance *
+                ns.getPlayer().mults.hacking_money *
+                ns.getBitNodeMultipliers().ScriptHackMoney;
+            const throughput = (theoreticalBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
 
             if (serverInfo.hackDifficulty > serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD) {
                 // Server needs prep, set RAM allocation to 0 to prevent wasted allocation
@@ -854,7 +868,7 @@ export async function main(ns) {
         }
 
         // Find servers for prep operations with proper RAM accounting
-        const allocation = allocateServersForOperations(ns, operations, true);
+        const allocation = allocateServersForOperations(ns, operations, ALLOW_PARTIAL_PREP);
 
         if (!allocation.success) {
             const isPartial = allocation.scalingFactor < 1;
