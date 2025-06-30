@@ -10,7 +10,7 @@ export async function main(ns) {
 
     let reserverRam = 0;
     if (server === "home") {
-        reserverRam = 100;
+        reserverRam = 185;
     }
 
     while (true) {

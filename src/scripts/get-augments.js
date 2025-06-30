@@ -600,7 +600,7 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, flags
         const totalStatScore = getOptimizationScore(statIncrease, flags);
 
         ns.print(
-            `Max price: $${ns.formatNumber(maxPrice * 1000000)} | Augments: ${result.purchaseOrder.length} | Hacking: ${statIncrease.relativeHackingLevelBoost.toFixed(2)}X | Rep: ${statIncrease.relativeRepBoost.toFixed(2)}X | Combat: ${statIncrease.relativeCombatBoost.toFixed(2)}X | Charisma: ${statIncrease.relativeCharismaBoost.toFixed(2)}X | Hacknet: ${statIncrease.relativeHacknetBoost.toFixed(2)}X | Score: ${totalStatScore.toFixed(3)}X`,
+            `Max price: $${ns.formatNumber(maxPrice * 1000000)} | Augments: ${result.purchaseOrder.length} | Hacking: ${statIncrease.relativeHackingLevelBoost.toFixed(2)}X | Rep: ${statIncrease.relativeRepBoost.toFixed(2)}X | Combat: ${statIncrease.relativeCombatBoost.toFixed(2)}X | Hacknet: ${statIncrease.relativeHacknetBoost.toFixed(2)}X | Score: ${totalStatScore.toFixed(3)}X`,
         );
 
         // Update best result if this is better
@@ -659,7 +659,7 @@ export async function main(ns) {
     const forceBuy = flags["force-buy"];
 
     ns.ui.openTail(); // Open tail because there's a lot of good output
-    ns.ui.resizeTail(1000, 600);
+    ns.ui.resizeTail(1200, 600);
 
     ns.print("\n\n\n\n\n\n\n\n\n");
 
