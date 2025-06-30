@@ -23,6 +23,7 @@ export async function main(ns) {
         if (ns.singularity.purchaseTor()) {
             ns.print(`Purchased the Tor router for $200,000`);
             ns.tprint(`INFO Purchased the Tor router for $200,000`);
+            ns.toast(`Purchased the Tor router for $200,000`);
             break;
         }
         if (keepRunning) await ns.sleep(interval);

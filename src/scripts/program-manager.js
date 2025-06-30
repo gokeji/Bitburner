@@ -29,6 +29,7 @@ export async function main(ns) {
                     const cost = ns.singularity.getDarkwebProgramCost(prog);
                     ns.print(`INFO Purchased ${prog} for $${ns.formatNumber(cost)}`);
                     ns.tprint(`INFO Purchased ${prog} for $${ns.formatNumber(cost)}`);
+                    ns.toast(`Purchased ${prog} for $${ns.formatNumber(cost)}`);
                 }
                 // Note: We don't need an else clause here because foundMissingProgram is already true
             }

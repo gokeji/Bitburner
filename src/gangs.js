@@ -15,8 +15,8 @@ import {
 const updateInterval = 200; // We can improve our timing by updating more often than gang stats do (which is every 2 seconds for stats, every 20 seconds for territory)
 const wantedPenaltyThreshold = 0.0001; // Don't let the wanted penalty get worse than this
 const offStatCostPenalty = 50; // Equipment that doesn't contribute to our main stats suffers a percieved cost penalty of this multiple
-const defaultMaxSpendPerTickTransientEquipment = 0.002; // If the --equipment-budget is not specified, spend up to this percent of non-reserved cash on temporary upgrades (equipment)
-const defaultMaxSpendPerTickPermanentEquipment = 0.2; // If the --augmentation-budget is not specified, spend up to this percent of non-reserved cash on permanent member upgrades
+const defaultMaxSpendPerTickTransientEquipment = 0.001; // If the --equipment-budget is not specified, spend up to this percent of non-reserved cash on temporary upgrades (equipment)
+const defaultMaxSpendPerTickPermanentEquipment = 0.5; // If the --augmentation-budget is not specified, spend up to this percent of non-reserved cash on permanent member upgrades
 
 // Territory-related variables
 const gangsByPower = [
@@ -80,7 +80,7 @@ let importantStats = [];
 
 let options;
 const argsSchema = [
-    ["training-percentage", 0.05], // Spend this percent of time randomly training gang members versus doing crime
+    ["training-percentage", 0.3], // Spend this percent of time randomly training gang members versus doing crime
     ["no-training", false], // Don't train unless all other tasks generate no gains or the member ascended recently (--min-training-ticks)
     ["no-auto-ascending", false], // Don't ascend members
     ["ascend-multi-threshold", 1.05], // Ascend member #12 if a primary stat multi would increase by more than this amount
@@ -699,10 +699,10 @@ async function tryUpgradeMembers(ns, dictMembers) {
         Math.min(maxBudget, options["augmentations-budget"] || defaultMaxSpendPerTickPermanentEquipment) * homeMoney;
     // Hack: Default aug budget is cut by 1/100 in a few situations (TODO: Add more, like when BitnodeMults are such that gang income is severely nerfed)
     if (!is4sBought) is4sBought = await getNsDataThroughFile(ns, "ns.stock.has4SDataTIXAPI()");
-    if (!is4sBought || resetInfo.currentNode === 8) {
-        budget /= 100;
-        augBudget /= 100;
-    }
+    // if (!is4sBought || resetInfo.currentNode === 8) {
+    //     budget /= 100;
+    //     augBudget /= 100;
+    // }
     // Find out what outstanding equipment can be bought within our budget
     for (const equip of equipments) {
         if (augBudget <= 0) break;

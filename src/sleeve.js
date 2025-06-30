@@ -20,7 +20,7 @@ const argsSchema = [
     ["buy-cooldown", 60 * 1000], // Must wait this may milliseconds before buying more augs for a sleeve
     ["min-aug-batch", 20], // Must be able to afford at least this many augs before we pull the trigger (or fewer if buying all remaining augs)
     ["reserve", null], // Reserve this much cash before determining spending budgets (defaults to contents of reserve.txt if not specified)
-    ["disable-follow-player", true], // Set to true to disable having Sleeve 0 work for the same faction/company as the player to boost reputation gain rates
+    ["disable-follow-player", false], // Set to true to disable having Sleeve 0 work for the same faction/company as the player to boost reputation gain rates
     ["disable-training", false], // Set to true to disable having sleeves workout at the gym (costs money)
     ["train-to-strength", 55], // Sleeves will go to the gym until they reach this much Str
     ["train-to-defense", 55], // Sleeves will go to the gym until they reach this much Def
