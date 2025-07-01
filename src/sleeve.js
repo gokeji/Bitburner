@@ -22,14 +22,14 @@ const argsSchema = [
     ["reserve", null], // Reserve this much cash before determining spending budgets (defaults to contents of reserve.txt if not specified)
     ["disable-follow-player", false], // Set to true to disable having Sleeve 0 work for the same faction/company as the player to boost reputation gain rates
     ["disable-training", false], // Set to true to disable having sleeves workout at the gym (costs money)
-    ["train-to-strength", 55], // Sleeves will go to the gym until they reach this much Str
-    ["train-to-defense", 55], // Sleeves will go to the gym until they reach this much Def
-    ["train-to-dexterity", 40], // Sleeves will go to the gym until they reach this much Dex
-    ["train-to-agility", 40], // Sleeves will go to the gym until they reach this much Agi
+    ["train-to-strength", 69], // Sleeves will go to the gym until they reach this much Str
+    ["train-to-defense", 69], // Sleeves will go to the gym until they reach this much Def
+    ["train-to-dexterity", 52], // Sleeves will go to the gym until they reach this much Dex
+    ["train-to-agility", 52], // Sleeves will go to the gym until they reach this much Agi
     ["study-to-hacking", 0], // Sleeves will go to university until they reach this much Hak
     ["study-to-charisma", 0], // Sleeves will go to university until they reach this much Cha
     ["training-reserve", null], // Defaults to global reserve.txt. Can be set to a negative number to allow debt. Sleeves will not train if money is below this amount.
-    ["training-cap-seconds", 15 * 60 * 60 /* 15 hours */], // Time since the start of the bitnode after which we will no longer attempt to train sleeves to their target "train-to" settings
+    ["training-cap-seconds", 55 * 60 * 60 /* 15 hours */], // Time since the start of the bitnode after which we will no longer attempt to train sleeves to their target "train-to" settings
     ["disable-spending-hashes-for-gym-upgrades", true], // Set to true to disable spending hashes on gym upgrades when training up sleeves.
     ["disable-spending-hashes-for-study-upgrades", true], // Set to true to disable spending hashes on study upgrades when smarting up sleeves.
     ["enable-bladeburner-team-building", false], // Set to true to have one sleeve support the main sleeve, and another do recruitment. Otherwise, they will just do more "Infiltrate Synthoids"
@@ -323,8 +323,8 @@ async function pickSleeveTask(ns, playerInfo, playerWorkInfo, i, sleeve, canTrai
     if (lastSleeveHp[i] === undefined) lastSleeveHp[i] = sleeve.hp.current;
     if (lastSleeveShock[i] === undefined) lastSleeveShock[i] = sleeve.shock;
     // Must synchronize first iif you haven't maxed memory on every sleeve
-    if (sleeve.sync < 100)
-        return ["synchronize", `ns.sleeve.setToSynchronize(ns.args[0])`, [i], `syncing... ${sleeve.sync.toFixed(2)}%`];
+    // if (sleeve.sync < 100)
+    //     return ["synchronize", `ns.sleeve.setToSynchronize(ns.args[0])`, [i], `syncing... ${sleeve.sync.toFixed(2)}%`];
     // Opt to do shock recovery if above the --min-shock-recovery threshold
     if (sleeve.shock > options["min-shock-recovery"])
         return shockRecoveryTask(

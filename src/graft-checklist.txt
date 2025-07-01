@@ -2,5 +2,5 @@
 "ECorp HVMind Implant",
 "Xanipher",
 "OmniTek InfoLoad",
-"ADR-V2 Pheremone Gene"
+"ADR-V2 Pheromone Gene"
 "Smart Jaw"

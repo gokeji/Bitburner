@@ -10,13 +10,13 @@ const IPVGO_OPPONENTS = [
     // "Slum Snakes", // crime success rate
     // "The Black Hand", // hacking money
     // "Tetrads", // strength, defense, dexterity, and agility levels
-    "Daedalus", // reputation gain
+    // "Daedalus", // reputation gain
     // "Illuminati", // faster hack(), grow(), and weaken()
     // "????????????", // w0r1d_d43m0n Hacking Levels
 ];
 
 export function autocomplete(data, args) {
-    return ["--share", "--faction", "--low-ram"];
+    return ["--share", "--faction", "--low-ram", "--go"];
 }
 
 /** @param {NS} ns */
@@ -24,6 +24,12 @@ export async function main(ns) {
     const shouldShare = ns.args.includes("--share");
     const showFactionServerPaths = ns.args.includes("--faction") || ns.args.includes("-f");
     const lowRamMode = ns.args.includes("--low-ram");
+    const goMode = ns.args.includes("--go");
+
+    if (goMode) {
+        restartIpvgo(ns);
+        return;
+    }
 
     // Kill all other scripts called autoplay.js
     ns.ps(HOST_NAME)
@@ -40,9 +46,9 @@ export async function main(ns) {
     startUpgradeHnetIfNeeded(ns);
 
     // After unlocking gangs, sleeves should be assigned manually
-    if (ns.heart.break() > -54000) {
-        startSleeveIfNeeded(ns);
-    }
+    // if (ns.heart.break() > -54000) {
+    startSleeveIfNeeded(ns);
+    // }
 
     startGangIfNeeded(ns);
 

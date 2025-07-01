@@ -191,26 +191,26 @@ export async function main(ns) {
             case "level":
                 ns.hacknet.upgradeLevel(bestUpgrade.index, 1);
                 ns.print(`SUCCESS: Upgraded level on node ${bestUpgrade.index}`);
-                ns.toast(`Upgraded level on node ${bestUpgrade.index}`);
+                // ns.toast(`Upgraded level on node ${bestUpgrade.index}`);
                 break;
             case "ram":
                 ns.hacknet.upgradeRam(bestUpgrade.index, 1);
                 ns.print(`SUCCESS: Upgraded ram on node ${bestUpgrade.index}`);
-                ns.toast(`Upgraded ram on node ${bestUpgrade.index}`);
+                // ns.toast(`Upgraded ram on node ${bestUpgrade.index}`);
                 break;
             case "core":
                 ns.hacknet.upgradeCore(bestUpgrade.index, 1);
                 ns.print(`SUCCESS: Upgraded core on node ${bestUpgrade.index}`);
-                ns.toast(`Upgraded core on node ${bestUpgrade.index}`);
+                // ns.toast(`Upgraded core on node ${bestUpgrade.index}`);
                 break;
             case "node":
                 ns.hacknet.purchaseNode();
                 ns.print(`SUCCESS: Purchased node ${ns.hacknet.numNodes()}`);
-                ns.toast(`Purchased node ${ns.hacknet.numNodes()}`);
+                // ns.toast(`Purchased node ${ns.hacknet.numNodes()}`);
                 break;
         }
 
-        await ns.sleep(100);
+        // await ns.sleep(100);
     }
 }
 

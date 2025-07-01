@@ -424,7 +424,7 @@ function get_server_data(ns, server, useFormulas = false) {
         `${pad_str(server, 18)}|` +
         `${pad_str(formatMoney(moneyAvailable, 2), 8)}/${pad_str(formatMoney(moneyMax, 2), 7)}${pad_str(`(${formatPercentage(moneyPercentage, 1)})`, 8)}|` +
         `${progressBar}|` +
-        `${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(securityMin, 2)})|` +
+        `${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(ns.formatNumber(securityMin, 0), 2)})|` +
         `${pad_str(ram, 4)}G|` +
         `${pad_str(requiredHackingSkill, 5)}|` +
         `${pad_str(formatMoney(priority, 2), 8)}|` +
@@ -500,6 +500,10 @@ function cleanupCaches() {
 
     serverListCache = null;
     executableServersCache = null;
+
+    // Also clear sorting cache to ensure proper re-sorting when server list changes
+    serverOrderCache = null;
+    lastServerList = null;
 }
 
 // Function to update hacking money rate tracking (similar to karma.js)

@@ -2,14 +2,16 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const taskStats = ns.gang.getTaskStats("Traffick Illegal Arms");
-    ns.print(JSON.stringify(taskStats, null, 2));
-    return;
-    const members = ns.gang.getMemberNames();
-    for (const member of members) {
-        const memberStats = ns.gang.getMemberInformation(member);
-        ns.print(JSON.stringify(memberStats, null, 2));
-    }
+    ns.print(ns.formatNumber(19321599304402300));
+    // while (true) {
+    //     const daedalusFavor =
+    //         ns.singularity.getFactionFavor("Daedalus") + ns.singularity.getFactionFavorGain("Daedalus");
+    //     if (daedalusFavor >= 150) {
+    //         ns.singularity.workForFaction("Illuminati", "hacking");
+    //     }
+    //     await ns.sleep(10000);
+    // }
+    // ns.print(ns.getServerMaxMoney("ecorp"));
     // const toPrint = ns.getPlayer().mults.hacking_money * ns.getBitNodeMultipliers().ScriptHackMoney;
     // ns.print(toPrint);
     // ns.print(favorToRep(34));
