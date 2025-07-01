@@ -115,6 +115,24 @@ export async function main(ns) {
  */
 function spendHashesOnUpgrade(ns, upgradeName, target = undefined) {
     const cost = ns.hacknet.hashCost(upgradeName);
+
+    if (cost > ns.hacknet.hashCapacity()) {
+        let hacknetWithLowestCache = null;
+        let lowestCacheServerIndex = null;
+
+        for (let i = 0; i < ns.hacknet.numNodes(); i++) {
+            const node = ns.hacknet.getNodeStats(i);
+            if (node.cache < hacknetWithLowestCache.cache) {
+                hacknetWithLowestCache = node;
+                lowestCacheServerIndex = i;
+            }
+        }
+
+        if (hacknetWithLowestCache) {
+            ns.hacknet.upgradeCache(lowestCacheServerIndex);
+        }
+    }
+
     // TODO: Buy more cache if needed
     const success = ns.hacknet.spendHashes(upgradeName, target);
     const level = ns.hacknet.getHashUpgradeLevel(upgradeName);
