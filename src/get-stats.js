@@ -10,6 +10,7 @@ let serverListCacheTime = 5000;
 let executableServersCache = null;
 let executableServersCacheTime = 5000;
 let processCache = new Map(); // server -> {processes, timestamp}
+let hgwStatsCache = new Map(); // targetServer -> {attackInfo, earliestEndTime, timestamp}
 
 // Hacking money rate tracking (similar to karma.js)
 let hackingMoneyHistory = [];
@@ -210,11 +211,20 @@ function getCachedProcesses(ns, server) {
 
 /**
  * Finds all HGW processes targeting the target server and returns the total threads and earliest end time.
+ * Uses caching to avoid expensive recalculation on every tick.
  * @param {NS} ns
  * @param {string} targetServer
  * @returns {{attackInfo: string, earliestEndTime: number}}
  */
 function findHGWProcesses(ns, targetServer) {
+    const now = Date.now();
+    const cached = hgwStatsCache.get(targetServer);
+
+    // Check if we have valid cached data (cache for 2 seconds)
+    if (cached && now - cached.timestamp < 2000) {
+        return { attackInfo: cached.attackInfo, earliestEndTime: cached.earliestEndTime };
+    }
+
     const executableServers = getServers(ns, "executable");
 
     let totalThreads = 0;
@@ -254,7 +264,16 @@ function findHGWProcesses(ns, targetServer) {
     }
 
     if (totalThreads === 0) {
-        return { attackInfo: null, earliestEndTime: null };
+        const result = { attackInfo: null, earliestEndTime: null };
+
+        // Cache the result even when no threads are found
+        hgwStatsCache.set(targetServer, {
+            attackInfo: result.attackInfo,
+            earliestEndTime: result.earliestEndTime,
+            timestamp: now,
+        });
+
+        return result;
     }
 
     // Build the display string based on which actions are present
@@ -298,12 +317,22 @@ function findHGWProcesses(ns, targetServer) {
     const paddedTotal = totalThreadsStr.padStart(12);
 
     // Find the earliest end time across all servers
-    const earliestEndTime = Math.min(...Array.from(serverEarliestEndTime.values()));
+    const earliestEndTime =
+        serverEarliestEndTime.size > 0 ? Math.min(...Array.from(serverEarliestEndTime.values())) : null;
 
-    return {
+    const result = {
         attackInfo: `${threadParts.join(":")} ${paddedTotal}`,
         earliestEndTime: earliestEndTime,
     };
+
+    // Cache the result
+    hgwStatsCache.set(targetServer, {
+        attackInfo: result.attackInfo,
+        earliestEndTime: result.earliestEndTime,
+        timestamp: now,
+    });
+
+    return result;
 }
 
 // Global variable to store profit data from distributed-hack.js
@@ -526,7 +555,7 @@ function generate_chart_data(ns, servers) {
 
 // Add table header function that matches exact column spacing
 function get_table_header() {
-    return `${pad_str("Server", 18)}|${pad_str("Money Available/Max (%)", 24)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 5)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Batch", 6)}|${pad_str("Time", 5)}|${pad_str("Attack Threads", 24)}`;
+    return `${pad_str("Server", 18)}|${pad_str("Money Available/Max (%)", 24)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 5)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Batch", 6)}|${pad_str("Due", 6)}|${pad_str("Attack Threads", 24)}`;
 }
 
 // Cleanup old cache entries to prevent memory leaks
@@ -537,6 +566,14 @@ function cleanupCaches() {
     for (const [server, data] of processCache.entries()) {
         if (now - data.timestamp > PROCESS_CACHE_EXPIRY_MS * 3) {
             processCache.delete(server);
+        }
+    }
+
+    // Clean HGW stats cache
+    for (const [server, data] of hgwStatsCache.entries()) {
+        if (now - data.timestamp > 6000) {
+            // Keep for 6 seconds before cleanup
+            hgwStatsCache.delete(server);
         }
     }
 
