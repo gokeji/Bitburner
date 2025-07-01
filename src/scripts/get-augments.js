@@ -379,7 +379,7 @@ function getOptimizationScore(statIncrease, flags) {
         score *= statIncrease.relativeCharismaBoost;
         hasAnyFilter = true;
     }
-    if (flags.hacknet) {
+    if (flags["hacknet"]) {
         score *= statIncrease.relativeHacknetBoost;
         hasAnyFilter = true;
     }
@@ -580,7 +580,7 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, flags
     if (flags.rep) activeFilters.push("reputation");
     if (flags.combat) activeFilters.push("combat");
     if (flags.charisma) activeFilters.push("charisma");
-    if (flags.hacknet) activeFilters.push("hacknet");
+    if (flags["hacknet"]) activeFilters.push("hacknet");
     const filterDescription = activeFilters.length > 0 ? activeFilters.join("/") : "all";
     ns.print(`Finding the best price filter that maximizes ${filterDescription} stats...`);
     ns.print(`Testing ${allPrices.length} different price thresholds...`);
@@ -655,7 +655,7 @@ export async function main(ns) {
     const rep = flags["rep"];
     const combat = flags["combat"];
     const charisma = flags["charisma"];
-    const hacknet = flags["hacknet"];
+    const hacknetServer = flags["hacknet"];
     const forceBuy = flags["force-buy"];
 
     ns.ui.openTail(); // Open tail because there's a lot of good output
@@ -775,7 +775,7 @@ export async function main(ns) {
 
                 if (factionRep >= repReq && canAffordPrice) {
                     // Check if any filtering flags are set
-                    const anyFilterActive = hacking || rep || combat || charisma || hacknet;
+                    const anyFilterActive = hacking || rep || combat || charisma || hacknetServer;
 
                     // If filtering is active, check if this augment matches any selected criteria
                     if (anyFilterActive && !alwaysIncludeList.includes(augmentation)) {
@@ -785,7 +785,7 @@ export async function main(ns) {
                         if (rep && repBoost) matchesFilter = true;
                         if (combat && combatBoost) matchesFilter = true;
                         if (charisma && charismaBoost) matchesFilter = true;
-                        if (hacknet && hacknetBoost) matchesFilter = true;
+                        if (hacknetServer && hacknetBoost) matchesFilter = true;
 
                         if (!matchesFilter) {
                             affordableButFilteredOut.push(aug);
@@ -892,7 +892,7 @@ export async function main(ns) {
     let result = optimizeAugmentPurchases(augmentsForOptimizer, totalBudget);
 
     // Create flags object for optimization scoring
-    const optimizationFlags = { hacking, rep, combat, charisma, hacknet };
+    const optimizationFlags = { hacking, rep, combat, charisma, hacknetServer };
 
     // Calculate total stat increases for the current result
     if (result.purchaseOrder.length > 0) {
@@ -937,7 +937,7 @@ export async function main(ns) {
     if (rep) activeFilters.push("reputation");
     if (combat) activeFilters.push("combat");
     if (charisma) activeFilters.push("charisma");
-    if (hacknet) activeFilters.push("hacknet");
+    if (hacknetServer) activeFilters.push("hacknet");
 
     if (activeFilters.length > 0) {
         ns.print(`INFO Filter: Only showing ${activeFilters.join("/")} augments`);

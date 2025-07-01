@@ -77,6 +77,11 @@ export async function main(ns) {
     ns.tprint("INFO Waiting for stock trader and share ram to start");
 
     while (!startedStockTrader || !sharedRam) {
+        if (!sharedRam && shouldShare && ns.serverExists(SERVER_TO_START_SHARING_RAM_ON)) {
+            startShareAllRamIfNotRunning(ns);
+            sharedRam = true;
+        }
+
         const totalServerValue = ns
             .getPurchasedServers()
             .reduce((acc, server) => acc + ns.getPurchasedServerCost(ns.getServer(server).maxRam), 0);
@@ -85,17 +90,11 @@ export async function main(ns) {
         const noMaxServerValueCondition =
             MAX_SERVER_VALUE === -1 && ns.getPurchasedServers().length < ns.getPurchasedServerLimit();
 
-        if (shouldShare && ns.serverExists(SERVER_TO_START_SHARING_RAM_ON)) {
-            startShareAllRamIfNotRunning(ns);
-        }
-
         // Start stock trader and also share ram after we purchase the server to share ram on
         if (totalServerValue > MAX_SERVER_VALUE && !noMaxServerValueCondition) {
             startStockTraderIfNotRunning(ns);
 
             startedStockTrader = true;
-            sharedRam = true;
-            break;
         }
         await ns.sleep(10000);
     }
