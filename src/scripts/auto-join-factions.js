@@ -1,3 +1,5 @@
+import { NS } from "@ns";
+
 /** @param {NS} ns */
 export async function main(ns) {
     const autoJoinFactions = [
@@ -14,7 +16,7 @@ export async function main(ns) {
     ];
 
     // Function to process faction invitations
-    function processFactionInvitations() {
+    async function processFactionInvitations() {
         try {
             // Get current faction invitations
             const invitations = ns.singularity.checkFactionInvitations();
@@ -44,6 +46,7 @@ export async function main(ns) {
                             ns.toast(`❌ Failed to join ${faction}`, "error");
                         }
                         if (faction === "Daedalus") {
+                            await ns.grafting.waitForOngoingGrafting();
                             const success = ns.singularity.workForFaction(faction, "hacking");
                             if (success) {
                                 ns.print(`✅ Working for ${faction}!`);
@@ -73,7 +76,7 @@ export async function main(ns) {
 
     while (true) {
         try {
-            processFactionInvitations();
+            await processFactionInvitations();
             await ns.sleep(10000); // Sleep for 10 seconds
         } catch (error) {
             ns.print("Unexpected error: " + error.message);

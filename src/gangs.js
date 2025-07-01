@@ -14,7 +14,7 @@ import {
 // Global config
 const updateInterval = 200; // We can improve our timing by updating more often than gang stats do (which is every 2 seconds for stats, every 20 seconds for territory)
 const wantedPenaltyThreshold = 0.0001; // Don't let the wanted penalty get worse than this
-const offStatCostPenalty = 50; // Equipment that doesn't contribute to our main stats suffers a percieved cost penalty of this multiple
+const offStatCostPenalty = 5; // Equipment that doesn't contribute to our main stats suffers a percieved cost penalty of this multiple
 const defaultMaxSpendPerTickTransientEquipment = 0.05; // If the --equipment-budget is not specified, spend up to this percent of non-reserved cash on temporary upgrades (equipment)
 const defaultMaxSpendPerTickPermanentEquipment = 0.4; // If the --augmentation-budget is not specified, spend up to this percent of non-reserved cash on permanent member upgrades
 
@@ -358,13 +358,24 @@ async function onTerritoryTick(ns, myGangInfo) {
     const dictMembers = await getGangInfoDict(ns, myGangMembers, "getMemberInformation");
     if (!options["no-auto-ascending"]) await tryAscendMembers(ns); // Ascend members if we deem it a good time
     await tryUpgradeMembers(ns, dictMembers); // Upgrade members if possible
-    await enableOrDisableWarfare(ns, myGangInfo); // Update whether we should be participating in gang warfare
-    // There's a chance we do training instead of work for this next tick. If training, we primarily train our main stat, with a small chance to train less-important stats
-    const task =
-        Math.random() >= pctTraining
-            ? null
-            : "Train " +
-              (Math.random() < 0.1 ? "Charisma" : Math.random() < (isHackGang ? 0.1 : 0.9) ? "Combat" : "Hacking");
+    const warfareStats = await enableOrDisableWarfare(ns, myGangInfo); // Update whether we should be participating in gang warfare
+    // There's a chance we do training instead of work for this next tick. Training focus depends on gang power level
+    let task = null;
+    if (Math.random() < pctTraining) {
+        const isLateGame = warfareStats.averageWinChance > 0.95 || myGangInfo.territory >= 0.8;
+
+        if (isLateGame) {
+            // Late game: Focus heavily on hack and charisma for high-level crimes
+            const rand = Math.random();
+            task = "Train " + (rand < 0.33 ? "Hacking" : rand < 0.66 ? "Charisma" : "Combat");
+        } else {
+            // Early/mid game: Balanced training with slight combat focus for territory warfare
+            const rand = Math.random();
+            task =
+                "Train " +
+                (Math.random() < 0.1 ? "Charisma" : Math.random() < (isHackGang ? 0.1 : 0.9) ? "Combat" : "Hacking");
+        }
+    }
     await updateMemberActivities(ns, dictMembers, task); // Set everyone working on the next activity
     if (!task) await optimizeGangCrime(ns, await waitForGameUpdate(ns, myGangInfo)); // Finally, see if we can improve rep gain rates by micro-optimizing individual member crimes
 }
@@ -796,10 +807,14 @@ async function waitForGameUpdate(ns, oldGangInfo) {
 
 /** Checks whether we should be engaging in warfare based on our gang power and that of other gangs.
  * @param {NS} ns
- * @param {GangGenInfo} myGangInfo **/
+ * @param {GangGenInfo} myGangInfo
+ * @returns {Object} Warfare statistics for reuse in other functions **/
 async function enableOrDisableWarfare(ns, myGangInfo) {
     warfareFinished = Math.round(myGangInfo.territory * 2 ** 20) / 2 ** 20 /* Handle API imprecision */ >= 1;
-    if (warfareFinished && !myGangInfo.territoryWarfareEngaged) return; // No need to engage once we hit 100%
+    if (warfareFinished && !myGangInfo.territoryWarfareEngaged) {
+        return { averageWinChance: 1, warfareFinished: true };
+    }
+
     const otherGangs = await getNsDataThroughFile(ns, "ns.gang.getOtherGangInformation()"); // Returns dict of { [gangName]: { "power": Number, "territory": Number } }
     let lowestWinChance = 1,
         totalWinChance = 0,
@@ -828,6 +843,8 @@ async function enableOrDisableWarfare(ns, myGangInfo) {
         );
         await runCommand(ns, `ns.gang.setTerritoryWarfare(ns.args[0])`, null, [shouldEngage]);
     }
+
+    return { averageWinChance, warfareFinished };
 }
 
 // Ram-dodging helper to get gang information for each item in a list

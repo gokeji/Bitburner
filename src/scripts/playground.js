@@ -2,6 +2,9 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
+    const taskStats = ns.gang.getTaskStats("Traffick Illegal Arms");
+    ns.print(JSON.stringify(taskStats, null, 2));
+    return;
     const members = ns.gang.getMemberNames();
     for (const member of members) {
         const memberStats = ns.gang.getMemberInformation(member);

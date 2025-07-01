@@ -210,7 +210,7 @@ export async function main(ns) {
                 break;
         }
 
-        await ns.sleep(500);
+        await ns.sleep(100);
     }
 }
 

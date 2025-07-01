@@ -659,7 +659,7 @@ export async function main(ns) {
     const forceBuy = flags["force-buy"];
 
     ns.ui.openTail(); // Open tail because there's a lot of good output
-    ns.ui.resizeTail(1200, 600);
+    ns.ui.resizeTail(1200, 800);
 
     ns.print("\n\n\n\n\n\n\n\n\n");
 
@@ -838,8 +838,41 @@ export async function main(ns) {
         augmentationsByFaction[aug.faction].push(aug);
     });
 
+    // Deduplicate augmentations - keep only the best faction for each augmentation
+    const deduplicatedAugmentations = [];
+    const augmentationMap = new Map();
+
+    for (const aug of affordableAugmentations) {
+        const augName =
+            aug.name === "NeuroFlux Governor"
+                ? `NeuroFlux Governor - Level ${currentNeuroFluxPurchaseLevel}`
+                : aug.name;
+
+        if (!augmentationMap.has(augName)) {
+            augmentationMap.set(augName, aug);
+        } else {
+            // Keep the one with better reputation (higher faction rep available)
+            const existing = augmentationMap.get(augName);
+            const currentFactionRep = ns.singularity.getFactionRep(aug.faction);
+            const existingFactionRep = ns.singularity.getFactionRep(existing.faction);
+
+            if (currentFactionRep > existingFactionRep) {
+                augmentationMap.set(augName, aug);
+            }
+        }
+    }
+
+    // Convert deduplicated map back to array
+    for (const [augName, aug] of augmentationMap) {
+        deduplicatedAugmentations.push(aug);
+    }
+
+    ns.print(`\n=== Deduplication Results ===`);
+    ns.print(`Before deduplication: ${affordableAugmentations.length} augments`);
+    ns.print(`After deduplication: ${deduplicatedAugmentations.length} augments`);
+
     // Convert to format expected by optimizeAugmentPurchases
-    const augmentsForOptimizer = affordableAugmentations.map((aug) => ({
+    const augmentsForOptimizer = deduplicatedAugmentations.map((aug) => ({
         name:
             aug.name === "NeuroFlux Governor"
                 ? `NeuroFlux Governor - Level ${currentNeuroFluxPurchaseLevel}`

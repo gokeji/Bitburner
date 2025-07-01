@@ -252,7 +252,12 @@ export async function main(ns) {
                     serverInfo.hackDifficulty > serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD) &&
                 !isTargeted // Do not prep if it has HGW scripts running on it or prep scripts
             ) {
-                const prepRamUsed = prepServer(ns, currentServer, successfullyProcessedServers.length + 1);
+                const prepRamUsed = prepServer(
+                    ns,
+                    currentServer,
+                    successfullyProcessedServers.length + 1,
+                    ALLOW_PARTIAL_PREP,
+                );
                 if (prepRamUsed !== false) {
                     totalRamUsed += prepRamUsed;
                     successfullyProcessedServers.push(currentServer);
@@ -542,7 +547,7 @@ export async function main(ns) {
      * @param {string} target - The target server to analyze.
      * @returns {Object} - Object containing prep requirements and stats.
      */
-    function getPrepStats(ns, target) {
+    function getServerPrepStats(ns, target) {
         const cpuCores = 1;
 
         const serverInfo = ns.getServer(target);
@@ -842,8 +847,8 @@ export async function main(ns) {
      * @param {string} target - The target server to prep.
      * @returns {number | false} - Total RAM used to prep the server, or false if not enough RAM available.
      */
-    function prepServer(ns, target, serverIndex) {
-        const prepStats = getPrepStats(ns, target);
+    function prepServer(ns, target, serverIndex, allowPartial = false) {
+        const prepStats = getServerPrepStats(ns, target);
         const {
             needsInitialWeaken,
             needsGrow,
@@ -868,7 +873,7 @@ export async function main(ns) {
         }
 
         // Find servers for prep operations with proper RAM accounting
-        const allocation = allocateServersForOperations(ns, operations, ALLOW_PARTIAL_PREP);
+        const allocation = allocateServersForOperations(ns, operations, allowPartial);
 
         if (!allocation.success) {
             const isPartial = allocation.scalingFactor < 1;
@@ -1140,6 +1145,19 @@ export async function main(ns) {
 
         // Check if target server exists and we have root access
         if (!ns.serverExists(xpTarget) || !ns.hasRootAccess(xpTarget)) {
+            return;
+        }
+
+        let serverInfo = ns.getServer(xpTarget);
+
+        if (
+            serverInfo.moneyAvailable < serverInfo.moneyMax * PREP_MONEY_THRESHOLD ||
+            serverInfo.hackDifficulty > serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD
+        ) {
+            const prepRamUsed = prepServer(ns, xpTarget, 1, true);
+            if (prepRamUsed !== false) {
+                ns.print(`SUCCESS XP Farm: Prepped ${xpTarget} with ${ns.formatRam(prepRamUsed)}`);
+            }
             return;
         }
 
