@@ -34,8 +34,6 @@ export function autocomplete(data, args) {
     return [];
 }
 
-let maxMoneyServer = null;
-
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog("ALL");
@@ -51,6 +49,7 @@ export async function main(ns) {
     // const bladeburnerSP = flags["bladeburnerSP"];
     // const codingContract = flags["codingContract"];
     // const companyFavor = flags["companyFavor"];
+    const targetServer = ns.args.filter((arg) => arg.startsWith("target="))[0]?.split("=")[1];
 
     ns.ui.openTail();
 
@@ -74,41 +73,41 @@ export async function main(ns) {
         }
 
         if (maxMoney) {
-            if (maxMoneyServer === null) {
-                maxMoneyServer = getMaxMoneyServer(ns);
-                ns.print(`Max money server: ${maxMoneyServer}`);
+            if (targetServer === null) {
+                targetServer = getMaxMoneyServer(ns);
+                ns.print(`Max money server: ${targetServer}`);
             }
 
-            const startingMoney = ns.getServerMaxMoney(maxMoneyServer);
-            const { cost, success, level } = spendHashesOnUpgrade(ns, "Increase Maximum Money", maxMoneyServer);
+            const startingMoney = ns.getServerMaxMoney(targetServer);
+            const { cost, success, level } = spendHashesOnUpgrade(ns, "Increase Maximum Money", targetServer);
 
             if (success) {
-                const endingMoney = ns.getServerMaxMoney(maxMoneyServer);
+                const endingMoney = ns.getServerMaxMoney(targetServer);
                 logUpgradeSuccess(
                     ns,
                     "Max Money",
-                    `${maxMoneyServer} | ${ns.formatNumber(startingMoney)} -> ${ns.formatNumber(endingMoney)}`,
+                    `${targetServer} | ${ns.formatNumber(startingMoney)} -> ${ns.formatNumber(endingMoney)}`,
                     cost,
                 );
             }
         }
 
         if (minSecurity) {
-            if (maxMoneyServer === null) {
-                maxMoneyServer = getMaxMoneyServer(ns);
-                ns.print(`Max money server: ${maxMoneyServer}`);
+            if (targetServer === null) {
+                targetServer = getMaxMoneyServer(ns);
+                ns.print(`Max money server: ${targetServer}`);
             }
 
-            const startingSecurity = ns.getServerMinSecurityLevel(maxMoneyServer);
-            if (ns.getServer(maxMoneyServer).hackDifficulty > 1) {
-                const { cost, success, level } = spendHashesOnUpgrade(ns, "Reduce Minimum Security", maxMoneyServer);
+            const startingSecurity = ns.getServerMinSecurityLevel(targetServer);
+            if (ns.getServer(targetServer).hackDifficulty > 1) {
+                const { cost, success, level } = spendHashesOnUpgrade(ns, "Reduce Minimum Security", targetServer);
 
                 if (success) {
-                    const endingSecurity = ns.getServerMinSecurityLevel(maxMoneyServer);
+                    const endingSecurity = ns.getServerMinSecurityLevel(targetServer);
                     logUpgradeSuccess(
                         ns,
                         "Min Security",
-                        `${maxMoneyServer} | ${ns.formatNumber(startingSecurity)} -> ${ns.formatNumber(endingSecurity)}`,
+                        `${targetServer} | ${ns.formatNumber(startingSecurity)} -> ${ns.formatNumber(endingSecurity)}`,
                         cost,
                     );
                 }
@@ -147,68 +146,4 @@ function logUpgradeSuccess(ns, upgradeName, effectString, cost) {
 
     ns.print(message);
     ns.toast(toastMessage);
-}
-
-/**
- * Finds the server with the highest max money
- * @param {NS} ns - NetScript namespace
- * @returns {string | null} The server with the highest max money, or null if there are no servers
- */
-function getMaxMoneyServer(ns) {
-    const servers = getHackableServers(ns);
-    if (servers.length === 0) {
-        return null;
-    }
-    return servers.reduce((max, server) => {
-        return ns.getServerMaxMoney(server) > ns.getServerMaxMoney(max) ? server : max;
-    }, servers[0]);
-}
-
-/**
- * Gets all servers that are accessible to the player.
- * Also handles nuking servers, backdooring faction servers, and solving contracts.
- * Uses caching to avoid expensive BFS traversals on every call.
- * @param {NS} ns - The Netscript API.
- * @returns {string[]} - List of server names.
- */
-function getHackableServers(ns) {
-    // Cache miss - perform BFS traversal
-    const discovered = new Set(["home"]); // Track all discovered servers
-    const toScan = ["home"]; // Queue of servers to scan
-    const resultSet = new Set();
-
-    const isHackable = (server) => {
-        if (!ns.hasRootAccess(server)) return false;
-        if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) return false;
-        if (ns.getServerMaxMoney(server) === 0) return false;
-        if (server === "home") return false;
-        return true;
-    };
-    // BFS traversal of the server network
-    while (toScan.length > 0) {
-        const server = toScan.shift(); // Process next server in queue
-
-        if (isHackable(server)) {
-            resultSet.add(server);
-        }
-
-        // Scan for connected servers and add new ones to the queue
-        const connectedServers = ns.scan(server);
-        for (const connectedServer of connectedServers) {
-            if (!discovered.has(connectedServer)) {
-                toScan.push(connectedServer);
-                discovered.add(connectedServer);
-            }
-        }
-    }
-
-    // Move home server to end of list so leftover free RAM can be used for "home" server
-    const result = Array.from(resultSet);
-    const homeIndex = result.indexOf("home");
-    if (homeIndex > -1) {
-        const homeServer = result.splice(homeIndex, 1)[0];
-        result.push(homeServer);
-    }
-
-    return result;
 }
