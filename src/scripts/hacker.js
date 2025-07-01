@@ -20,7 +20,7 @@ export async function main(ns) {
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1; // Use extra grow and weak threads to correct for out of sync HGW batches
 
     let hackPercentage = 0.5;
-    let minMoneyProtectionThreshold = (1 - hackPercentage) / 2 - 0.1;
+    let minMoneyProtectionThreshold = 1 - hackPercentage - 0.15;
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
@@ -1081,9 +1081,12 @@ export async function main(ns) {
 
         // If not enough RAM to run H G and W, return failure
         if (!allocation.success) {
-            ns.print(
-                `INFO: No servers found for batch hack ${target}, need ${ns.formatRam(allocation.scaledTotalRamRequired)} ram`,
-            );
+            if (allocation.scaledTotalRamRequired > 0.01 * maxRamAvailable) {
+                // Only warn if this is not a super tiny batch that failed to allocate
+                ns.print(
+                    `INFO: No servers found for batch hack ${target}, need ${ns.formatRam(allocation.scaledTotalRamRequired)} ram`,
+                );
+            }
             return { success: false, ramUsed: 0 }; // Not enough RAM to run H G and W
         }
 

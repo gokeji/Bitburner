@@ -141,8 +141,8 @@ function spendHashesOnUpgrade(ns, upgradeName, target = undefined) {
  */
 function logUpgradeSuccess(ns, upgradeName, effectString, cost) {
     const timestamp = new Date().toLocaleTimeString();
-    const message = `SUCCESS: ${timestamp} ${upgradeName} | ${effectString} | ${ns.formatNumber(cost)} Hashes`;
-    const toastMessage = `${upgradeName} | ${effectString} | ${ns.formatNumber(cost, 0)} Hashes`;
+    const message = `SUCCESS: ${timestamp} ${upgradeName} | ${effectString} | ${ns.formatNumber(cost, 0)}h`;
+    const toastMessage = `${upgradeName} | ${effectString} | ${ns.formatNumber(cost, 0)}h`;
 
     ns.print(message);
     ns.toast(toastMessage);
