@@ -526,6 +526,8 @@ function addNeuroFluxGovernors(augments, count) {
             hackingBoost: true,
             repBoost: true,
             combatBoost: true,
+            charismaBoost: true,
+            hacknetBoost: true,
         });
     }
     return [...augments, ...neuroFluxGovernors];

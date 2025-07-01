@@ -1617,8 +1617,7 @@ export async function main(ns) {
         let totalMsChange = 0;
         let totalCurrentTime = 0;
 
-        const DRIFT_THRESHOLD_PERCENT = 5; // 5% drift threshold for holds
-        const HOLD_DURATION_MULTIPLIER = 0.05; // 5% of weaken time
+        const DRIFT_THRESHOLD_PERCENT = 0.05; // 5% drift threshold for holds
         const HOLD_BUFFER_MS = DELAY_BETWEEN_BATCHES * 4;
 
         for (const [server, { originalWeakenTime }] of serverBatchTimings.entries()) {
@@ -1640,7 +1639,7 @@ export async function main(ns) {
 
                 // Check if server should be put on hold for excessive drift
                 if (percentChange > DRIFT_THRESHOLD_PERCENT && !serversOnHold.has(server)) {
-                    const holdDurationMs = serverStats.weakenTime * HOLD_DURATION_MULTIPLIER + HOLD_BUFFER_MS;
+                    const holdDurationMs = serverStats.weakenTime * DRIFT_THRESHOLD_PERCENT + HOLD_BUFFER_MS;
                     serversOnHold.set(server, Date.now() + holdDurationMs);
 
                     ns.print(
