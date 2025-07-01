@@ -3,10 +3,16 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
+    ns.disableLog("ALL");
+
     let maxPaybackHours = parseFloat(ns.args[0]) || 0.2; // Stop upgrading if payback time > 12 minutes
     let prioritizeNetburnersRequirement = ns.args.includes("--netburners"); // If true, prioritize buying 8 nodes
+    let continuousMode = ns.args.includes("--continuous"); // If true, continue upgrading as long as spending < 1% of player money
+    let HACKNET_SPEND_PERCENTAGE = 0.001;
 
     const HACKNET_MAX_SPEND = 2e12; // 2 trillion
+
+    ns.ui.openTail();
 
     const currentBitnode = ns.getResetInfo().currentNode;
 
@@ -18,7 +24,9 @@ export async function main(ns) {
 
     const isUsingHacknetServers = true; // TODO: Do not hardcode
 
-    const startingMessage = `Starting hacknet manager. Max payback time: ${maxPaybackHours} hours. Prioritize Netburners (Buy 8 nodes): ${prioritizeNetburnersRequirement}`;
+    const startingMessage = continuousMode
+        ? `Starting hacknet manager. Prioritize Netburners (Buy 8 nodes): ${prioritizeNetburnersRequirement}. Continuous mode: ${continuousMode}`
+        : `Starting hacknet manager. Max payback time: ${maxPaybackHours} hours. Prioritize Netburners (Buy 8 nodes): ${prioritizeNetburnersRequirement}`;
     ns.print(startingMessage);
     ns.tprint(startingMessage);
 
@@ -26,6 +34,50 @@ export async function main(ns) {
         ns.print("Using hacknet servers");
     } else {
         ns.print("Not using hacknet servers");
+    }
+
+    // Initialize upgrade tallies
+    let upgradeTally = {
+        level: 0,
+        ram: 0,
+        core: 0,
+        node: 0,
+    };
+
+    function printUpgradeSummary() {
+        const bitnodeHacknetSpend = Math.abs(ns.getMoneySources().sinceInstall.hacknet_expenses);
+        const totalUpgrades = upgradeTally.level + upgradeTally.ram + upgradeTally.core + upgradeTally.node;
+        if (totalUpgrades === 0) return;
+
+        // ANSI Color Reference:
+        // Basic colors: 30-37 (foreground), 40-47 (background)
+        // Bright colors: 90-97 (foreground), 100-107 (background)
+        // 31=red, 32=green, 33=yellow, 34=blue, 35=magenta, 36=cyan, 37=white
+        // 91=bright red, 92=bright green, 93=bright yellow, etc.
+
+        const cyan = "\u001b[36m"; // Standard cyan
+        const green = "\u001b[32m"; // Standard green
+        const yellow = "\u001b[33m"; // Standard yellow
+        const magenta = "\u001b[35m"; // Standard magenta
+        const reset = "\u001b[0m"; // Reset all formatting
+
+        // Additional color examples:
+        const red = "\u001b[31m";
+        const blue = "\u001b[34m";
+        const brightRed = "\u001b[91m";
+        // const brightGreen = "\u001b[92m";
+        // const bold = "\u001b[1m";
+        // const underline = "\u001b[4m";
+
+        ns.print(`\n=== UPGRADE SUMMARY ===`);
+        ns.print(`${new Date().toLocaleString()}`);
+        ns.print(`Total upgrades: ${totalUpgrades}`);
+        if (upgradeTally.level > 0) ns.print(`${green}Level upgrades: ${upgradeTally.level}${reset}`);
+        if (upgradeTally.ram > 0) ns.print(`${magenta}RAM upgrades: ${upgradeTally.ram}${reset}`);
+        if (upgradeTally.core > 0) ns.print(`${yellow}Core upgrades: ${upgradeTally.core}${reset}`);
+        if (upgradeTally.node > 0) ns.print(`${red}New nodes: ${upgradeTally.node}${reset}`);
+        ns.print(`Total bitnode hacknet spend: $${ns.formatNumber(bitnodeHacknetSpend)}`);
+        ns.print(`=======================\n`);
     }
 
     function convertHashToMoney(hashes) {
@@ -37,6 +89,8 @@ export async function main(ns) {
         }
     }
 
+    let hasPrintedWaitingMessage = false;
+
     while (true) {
         /** @type {Array<{value: number, cost: number, valueMoney: number, ratio: number, paybackTime: number, paybackHours: number, index: number, type: string}>} */
         let currentNodeUpgrades = [];
@@ -44,15 +98,30 @@ export async function main(ns) {
         let hacknetServers = [];
 
         const bitnodeHacknetSpend = Math.abs(ns.getMoneySources().sinceInstall.hacknet_expenses);
-        if (bitnodeHacknetSpend > HACKNET_MAX_SPEND && bitnodeHacknetSpend > ns.getPlayer().money * 0.01) {
-            ns.print(
-                `Bitnode hacknet spend exceeds max spend of ${ns.formatNumber(HACKNET_MAX_SPEND)}. Stopping upgrades.`,
-            );
-            ns.tprint(
-                `Bitnode hacknet spend exceeds max spend of ${ns.formatNumber(HACKNET_MAX_SPEND)}. Stopping upgrades.`,
-            );
-            break;
+        const continuousSpendLimit = ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE;
+        if (bitnodeHacknetSpend > HACKNET_MAX_SPEND || bitnodeHacknetSpend > continuousSpendLimit) {
+            if (continuousMode) {
+                if (!hasPrintedWaitingMessage) {
+                    printUpgradeSummary(); // Print summary before waiting
+                    ns.print(
+                        `Exceeded max spend of ${ns.formatNumber(continuousSpendLimit)}. Waiting for more money...`,
+                    );
+                    hasPrintedWaitingMessage = true;
+                }
+                await ns.sleep(10000); // Wait 10 seconds before checking again
+                continue;
+            } else {
+                printUpgradeSummary(); // Print summary before stopping
+                ns.print(
+                    `Bitnode hacknet spend exceeds max spend of ${ns.formatNumber(HACKNET_MAX_SPEND)}. Stopping upgrades.`,
+                );
+                ns.tprint(
+                    `Bitnode hacknet spend exceeds max spend of ${ns.formatNumber(HACKNET_MAX_SPEND)}. Stopping upgrades.`,
+                );
+                break;
+            }
         }
+        hasPrintedWaitingMessage = false;
 
         // Update the current list of hacknet servers
         for (let i = 0; i < ns.hacknet.numNodes(); i++) {
@@ -82,7 +151,7 @@ export async function main(ns) {
         let nodePaybackTime = nodeCost / nodeValueMoney;
         let nodePaybackHours = nodePaybackTime / 3600;
 
-        currentNodeUpgrades.push({
+        const nodePurchaseUpgrade = {
             value: nodeValue,
             cost: nodeCost,
             valueMoney: nodeValueMoney,
@@ -91,7 +160,8 @@ export async function main(ns) {
             paybackHours: nodePaybackHours,
             index: ns.hacknet.numNodes(),
             type: "node",
-        });
+        };
+        currentNodeUpgrades.push(nodePurchaseUpgrade);
 
         if (prioritizeNetburnersRequirement) {
             // Purchase 8 nodes if we have the money, otherwise wait
@@ -100,6 +170,7 @@ export async function main(ns) {
                     await ns.sleep(10000);
                 } else {
                     ns.hacknet.purchaseNode();
+                    upgradeTally.node++;
                 }
             }
         }
@@ -164,12 +235,17 @@ export async function main(ns) {
         currentNodeUpgrades.sort((a, b) => a.paybackTime - b.paybackTime);
         let bestUpgrade = currentNodeUpgrades[0];
 
-        // Debug all of the upgrade types before returning
-        for (let upgrade of currentNodeUpgrades) {
-            ns.print(
-                `Node ${upgrade.index} ${upgrade.type.padEnd(5)}: production: ${ns.formatNumber(upgrade.value, 5).padStart(8)}, cost: ${ns.formatNumber(upgrade.cost).padStart(6)}, moneyValue: ${ns.formatNumber(upgrade.valueMoney).padStart(6)}, ratio: ${upgrade.ratio.toFixed(6).padStart(10)}, payback: ${(upgrade.paybackTime / 3600).toFixed(2).padStart(6)}h`,
-            );
+        // Buy a new node if we have the money and are in continuous mode
+        if (continuousMode && nodePurchaseUpgrade.cost < HACKNET_MAX_SPEND / 5) {
+            bestUpgrade = nodePurchaseUpgrade;
         }
+
+        // Debug all of the upgrade types before returning
+        // for (let upgrade of currentNodeUpgrades) {
+        //     ns.print(
+        //         `Node ${upgrade.index} ${upgrade.type.padEnd(5)}: production: ${ns.formatNumber(upgrade.value, 5).padStart(8)}, cost: ${ns.formatNumber(upgrade.cost).padStart(6)}, moneyValue: ${ns.formatNumber(upgrade.valueMoney).padStart(6)}, ratio: ${upgrade.ratio.toFixed(6).padStart(10)}, payback: ${(upgrade.paybackTime / 3600).toFixed(2).padStart(6)}h`,
+        //     );
+        // }
 
         // Log the best upgrade with payback time info
         let nodeInfo = bestUpgrade.type === "node" ? "" : ` on node ${bestUpgrade.index}`;
@@ -178,19 +254,17 @@ export async function main(ns) {
                 ? `Production: $${ns.formatNumber(bestUpgrade.value)}/sec`
                 : `Additional $/sec: ${ns.formatNumber(bestUpgrade.value)}`;
 
-        ns.print(
-            `Best upgrade: ${bestUpgrade.type.toUpperCase()}${nodeInfo}, ` +
-                `Cost: $${ns.formatNumber(bestUpgrade.cost, 2)}, ` +
-                `${productionInfo}, ` +
-                `Payback time: ${ns.tFormat(bestUpgrade.paybackTime * 1000)}`,
-        );
+        // ns.print(
+        //     `Best upgrade: ${bestUpgrade.type.toUpperCase()}${nodeInfo} | Cost: $${ns.formatNumber(bestUpgrade.cost, 2)} | ${productionInfo} | Payback: ${ns.tFormat(bestUpgrade.paybackTime * 1000)}`,
+        // );
 
         // Check if payback time is too long
-        if (bestUpgrade.paybackHours > maxPaybackHours) {
+        if (bestUpgrade.paybackHours > maxPaybackHours && !continuousMode) {
             let upgradeType = bestUpgrade.type === "node" ? "New hacknet node" : `Hacknet ${bestUpgrade.type} upgrade`;
 
             let printMessage = `${upgradeType} payback time (${bestUpgrade.paybackHours} hours) exceeds maximum (${maxPaybackHours} hours). Stopping upgrades.`;
 
+            printUpgradeSummary(); // Print summary before stopping
             ns.print(printMessage);
             ns.tprint(printMessage);
             break;
@@ -200,31 +274,31 @@ export async function main(ns) {
             await ns.sleep(10000);
         }
 
+        // Perform the upgrade and tally it
         switch (bestUpgrade.type) {
             case "level":
                 ns.hacknet.upgradeLevel(bestUpgrade.index, 1);
-                ns.print(`SUCCESS: Upgraded level on node ${bestUpgrade.index}`);
-                // ns.toast(`Upgraded level on node ${bestUpgrade.index}`);
+                upgradeTally.level++;
                 break;
             case "ram":
                 ns.hacknet.upgradeRam(bestUpgrade.index, 1);
-                ns.print(`SUCCESS: Upgraded ram on node ${bestUpgrade.index}`);
-                // ns.toast(`Upgraded ram on node ${bestUpgrade.index}`);
+                upgradeTally.ram++;
                 break;
             case "core":
                 ns.hacknet.upgradeCore(bestUpgrade.index, 1);
-                ns.print(`SUCCESS: Upgraded core on node ${bestUpgrade.index}`);
-                // ns.toast(`Upgraded core on node ${bestUpgrade.index}`);
+                upgradeTally.core++;
                 break;
             case "node":
                 ns.hacknet.purchaseNode();
-                ns.print(`SUCCESS: Purchased node ${ns.hacknet.numNodes()}`);
-                // ns.toast(`Purchased node ${ns.hacknet.numNodes()}`);
+                upgradeTally.node++;
                 break;
         }
 
         // await ns.sleep(100);
     }
+
+    // Print final summary when script ends
+    printUpgradeSummary();
 }
 
 class HacknetServer {
