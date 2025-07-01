@@ -38,7 +38,7 @@ export async function main(ns) {
             }
         });
 
-    const charsWidth = 128; // Updated to include 8-char priority column + 6-char batch column + separators
+    const charsWidth = 135; // Updated to include 8-char priority column + 6-char batch column + 5-char time column + separators
 
     // Chart mode: dynamic updating terminal display
     ns.ui.openTail();
@@ -185,6 +185,11 @@ function getServers(ns, type) {
 }
 
 // Cached process lookup to avoid expensive ns.ps() calls
+/**
+ * @param {NS} ns
+ * @param {string} server
+ * @returns {import("@ns").ProcessInfo[]}
+ */
 function getCachedProcesses(ns, server) {
     const now = Date.now();
     const cached = processCache.get(server);
@@ -203,8 +208,13 @@ function getCachedProcesses(ns, server) {
     return processes;
 }
 
-// Updated: Count total threads attacking a server from distributed-hack.js system
-function get_distributed_attack_info(ns, targetServer) {
+/**
+ * Finds all HGW processes targeting the target server and returns the total threads and earliest end time.
+ * @param {NS} ns
+ * @param {string} targetServer
+ * @returns {{attackInfo: string, earliestEndTime: number}}
+ */
+function findHGWProcesses(ns, targetServer) {
     const executableServers = getServers(ns, "executable");
 
     let totalThreads = 0;
@@ -218,6 +228,7 @@ function get_distributed_attack_info(ns, targetServer) {
         grow: 0,
         hack: 0,
     };
+    let serverEarliestEndTime = new Map();
 
     // Check all servers for hgw scripts targeting this server
     for (const server of executableServers) {
@@ -229,14 +240,21 @@ function get_distributed_attack_info(ns, targetServer) {
                 threadCounts[actionType] += process.threads;
                 totalThreads += process.threads;
                 scriptCounts[actionType] += 1;
+
+                const endTime = process.args.find((arg) => typeof arg === "string" && arg.startsWith("endTime="));
+                if (endTime) {
+                    const endTimeMs = parseInt(endTime.split("=")[1]);
+                    serverEarliestEndTime.set(
+                        server,
+                        Math.min(serverEarliestEndTime.get(server) || endTimeMs, endTimeMs),
+                    );
+                }
             }
         }
     }
 
-    // ns.tprint(`${targetServer}: ${totalThreads}`)
-
     if (totalThreads === 0) {
-        return null;
+        return { attackInfo: null, earliestEndTime: null };
     }
 
     // Build the display string based on which actions are present
@@ -279,7 +297,13 @@ function get_distributed_attack_info(ns, targetServer) {
     const totalThreadsStr = `[${ns.formatNumber(totalThreads, 1)}-${ns.formatNumber(totalScriptCount, 0)}]`;
     const paddedTotal = totalThreadsStr.padStart(12);
 
-    return `${threadParts.join(":")} ${paddedTotal}`;
+    // Find the earliest end time across all servers
+    const earliestEndTime = Math.min(...Array.from(serverEarliestEndTime.values()));
+
+    return {
+        attackInfo: `${threadParts.join(":")} ${paddedTotal}`,
+        earliestEndTime: earliestEndTime,
+    };
 }
 
 // Global variable to store profit data from distributed-hack.js
@@ -340,7 +364,9 @@ function get_server_data(ns, server, useFormulas = false) {
     var securityMin = ns.getServerMinSecurityLevel(server);
     var ram = ns.getServerMaxRam(server);
     var requiredHackingSkill = ns.getServerRequiredHackingLevel(server);
-    var attackInfo = get_distributed_attack_info(ns, server); // Get distributed attack info
+    var hgwData = findHGWProcesses(ns, server); // Get distributed attack info and earliest end time
+    var attackInfo = hgwData ? hgwData.attackInfo : null;
+    var earliestEndTime = hgwData ? hgwData.earliestEndTime : null;
     var priority = get_hacking_priority(ns, server); // Get hacking priority
     var weakenTimeMs = ns.getWeakenTime(server); // Get weaken time (batch time)
 
@@ -407,6 +433,21 @@ function get_server_data(ns, server, useFormulas = false) {
         }
     };
 
+    /**
+     * Formats time remaining until completion in mm:ss format
+     * @param {number} endTimeMs - End time in milliseconds since epoch
+     * @returns {string}
+     */
+    var formatTimeRemaining = (endTimeMs) => {
+        if (!endTimeMs || endTimeMs === Infinity) return "";
+        const now = Date.now();
+        const remainingMs = endTimeMs - now;
+
+        if (remainingMs <= 1) return "--";
+
+        return formatTime(remainingMs);
+    };
+
     // Create progress bar (20 chars, each char = 5%)
     var createProgressBar = (percentage) => {
         const totalChars = 20;
@@ -428,7 +469,8 @@ function get_server_data(ns, server, useFormulas = false) {
         `${pad_str(ram, 4)}G|` +
         `${pad_str(requiredHackingSkill, 5)}|` +
         `${pad_str(formatMoney(priority, 2), 8)}|` +
-        `${pad_str(formatTime(weakenTimeMs), 6)}|`;
+        `${pad_str(formatTime(weakenTimeMs), 6)}|` +
+        `${pad_str(formatTimeRemaining(earliestEndTime), 6)}|`;
 
     // Add distributed attack info
     result += attackInfo ? pad_str(`${attackInfo}`, 24) : pad_str("", 20);
@@ -484,7 +526,7 @@ function generate_chart_data(ns, servers) {
 
 // Add table header function that matches exact column spacing
 function get_table_header() {
-    return `${pad_str("Server", 18)}|${pad_str("Money Available/Max (%)", 24)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 5)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Batch", 6)}|${pad_str("Attack Threads", 24)}`;
+    return `${pad_str("Server", 18)}|${pad_str("Money Available/Max (%)", 24)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 5)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Batch", 6)}|${pad_str("Time", 5)}|${pad_str("Attack Threads", 24)}`;
 }
 
 // Cleanup old cache entries to prevent memory leaks

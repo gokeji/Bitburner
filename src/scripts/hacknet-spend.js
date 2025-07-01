@@ -1,5 +1,4 @@
 import { NS } from "@ns";
-import { getServers } from "./hacker.js";
 
 const hashUpgrades = {
     money: "Sell for Money",
@@ -73,11 +72,6 @@ export async function main(ns) {
         }
 
         if (maxMoney) {
-            if (targetServer === null) {
-                targetServer = getMaxMoneyServer(ns);
-                ns.print(`Max money server: ${targetServer}`);
-            }
-
             const startingMoney = ns.getServerMaxMoney(targetServer);
             const { cost, success, level } = spendHashesOnUpgrade(ns, "Increase Maximum Money", targetServer);
 
@@ -93,13 +87,8 @@ export async function main(ns) {
         }
 
         if (minSecurity) {
-            if (targetServer === null) {
-                targetServer = getMaxMoneyServer(ns);
-                ns.print(`Max money server: ${targetServer}`);
-            }
-
             const startingSecurity = ns.getServerMinSecurityLevel(targetServer);
-            if (ns.getServer(targetServer).hackDifficulty > 1) {
+            if (ns.getServer(targetServer).hackDifficulty > 3) {
                 const { cost, success, level } = spendHashesOnUpgrade(ns, "Reduce Minimum Security", targetServer);
 
                 if (success) {
@@ -126,6 +115,7 @@ export async function main(ns) {
  */
 function spendHashesOnUpgrade(ns, upgradeName, target = undefined) {
     const cost = ns.hacknet.hashCost(upgradeName);
+    // TODO: Buy more cache if needed
     const success = ns.hacknet.spendHashes(upgradeName, target);
     const level = ns.hacknet.getHashUpgradeLevel(upgradeName);
 
@@ -141,8 +131,8 @@ function spendHashesOnUpgrade(ns, upgradeName, target = undefined) {
  */
 function logUpgradeSuccess(ns, upgradeName, effectString, cost) {
     const timestamp = new Date().toLocaleTimeString();
-    const message = `SUCCESS: ${timestamp} ${upgradeName} | ${effectString} | ${ns.formatNumber(cost, 0)}h`;
-    const toastMessage = `${upgradeName} | ${effectString} | ${ns.formatNumber(cost, 0)}h`;
+    const message = `SUCCESS: ${timestamp} ${upgradeName} | ${effectString} | ${ns.formatNumber(cost, 2)}h`;
+    const toastMessage = `${upgradeName} | ${effectString} | ${ns.formatNumber(cost, 2)}h`;
 
     ns.print(message);
     ns.toast(toastMessage);

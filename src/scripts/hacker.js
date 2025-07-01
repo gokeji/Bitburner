@@ -27,7 +27,7 @@ export async function main(ns) {
 
     const HOME_SERVER_RESERVED_RAM = 185; // GB reserved for home server
     let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
-    const ALWAYS_XP_FARM = false;
+    const ALWAYS_XP_FARM = true;
     const ALLOW_PARTIAL_PREP = false;
 
     let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
@@ -1144,7 +1144,7 @@ export async function main(ns) {
             sleepTime,
             isPrep ? "prep" : "hgw",
             tickCounter,
-            weakenTime,
+            `endTime=${Date.now() + weakenTime}`,
         );
         if (!pid) {
             ns.tprint(`WARN Failed to execute weaken script on ${target}`);
@@ -1176,7 +1176,7 @@ export async function main(ns) {
             stockArg,
             isPrep ? "prep" : "hgw",
             tickCounter,
-            growTime,
+            `endTime=${Date.now() + growTime}`,
         );
         if (!pid) {
             ns.tprint(`WARN Failed to execute grow script on ${target}`);
@@ -1208,7 +1208,7 @@ export async function main(ns) {
             stockArg,
             isPrep ? "prep" : "hgw",
             tickCounter,
-            hackTime,
+            `endTime=${Date.now() + hackTime}`,
         );
         if (!pid) {
             ns.tprint(`WARN Failed to execute hack script on ${target}`);

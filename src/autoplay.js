@@ -210,6 +210,8 @@ function startStockTraderIfNotRunning(ns) {
             ns.ui.openTail(result.pid, HOST_NAME);
         }
     }
+
+    startScriptIfNotRunning(ns, "scripts/stock-monitor.js");
 }
 
 function startUpgradeHnetIfNeeded(ns) {

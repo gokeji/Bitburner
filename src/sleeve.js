@@ -14,7 +14,7 @@ const argsSchema = [
     ["min-shock-recovery", 97], // Minimum shock recovery before attempting to train or do crime (Set to 100 to disable, 0 to recover fully)
     ["shock-recovery", 0], // Set to a number between 0 and 1 to devote that ratio of time to periodic shock recovery (until shock is at 0)
     ["crime", null], // If specified, sleeves will perform only this crime regardless of stats
-    ["homicide-chance-threshold", 0.25], // Sleeves on crime will automatically start homicide once their chance of success exceeds this ratio
+    ["homicide-chance-threshold", 0.35], // Sleeves on crime will automatically start homicide once their chance of success exceeds this ratio
     ["disable-gang-homicide-priority", false], // By default, sleeves will do homicide to farm Karma until we're in a gang. Set this flag to disable this priority.
     ["aug-budget", 0.1], // Spend up to this much of current cash on augs per tick (Default is high, because these are permanent for the rest of the BN)
     ["buy-cooldown", 60 * 1000], // Must wait this may milliseconds before buying more augs for a sleeve
@@ -29,6 +29,7 @@ const argsSchema = [
     ["study-to-hacking", 0], // Sleeves will go to university until they reach this much Hak
     ["study-to-charisma", 0], // Sleeves will go to university until they reach this much Cha
     ["intelligence-farm", true], // Set to true to have sleeves study hacking for intelligence after shock recovery is complete
+    ["combat-farm", false], // Set to true to have sleeves train combat stats in rotation (strength, defense, dexterity, agility) after shock recovery is complete
     ["training-reserve", null], // Defaults to global reserve.txt. Can be set to a negative number to allow debt. Sleeves will not train if money is below this amount.
     ["training-cap-seconds", 55 * 60 * 60 /* 15 hours */], // Time since the start of the bitnode after which we will no longer attempt to train sleeves to their target "train-to" settings
     ["disable-spending-hashes-for-gym-upgrades", false], // Set to true to disable spending hashes on gym upgrades when training up sleeves.
@@ -513,6 +514,29 @@ async function pickSleeveTask(ns, playerInfo, playerWorkInfo, i, sleeve, canTrai
     }
     // If there's nothing more productive to do (above) and there's still shock, prioritize recovery
     if (sleeve.shock > 0) return shockRecoveryTask(sleeve, i, `there appears to be nothing better to do`);
+
+    // If shock recovery is complete and combat farming is enabled, train combat stats in rotation
+    if (options["combat-farm"] && sleeve.shock === 0) {
+        if (sleeve.city != ns.enums.CityName.Sector12) {
+            log(ns, `Moving Sleeve ${i} from ${sleeve.city} to Sector-12 so that they can train combat stats.`);
+            await getNsDataThroughFile(ns, "ns.sleeve.travel(ns.args[0], ns.args[1])", null, [
+                i,
+                ns.enums.CityName.Sector12,
+            ]);
+        }
+        // Rotate through combat stats based on time to ensure equal training
+        const combatStats = ["strength", "defense", "dexterity", "agility"];
+        const rotationPeriod = 10 * 1000; // 10 seconds per stat
+        const currentStatIndex = Math.floor(Date.now() / rotationPeriod) % combatStats.length;
+        const trainStat = combatStats[currentStatIndex];
+        var gym = ns.enums.LocationName.Sector12PowerhouseGym;
+        return [
+            `combat-farm ${trainStat} (${gym})`,
+            `ns.sleeve.setToGymWorkout(ns.args[0], ns.args[1], ns.args[2])`,
+            [i, gym, trainStat],
+            /*   */ `combat farming ${trainStat} (rotation every 5 minutes)`,
+        ];
+    }
 
     // If shock recovery is complete and intelligence farming is enabled, study hacking for intelligence
     if (options["intelligence-farm"] && sleeve.shock === 0) {

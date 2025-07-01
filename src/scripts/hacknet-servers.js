@@ -6,6 +6,8 @@ export async function main(ns) {
     let maxPaybackHours = parseFloat(ns.args[0]) || 0.2; // Stop upgrading if payback time > 12 minutes
     let prioritizeNetburnersRequirement = ns.args.includes("--netburners"); // If true, prioritize buying 8 nodes
 
+    const maxSpend = 20e9; // 20 billion
+
     const currentBitnode = ns.getResetInfo().currentNode;
 
     // Get BitNode multipliers with fallback support
@@ -40,6 +42,13 @@ export async function main(ns) {
         let currentNodeUpgrades = [];
         /** @type {Array<HacknetServer>} */
         let hacknetServers = [];
+
+        const bitnodeHacknetSpend = ns.getMoneySources().sinceInstall.hacknet_expenses;
+        if (bitnodeHacknetSpend > maxSpend) {
+            ns.print("Bitnode hacknet spend exceeds max spend. Stopping upgrades.");
+            ns.tprint("Bitnode hacknet spend exceeds max spend. Stopping upgrades.");
+            break;
+        }
 
         // Update the current list of hacknet servers
         for (let i = 0; i < ns.hacknet.numNodes(); i++) {
