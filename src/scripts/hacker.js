@@ -19,14 +19,14 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1; // Use extra grow and weak threads to correct for out of sync HGW batches
 
-    let hackPercentage = 0;
-    const MIN_MONEY_PROTECTION_THRESHOLD = (1 - hackPercentage) / 2; // 5% of max money before recovery
+    let hackPercentage = 0.5;
+    let minMoneyProtectionThreshold = (1 - hackPercentage) / 2 - 0.1;
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 185; // GB reserved for home server
-    let MAX_WEAKEN_TIME = 15 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
     const ALLOW_XP_FARMING = true;
     const ALLOW_PARTIAL_PREP = false;
 
@@ -103,7 +103,7 @@ export async function main(ns) {
         // Get all servers
         executableServers = getServers(ns, "executableOnly");
         hackableServers = getServers(ns, "hackableOnly").filter((server) => {
-            // return server === "sigma-cosmetics";
+            // return server === "foodnstuff";
             const serverInfo = ns.getServer(server);
             const optimalServer = {
                 ...serverInfo,
@@ -203,11 +203,11 @@ export async function main(ns) {
                 const maxSecurityIncrease = serverStats.maxSecurityIncreasePerBatch;
                 // Allow for some buffer. A single batch shouldn't raise it past min + maxIncrease.
                 // A healthy stream of batches should hover around minSecurity. If it gets this high, something is wrong.
-                const securityThreshold = serverInfo.minDifficulty + maxSecurityIncrease * 1.5;
+                const securityThreshold = serverInfo.minDifficulty + 10;
 
                 if (
                     serverInfo.hackDifficulty > securityThreshold ||
-                    serverInfo.moneyAvailable < serverInfo.moneyMax * MIN_MONEY_PROTECTION_THRESHOLD
+                    serverInfo.moneyAvailable < serverInfo.moneyMax * minMoneyProtectionThreshold
                 ) {
                     let message = "";
                     if (serverInfo.hackDifficulty > securityThreshold) {
@@ -218,7 +218,7 @@ export async function main(ns) {
                     } else {
                         message = `WARN: Money on ${currentServer} ($${ns.formatNumber(
                             serverInfo.moneyAvailable,
-                        )}) below 20% of max money. Recovering.`;
+                        )}) below ${ns.formatPercent(minMoneyProtectionThreshold)} of max money. Recovering.`;
                     }
                     ns.print(message);
                     killAllScriptsForTarget(ns, currentServer, ["hack"]);
@@ -631,13 +631,25 @@ export async function main(ns) {
                 hackThreads * HACK_SCRIPT_RAM_USAGE +
                 growthThreads * GROW_SCRIPT_RAM_USAGE +
                 weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
+            const availableBatchLimit = maxRamAvailable / ramNeededPerBatch;
 
             let ramForMaxThroughput = theoreticalBatchLimit * ramNeededPerBatch;
 
-            const batchLimitForSustainedThroughput = Math.min(
-                maxRamAvailable / ramNeededPerBatch,
-                theoreticalBatchLimit,
-            );
+            // const percentageGap = (availableBatchLimit - theoreticalBatchLimit) / theoreticalBatchLimit;
+            // const hackPercentageAdjustment = hackPercentage * Math.abs(percentageGap);
+            // if (percentageGap < -0.4 && hackPercentage > 0.01) {
+            //     hackPercentage = Math.max(hackPercentage - hackPercentageAdjustment / 5, 0.01);
+            //     ns.print(`WARN: Reduced hack percentage to ${ns.formatPercent(hackPercentage)}`);
+            //     minMoneyProtectionThreshold = (1 - hackPercentage) / 2 - 0.1;
+            //     ns.print(`WARN: Min money protection threshold: ${ns.formatPercent(minMoneyProtectionThreshold)}`);
+            // } else if (percentageGap > -0.3 && hackPercentage < 1) {
+            //     hackPercentage = Math.min(hackPercentage + hackPercentageAdjustment * 1.2, 1);
+            //     ns.print(`WARN: Increased hack percentage to ${ns.formatPercent(hackPercentage)}`);
+            //     minMoneyProtectionThreshold = (1 - hackPercentage) / 2 - 0.1;
+            //     ns.print(`WARN: Min money protection threshold: ${ns.formatPercent(minMoneyProtectionThreshold)}`);
+            // }
+
+            const batchLimitForSustainedThroughput = Math.min(availableBatchLimit, theoreticalBatchLimit);
 
             // Calculate actual throughput (money per second) using ACTUAL hack percentage
             const moneyPerBatch =
@@ -862,7 +874,60 @@ export async function main(ns) {
             growthTime,
         } = prepStats;
 
-        // Build operations array for the new allocation function
+        if (allowPartial && needsInitialWeaken) {
+            // Prioritize initial weaken when partial allocation is allowed
+            // Try weaken-only first, then add grow operations if RAM permits
+            const weakenOnlyOperations = [{ type: "weaken", threads: initialWeakenThreads, id: "initial_weaken" }];
+            const weakenAllocation = allocateServersForOperations(ns, weakenOnlyOperations, true); // Allow scaling
+
+            if (weakenAllocation.success && weakenAllocation.initial_weaken) {
+                // Execute initial weaken (scaled if necessary)
+                for (const [server, threads] of weakenAllocation.initial_weaken) {
+                    executeWeaken(ns, server, target, threads, 0, true, weakenTime);
+                }
+
+                let totalRamUsed = weakenAllocation.totalRamUsed;
+                let prepType =
+                    weakenAllocation.scalingFactor < 1
+                        ? `PARTIAL WEAKEN ${ns.formatNumber(weakenAllocation.scalingFactor, 3)}x`
+                        : "WEAKEN-ONLY";
+
+                // Try to add grow operations with remaining RAM
+                if (needsGrow) {
+                    const growOperations = [
+                        { type: "grow", threads: growthThreads },
+                        { type: "weaken", threads: finalWeakenThreads, id: "final_weaken" },
+                    ];
+
+                    const growAllocation = allocateServersForOperations(ns, growOperations, true);
+
+                    if (growAllocation.success && growAllocation.grow && growAllocation.final_weaken) {
+                        // Execute grow operations
+                        const growDelay = weakenTime - growthTime + BASE_SCRIPT_DELAY;
+                        for (const [server, threads] of growAllocation.grow) {
+                            executeGrow(ns, server, target, threads, growDelay, false, true, growthTime);
+                        }
+
+                        // Execute final weaken
+                        const finalWeakenDelay = 2 * BASE_SCRIPT_DELAY;
+                        for (const [server, threads] of growAllocation.final_weaken) {
+                            executeWeaken(ns, server, target, threads, finalWeakenDelay, true, weakenTime);
+                        }
+
+                        totalRamUsed += growAllocation.totalRamUsed;
+                        prepType = "FULL";
+                    }
+                }
+
+                ns.print(`SUCCESS ${serverIndex}. ${target}: ${prepType} PREP ${ns.formatRam(totalRamUsed)}`);
+                return totalRamUsed;
+            } else {
+                ns.print(`INFO: PREP - ${target} Failed. Cannot allocate any weaken threads`);
+                return false;
+            }
+        }
+
+        // Original logic for non-partial
         const operations = [];
         if (needsInitialWeaken) {
             operations.push({ type: "weaken", threads: initialWeakenThreads, id: "initial_weaken" });
@@ -898,7 +963,7 @@ export async function main(ns) {
                 for (const [server, threads] of allocation.initial_weaken) {
                     executeWeaken(ns, server, target, threads, 0, true, weakenTime);
                 }
-                totalRamUsed += initialWeakenRam;
+                totalRamUsed += allocation.scalingFactor * initialWeakenRam;
             } else {
                 ns.print(`ERROR: Allocations were malformed for PREP ${target} - initial_weaken`);
             }
@@ -911,14 +976,14 @@ export async function main(ns) {
                 for (const [server, threads] of allocation.grow) {
                     executeGrow(ns, server, target, threads, growDelay, false, true, growthTime);
                 }
-                totalRamUsed += growRam;
+                totalRamUsed += allocation.scalingFactor * growRam;
 
                 // Execute final weaken on potentially multiple servers
                 const finalWeakenDelay = needsInitialWeaken ? 2 * BASE_SCRIPT_DELAY : 0;
                 for (const [server, threads] of allocation.final_weaken) {
                     executeWeaken(ns, server, target, threads, finalWeakenDelay, true, weakenTime);
                 }
-                totalRamUsed += finalWeakenRam;
+                totalRamUsed += allocation.scalingFactor * finalWeakenRam;
             } else {
                 ns.print(`ERROR: Allocations were malformed for PREP ${target} - grow and final_weaken`);
             }
