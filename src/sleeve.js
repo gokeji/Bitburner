@@ -28,6 +28,7 @@ const argsSchema = [
     ["train-to-agility", 52], // Sleeves will go to the gym until they reach this much Agi
     ["study-to-hacking", 0], // Sleeves will go to university until they reach this much Hak
     ["study-to-charisma", 0], // Sleeves will go to university until they reach this much Cha
+    ["intelligence-farm", true], // Set to true to have sleeves study hacking for intelligence after shock recovery is complete
     ["training-reserve", null], // Defaults to global reserve.txt. Can be set to a negative number to allow debt. Sleeves will not train if money is below this amount.
     ["training-cap-seconds", 55 * 60 * 60 /* 15 hours */], // Time since the start of the bitnode after which we will no longer attempt to train sleeves to their target "train-to" settings
     ["disable-spending-hashes-for-gym-upgrades", false], // Set to true to disable spending hashes on gym upgrades when training up sleeves.
@@ -35,6 +36,7 @@ const argsSchema = [
     ["enable-bladeburner-team-building", false], // Set to true to have one sleeve support the main sleeve, and another do recruitment. Otherwise, they will just do more "Infiltrate Synthoids"
     ["disable-bladeburner", false], // Set to true to disable having sleeves workout at the gym (costs money)
     ["failed-bladeburner-contract-cooldown", 30 * 60 * 1000], // Default 30 minutes: time to wait after failing a bladeburner contract before we try again
+    ["buy-all-augs", false], // Set to true to buy all available augmentations without budget constraints (useful for end-of-reset purchasing)
 ];
 
 const interval = 1000; // Update (tick) this often to check on sleeves and recompute their ideal task
@@ -134,6 +136,19 @@ async function manageSleeveAugs(ns, i, budget) {
     }
     if (availableAugs[i].length == 0) return 0;
 
+    // If buy-all-augs is enabled, attempt to buy every augmentation
+    if (options["buy-all-augs"]) {
+        let toPurchase = availableAugs[i].splice(0); // Take all augs
+        await getNsDataThroughFile(
+            ns,
+            `ns.args.slice(1).map(aug => ns.sleeve.purchaseSleeveAug(ns.args[0], aug))`,
+            "/Temp/sleeve-purchase-all.txt",
+            [i, ...toPurchase.map((a) => a.name)],
+        );
+        return 0; // Don't count against budget
+    }
+
+    // Normal budget-constrained behavior
     const cooldownLeft = Math.max(0, options["buy-cooldown"] - (Date.now() - (lastPurchaseTime[i] || 0)));
     const [batchCount, batchCost] = availableAugs[i].reduce(
         ([n, c], aug) => (c + aug.cost <= budget ? [n + 1, c + aug.cost] : [n, c]),
@@ -234,7 +249,11 @@ async function mainLoop(ns) {
             )
         )
             log(ns, `SUCCESS: Bought "Improve Gym Training" to speed up Sleeve training.`, false, "success");
-    if (canTrain && task.some((t) => t?.startsWith("study")) && !options["disable-spending-hashes-for-study-upgrades"])
+    if (
+        canTrain &&
+        (task.some((t) => t?.startsWith("study")) || options["intelligence-farm"]) &&
+        !options["disable-spending-hashes-for-study-upgrades"]
+    )
         if (
             await getNsDataThroughFile(
                 ns,
@@ -494,6 +513,26 @@ async function pickSleeveTask(ns, playerInfo, playerWorkInfo, i, sleeve, canTrai
     }
     // If there's nothing more productive to do (above) and there's still shock, prioritize recovery
     if (sleeve.shock > 0) return shockRecoveryTask(sleeve, i, `there appears to be nothing better to do`);
+
+    // If shock recovery is complete and intelligence farming is enabled, study hacking for intelligence
+    if (options["intelligence-farm"] && sleeve.shock === 0) {
+        if (sleeve.city != ns.enums.CityName.Volhaven) {
+            log(ns, `Moving Sleeve ${i} from ${sleeve.city} to Volhaven so that they can study for intelligence.`);
+            await getNsDataThroughFile(ns, "ns.sleeve.travel(ns.args[0], ns.args[1])", null, [
+                i,
+                ns.enums.CityName.Volhaven,
+            ]);
+        }
+        var univ = ns.enums.LocationName.VolhavenZBInstituteOfTechnology;
+        var course = ns.enums.UniversityClassType.algorithms;
+        return [
+            `study hacking for intelligence (${univ})`,
+            `ns.sleeve.setToUniversityCourse(ns.args[0], ns.args[1], ns.args[2])`,
+            [i, univ, course],
+            /*   */ `studying hacking for intelligence farming`,
+        ];
+    }
+
     // Finally, do crime for Karma. Pick the best crime based on success chances
     var crime =
         options.crime || (await calculateCrimeChance(ns, sleeve, "Homicide")) >= options["homicide-chance-threshold"]

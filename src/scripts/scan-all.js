@@ -23,7 +23,11 @@ export async function main(ns) {
         return s + " ".repeat(Math.max(length - s.length, 0));
     }
 
-    ns.tprint("=== Scanning all servers ===");
+    ns.clearLog();
+    ns.ui.openTail();
+    ns.ui.resizeTail(1200, 800);
+
+    ns.print("=== Scanning all servers ===");
 
     // Start scanning from home
     let servers = new Set(["home"]);
@@ -52,8 +56,8 @@ export async function main(ns) {
         const reqPorts = ns.getServerNumPortsRequired(server);
         const maxMoney = ns.getServerMaxMoney(server);
 
-        ns.tprint(
-            `${pad(count, 3)}: ${pad(server, 20)} HACK: ${pad(hackLevel, 5)} RAM: ${pad(`${ns.formatRam(availableRam)}/${ns.formatRam(maxRam)}`, 18)} CPU: ${pad(`${cpuCores} Cores`, 8)} ROOT: ${pad(hasRoot, 5)} PORTS: ${pad(`${openPorts}/${reqPorts}`, 5)} ${pad(maxMoney.toLocaleString(), 12)}`,
+        ns.print(
+            `${pad(count, 3)}: ${pad(server, 20)} HACK: ${pad(hackLevel, 5)} ${pad(ns.formatNumber(maxMoney), 9)} RAM: ${pad(`${ns.formatRam(maxRam)}`, 10)} Cores: ${pad(`${cpuCores}`, 4)} ROOT: ${pad(hasRoot, 5)} PORTS: ${pad(`${openPorts}/${reqPorts}`, 5)}`,
         );
     }
 
@@ -65,14 +69,14 @@ export async function main(ns) {
         if (cctFiles.length > 0) {
             foundFiles = true;
             for (let file of cctFiles) {
-                ns.tprint(`${server} -> ${file}`);
+                ns.print(`${server} -> ${file}`);
             }
         }
     }
 
     if (!foundFiles) {
-        ns.tprint("No .cct files found on any server.");
+        ns.print("No .cct files found on any server.");
     }
 
-    ns.tprint("=== Scan complete ===");
+    ns.print("=== Scan complete ===");
 }

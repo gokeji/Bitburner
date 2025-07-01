@@ -1,3 +1,5 @@
+import { NS } from "@ns";
+
 /** @param {NS} ns **/
 export async function main(ns) {
     // Disable default logging for cleaner output
@@ -46,7 +48,7 @@ export async function main(ns) {
 
     // If printFactionServerPaths is true, print the commands to get to each of the faction servers
     if (printFactionServerPaths) {
-        const factionServers = ["I.I.I.I", "run4theh111z", "CSEC", "avmnite-02h"];
+        const factionServers = ["CSEC", "avmnite-02h", "I.I.I.I", "run4theh111z"];
         for (const faction of factionServers) {
             const { server, path } = findPathToServer(ns, faction);
             if (path) {
@@ -54,7 +56,9 @@ export async function main(ns) {
                 for (let i = 1; i < path.length; i++) {
                     commandToGetToServer += `connect ${path[i]}; `;
                 }
-                ns.tprint(`=== Command to get to ${faction} === \n${commandToGetToServer}\n `);
+                ns.tprint(
+                    `=== ${faction} level: ${ns.getServerRequiredHackingLevel(faction)} === \n${commandToGetToServer}\n `,
+                );
             }
         }
 
@@ -79,6 +83,7 @@ export async function main(ns) {
         }
         ns.tprint(`Total hops: ${path.length - 1}`);
         ns.tprint(`=== Command to get to ${server} === \n${commandToGetToServer}\n `);
+        ns.tprint(`Required hacking level: ${ns.getServerRequiredHackingLevel(server)}`);
     } else {
         ns.tprint(`ERROR: Server '${targetServer}' not found in the network`);
     }

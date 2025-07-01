@@ -3,6 +3,7 @@ import { optimizeAugmentPurchases } from "./augment-calc.js";
 import { calculatePortfolioValue } from "./stock-market.js";
 import { getSafeBitNodeMultipliers, BitNodeMultipliers } from "./bitnode-multipliers.js";
 
+const ARTIFICIAL_PRICE_LIMIT = Infinity;
 const argsSchema = [
     ["buy", false], // Set to true to actually purchase the augmentations
     ["force-buy", false], // Set to true to force purchase the augmentations in order
@@ -741,7 +742,7 @@ export async function main(ns) {
         const prereqs = ns.singularity.getAugmentationPrereq(augmentation);
 
         // Check if we have enough money (using total budget including stocks)
-        const canAffordPrice = totalBudget >= price;
+        const canAffordPrice = Math.min(totalBudget, ARTIFICIAL_PRICE_LIMIT) >= price;
 
         const alwaysIncludeList = [
             "NeuroFlux Governor",
@@ -802,26 +803,26 @@ export async function main(ns) {
     }
 
     ns.print(`\n=== Affordable Augments: ${affordableAugmentations.length} ===`);
-    for (const aug of affordableAugmentations.sort((a, b) => b.cost - a.cost)) {
-        const hasHackingBoost = aug.hackingBoost;
-        const hasRepBoost = aug.repBoost;
-        const hasCombatBoost = aug.combatBoost;
-        const hasCharismaBoost = aug.charismaBoost;
-        const hasHacknetBoost = aug.hacknetBoost;
-        ns.print(
-            `$${ns.formatNumber(aug.cost * 1000000)} - ${aug.name} - ${aug.faction} ${hasHackingBoost ? "- 🧠 " : ""}${hasRepBoost ? "- 📈" : ""}${hasCombatBoost ? "- 💪" : ""}${hasCharismaBoost ? "- 🗣️" : ""}${hasHacknetBoost ? "- 🖥️" : ""}`,
-        );
-    }
+    // for (const aug of affordableAugmentations.sort((a, b) => b.cost - a.cost)) {
+    //     const hasHackingBoost = aug.hackingBoost;
+    //     const hasRepBoost = aug.repBoost;
+    //     const hasCombatBoost = aug.combatBoost;
+    //     const hasCharismaBoost = aug.charismaBoost;
+    //     const hasHacknetBoost = aug.hacknetBoost;
+    //     ns.print(
+    //         `$${ns.formatNumber(aug.cost * 1000000)} - ${aug.name} - ${aug.faction} ${hasHackingBoost ? "- 🧠 " : ""}${hasRepBoost ? "- 📈" : ""}${hasCombatBoost ? "- 💪" : ""}${hasCharismaBoost ? "- 🗣️" : ""}${hasHacknetBoost ? "- 🖥️" : ""}`,
+    //     );
+    // }
 
     ns.print(`\n=== Affordable but filtered out: ${affordableButFilteredOut.length} ===`);
-    for (const aug of affordableButFilteredOut.sort((a, b) => b.cost - a.cost)) {
-        ns.print(`$${ns.formatNumber(aug.cost * 1000000)} - ${aug.name} - ${aug.faction}`);
-    }
+    // for (const aug of affordableButFilteredOut.sort((a, b) => b.cost - a.cost)) {
+    //     ns.print(`$${ns.formatNumber(aug.cost * 1000000)} - ${aug.name} - ${aug.faction}`);
+    // }
 
     ns.print(`\n=== Unaffordable Augments: ${unaffordableAugmentations.length} ===`);
-    for (const aug of unaffordableAugmentations.sort((a, b) => b.cost - a.cost)) {
-        ns.print(`$${ns.formatNumber(aug.cost * 1000000)} - ${aug.name} - ${aug.faction}`);
-    }
+    // for (const aug of unaffordableAugmentations.sort((a, b) => b.cost - a.cost)) {
+    //     ns.print(`$${ns.formatNumber(aug.cost * 1000000)} - ${aug.name} - ${aug.faction}`);
+    // }
 
     // Sort by faction first, then by price within each faction
     affordableAugmentations.sort((a, b) => {

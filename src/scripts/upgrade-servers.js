@@ -8,7 +8,7 @@ const MAX_AUTOUPDATE_RAM = 2 ** 20; // 1PB
 // A more aggressive upgrade factor would be 0.3 then it will try to jump to next level if 30% of existing servers are at the current tier
 // Should be between 0 - 1
 // 0 = always upgrade to next tier, 1 = never upgrade to next tier
-const UPGRADE_THRESHOLD = 0.2;
+const UPGRADE_THRESHOLD = 0.33;
 
 /**
  *

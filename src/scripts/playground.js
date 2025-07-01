@@ -2,9 +2,8 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    ns.print(ns.getServerGrowth("phantasy"));
-
-    ns.print(ns.getServerGrowth("silver-helix"));
+    // ns.print(ns.getServerGrowth("phantasy"));
+    // ns.print(ns.getServerGrowth("silver-helix"));
     // while (true) {
     //     const daedalusFavor =
     //         ns.singularity.getFactionFavor("Daedalus") + ns.singularity.getFactionFavorGain("Daedalus");
