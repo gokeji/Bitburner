@@ -27,7 +27,7 @@ export async function main(ns) {
 
     const HOME_SERVER_RESERVED_RAM = 185; // GB reserved for home server
     let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
-    const ALLOW_XP_FARMING = true;
+    const ALWAYS_XP_FARM = false;
     const ALLOW_PARTIAL_PREP = false;
 
     let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
@@ -43,6 +43,9 @@ export async function main(ns) {
     let globalPrioritiesMap = new Map();
     const recoveringServers = new Set(); // In-memory state for servers in active recovery
     let serverBatchTimings = new Map(); // Stores the original batch timings for each server
+
+    // Weaken drift protection - servers on hold due to excessive timing drift
+    let serversOnHold = new Map(); // Map<string, number> - server name to resume timestamp
 
     // automatically backdoor these servers. Requires singularity functions.
     let backdoorServers = new Set([
@@ -98,6 +101,8 @@ export async function main(ns) {
         // Cleanup server caches every 30 seconds to prevent memory leaks
         if (cleanupCounter % Math.floor(30000 / TICK_DELAY) === 0) {
             cleanupServerCaches();
+            // Also cleanup any expired holds that might have been missed
+            processServersOnHold(ns);
         }
 
         // Get all servers
@@ -134,6 +139,9 @@ export async function main(ns) {
         // Calculate global priorities map once per tick (without excluding any servers)
         globalPrioritiesMap = calculateTargetServerPriorities(ns);
 
+        // Process servers on hold and check if any can resume
+        processServersOnHold(ns);
+
         const runningScriptInfo = getRunningScriptInfo(ns);
 
         // Send throughput data to port 4 for get_stats.js
@@ -157,6 +165,19 @@ export async function main(ns) {
         while (ramToDistribute > 0 && serverIndex < serversByThroughput.length) {
             const currentServer = serversByThroughput[serverIndex];
             serverIndex++; // Increment server index
+
+            // Skip servers that are on hold due to weaken drift
+            if (serversOnHold.has(currentServer)) {
+                const resumeTime = serversOnHold.get(currentServer);
+                const timeLeft = Math.max(0, resumeTime - Date.now());
+                // Only log occasionally to avoid spam
+                if (tickCounter % 10 === 0) {
+                    ns.print(
+                        `INFO: ${currentServer} on hold for drift. Resume in ${ns.formatNumber(timeLeft / 1000, 1)}s`,
+                    );
+                }
+                continue;
+            }
 
             const currentServerScripts = runningScriptInfo.get(currentServer) || {
                 ramUsed: 0,
@@ -346,16 +367,14 @@ export async function main(ns) {
         const serverSuccessRate = totalServersAttempted > 0 ? totalServersNotDiscarded / totalServersAttempted : 1;
 
         const { avgPercentChange, avgMsChange, avgCurrentWeakenTime } = getWeakenTimeDrift(ns);
-        const weakenTimeDriftMessage = `Weaken Time Drift: ${ns.formatNumber(avgMsChange, 2)}ms (${ns.formatPercent(avgPercentChange / 100, 2)}) | Avg Weaken: ${ns.formatNumber(avgCurrentWeakenTime / 1000, 1)}s`;
+        const weakenTimeDriftMessage = `Weaken Time Drift: ${ns.formatNumber(avgMsChange, 2)}ms (${ns.formatPercent(avgPercentChange, 2)}) | Avg Weaken: ${ns.formatNumber(avgCurrentWeakenTime / 1000, 1)}s`;
 
         ns.print(
             `INFO: RAM: ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(freeRamAfterTick)} free | Batch Success: ${ns.formatPercent(serverSuccessRate)} ${ns.formatNumber(totalServersNotDiscarded)}/${ns.formatNumber(totalServersAttempted)} | ${weakenTimeDriftMessage}`,
         );
 
         // XP farming: Use all remaining RAM for weaken scripts
-        if (ALLOW_XP_FARMING) {
-            xpFarm(ns);
-        }
+        xpFarm(ns, ALWAYS_XP_FARM);
 
         await ns.sleep(TICK_DELAY);
     }
@@ -1204,7 +1223,7 @@ export async function main(ns) {
      * Late game the xpFarm cycle is finally faster than our tick time so we can do a few cycles per tick and we will also have left over ram
      * @param {NS} ns - The Netscript API.
      */
-    function xpFarm(ns) {
+    function xpFarm(ns, always = false) {
         const xpTarget = "foodnstuff";
         const xpFarmScript = "/scripts/xp-farm.js";
 
@@ -1227,7 +1246,10 @@ export async function main(ns) {
         }
 
         const growTime = ns.getGrowTime(xpTarget);
-        const growCycles = Math.ceil(TICK_DELAY / (growTime + BASE_SCRIPT_DELAY));
+        let growCycles = Math.floor(TICK_DELAY / (growTime + BASE_SCRIPT_DELAY));
+        if (always) {
+            growCycles = Math.min(growCycles, 1);
+        }
 
         // Collect server/thread pairs for all available RAM
         const serverThreadPairs = [];
@@ -1592,6 +1614,10 @@ export async function main(ns) {
         let totalMsChange = 0;
         let totalCurrentTime = 0;
 
+        const DRIFT_THRESHOLD_PERCENT = 5; // 5% drift threshold for holds
+        const HOLD_DURATION_MULTIPLIER = 0.05; // 5% of weaken time
+        const HOLD_BUFFER_MS = DELAY_BETWEEN_BATCHES * 4;
+
         for (const [server, { originalWeakenTime }] of serverBatchTimings.entries()) {
             const serverStats = globalPrioritiesMap.get(server);
             if (!serverStats) {
@@ -1599,16 +1625,27 @@ export async function main(ns) {
                 continue;
             }
 
-            if (serverBatchTimings.has(server)) {
-                // Use a small tolerance for floating point comparisons
-                if (Math.abs(serverStats.weakenTime - originalWeakenTime) > 0.001) {
-                    outOfSyncServers++;
-                    const msChange = originalWeakenTime - serverStats.weakenTime;
-                    const percentChange = originalWeakenTime !== 0 ? Math.abs(msChange / originalWeakenTime) * 100 : 0;
+            // Use a small tolerance for floating point comparisons
+            if (Math.abs(serverStats.weakenTime - originalWeakenTime) > 0.001) {
+                outOfSyncServers++;
+                const msChange = originalWeakenTime - serverStats.weakenTime;
+                const percentChange = originalWeakenTime !== 0 ? Math.abs(msChange / originalWeakenTime) : 0;
 
-                    totalMsChange += msChange;
-                    totalPercentChange += percentChange;
-                    totalCurrentTime += serverStats.weakenTime;
+                totalMsChange += msChange;
+                totalPercentChange += percentChange;
+                totalCurrentTime += serverStats.weakenTime;
+
+                // Check if server should be put on hold for excessive drift
+                if (percentChange > DRIFT_THRESHOLD_PERCENT && !serversOnHold.has(server)) {
+                    const holdDurationMs = serverStats.weakenTime * HOLD_DURATION_MULTIPLIER + HOLD_BUFFER_MS;
+                    serversOnHold.set(server, Date.now() + holdDurationMs);
+
+                    ns.print(
+                        `WARN: ${server} drift ${ns.formatPercent(percentChange)} > ${DRIFT_THRESHOLD_PERCENT}% threshold. Hold for ${ns.formatNumber(holdDurationMs / 1000, 1)}s`,
+                    );
+
+                    killAllScriptsForTarget(ns, server, ["hack", "grow", "weaken"]);
+                    serverBatchTimings.delete(server);
                 }
             }
         }
@@ -1631,5 +1668,25 @@ export async function main(ns) {
             avgCurrentWeakenTime: 0,
             outOfSyncServers: 0,
         };
+    }
+
+    /**
+     * Checks if servers on hold can resume and cleans up expired holds.
+     * @param {NS} ns - The Netscript API.
+     */
+    function processServersOnHold(ns) {
+        const currentTime = Date.now();
+        const serversToResume = [];
+
+        for (const [server, resumeTimestamp] of serversOnHold.entries()) {
+            if (currentTime >= resumeTimestamp) {
+                serversToResume.push(server);
+            }
+        }
+
+        for (const server of serversToResume) {
+            serversOnHold.delete(server);
+            ns.print(`DRIFT RESUME: ${server} can resume batch execution after drift cooldown`);
+        }
     }
 }
