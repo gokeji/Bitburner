@@ -10,7 +10,7 @@ export async function main(ns) {
     let continuousMode = ns.args.includes("--continuous"); // If true, continue upgrading as long as spending < 1% of player money
     let HACKNET_SPEND_PERCENTAGE = 0.001;
 
-    const HACKNET_MAX_SPEND = 2e12; // 2 trillion
+    const HACKNET_MAX_SPEND = 2e9; // 2 billion
 
     ns.ui.openTail();
 

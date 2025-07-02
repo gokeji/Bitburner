@@ -250,11 +250,7 @@ async function mainLoop(ns) {
             )
         )
             log(ns, `SUCCESS: Bought "Improve Gym Training" to speed up Sleeve training.`, false, "success");
-    if (
-        canTrain &&
-        (task.some((t) => t?.startsWith("study")) || options["intelligence-farm"]) &&
-        !options["disable-spending-hashes-for-study-upgrades"]
-    )
+    if (canTrain && task.some((t) => t?.startsWith("study")) && !options["disable-spending-hashes-for-study-upgrades"])
         if (
             await getNsDataThroughFile(
                 ns,

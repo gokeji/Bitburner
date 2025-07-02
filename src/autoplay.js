@@ -1,12 +1,12 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = 1200 * 10 ** 9; // 12 B max server value
+const MAX_SERVER_VALUE = 120 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
 
 const IPVGO_OPPONENTS = [
-    // "Netburners", // increased hacknet production
+    "Netburners", // increased hacknet production
     // "Slum Snakes", // crime success rate
     // "The Black Hand", // hacking money
     // "Tetrads", // strength, defense, dexterity, and agility levels
@@ -52,7 +52,7 @@ export async function main(ns) {
 
     startGangIfNeeded(ns);
 
-    startUpgradeServersIfNotRunning(ns);
+    restartUpgradeServers(ns);
 
     restartIpvgo(ns);
 
@@ -136,7 +136,7 @@ function startScriptIfNotRunning(ns, scriptName, hostname = HOST_NAME, threads =
         ns.tprint(`ERROR Failed to start ${scriptName}`);
         return { pid: 0, success: false };
     } else {
-        ns.tprint(`SUCCESS Started ${scriptName} with PID ${pid}`);
+        ns.tprint(`SUCCESS Started ${scriptName}${args.length > 0 ? ` ${args}` : ""} with PID ${pid}`);
         return { pid, success: true };
     }
 }
@@ -175,13 +175,14 @@ function startAutoJoinFactionsIfNotRunning(ns) {
     startScriptIfNotRunning(ns, "scripts/auto-join-factions.js");
 }
 
-function startUpgradeServersIfNotRunning(ns) {
-    const result = startScriptIfNotRunning(ns, "scripts/upgrade-servers.js", HOST_NAME, 1, MAX_SERVER_VALUE);
+function restartUpgradeServers(ns) {
+    const isRunning = isScriptRunning(ns, "scripts/upgrade-servers.js", HOST_NAME);
 
-    if (result.success) {
-        ns.ui.openTail(result.pid, HOST_NAME);
-        ns.tprint("Started scripts/upgrade-servers.js with max server value of " + ns.formatNumber(MAX_SERVER_VALUE));
+    if (isRunning) {
+        ns.kill(isRunning);
     }
+
+    const result = startScriptIfNotRunning(ns, "scripts/upgrade-servers.js", HOST_NAME, 1, MAX_SERVER_VALUE);
 }
 
 function startStockTraderIfNotRunning(ns) {

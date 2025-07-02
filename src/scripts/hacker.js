@@ -26,7 +26,7 @@ export async function main(ns) {
     const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 185; // GB reserved for home server
-    let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    let MAX_WEAKEN_TIME = 5 * 60 * 1000; // ms max weaken time (Max 10 minutes)
     const ALWAYS_XP_FARM = true;
     const ALLOW_PARTIAL_PREP = false;
 
@@ -893,59 +893,6 @@ export async function main(ns) {
             growthTime,
         } = prepStats;
 
-        if (allowPartial && needsInitialWeaken) {
-            // Prioritize initial weaken when partial allocation is allowed
-            // Try weaken-only first, then add grow operations if RAM permits
-            const weakenOnlyOperations = [{ type: "weaken", threads: initialWeakenThreads, id: "initial_weaken" }];
-            const weakenAllocation = allocateServersForOperations(ns, weakenOnlyOperations, true); // Allow scaling
-
-            if (weakenAllocation.success && weakenAllocation.initial_weaken) {
-                // Execute initial weaken (scaled if necessary)
-                for (const [server, threads] of weakenAllocation.initial_weaken) {
-                    executeWeaken(ns, server, target, threads, 0, true, weakenTime);
-                }
-
-                let totalRamUsed = weakenAllocation.totalRamUsed;
-                let prepType =
-                    weakenAllocation.scalingFactor < 1
-                        ? `PARTIAL WEAKEN ${ns.formatNumber(weakenAllocation.scalingFactor, 3)}x`
-                        : "WEAKEN-ONLY";
-
-                // Try to add grow operations with remaining RAM
-                if (needsGrow) {
-                    const growOperations = [
-                        { type: "grow", threads: growthThreads },
-                        { type: "weaken", threads: finalWeakenThreads, id: "final_weaken" },
-                    ];
-
-                    const growAllocation = allocateServersForOperations(ns, growOperations, true);
-
-                    if (growAllocation.success && growAllocation.grow && growAllocation.final_weaken) {
-                        // Execute grow operations
-                        const growDelay = weakenTime - growthTime + BASE_SCRIPT_DELAY;
-                        for (const [server, threads] of growAllocation.grow) {
-                            executeGrow(ns, server, target, threads, growDelay, false, true, growthTime);
-                        }
-
-                        // Execute final weaken
-                        const finalWeakenDelay = 2 * BASE_SCRIPT_DELAY;
-                        for (const [server, threads] of growAllocation.final_weaken) {
-                            executeWeaken(ns, server, target, threads, finalWeakenDelay, true, weakenTime);
-                        }
-
-                        totalRamUsed += growAllocation.totalRamUsed;
-                        prepType = "FULL";
-                    }
-                }
-
-                ns.print(`SUCCESS ${serverIndex}. ${target}: ${prepType} PREP ${ns.formatRam(totalRamUsed)}`);
-                return totalRamUsed;
-            } else {
-                ns.print(`INFO: PREP - ${target} Failed. Cannot allocate any weaken threads`);
-                return false;
-            }
-        }
-
         // Original logic for non-partial
         const operations = [];
         if (needsInitialWeaken) {
@@ -959,17 +906,28 @@ export async function main(ns) {
         // Find servers for prep operations with proper RAM accounting
         const allocation = allocateServersForOperations(ns, operations, allowPartial);
 
-        if (!allocation.success) {
-            const isPartial = allocation.scalingFactor < 1;
-            const operationsDescription = allocation.operations
+        let finalAllocation = allocation;
+        if (!allocation.success && allowPartial) {
+            // Try again with only weaken operations
+            const weakenOnlyOperations = [{ type: "weaken", threads: initialWeakenThreads, id: "initial_weaken" }];
+            const weakenOnlyAllocation = allocateServersForOperations(ns, weakenOnlyOperations, allowPartial);
+
+            if (weakenOnlyAllocation.success) {
+                finalAllocation = weakenOnlyAllocation;
+            }
+        }
+
+        if (!finalAllocation.success) {
+            const isPartial = finalAllocation.scalingFactor < 1;
+            const operationsDescription = finalAllocation.operations
                 .map((op) => `${op.threads}${op.type.substring(0, 1).toUpperCase()}`)
                 .join("-");
             ns.print(
-                `INFO: ${isPartial ? `Partial ${ns.formatNumber(allocation.scalingFactor, 5)}X ` : ""}PREP - ${target} Failed. Need ${operationsDescription} (${ns.formatRam(allocation.scaledTotalRamRequired)} ram)`,
+                `INFO: ${isPartial ? `Partial ${ns.formatNumber(finalAllocation.scalingFactor, 5)}X ` : ""}PREP - ${target} Failed. Need ${operationsDescription} (${ns.formatRam(finalAllocation.scaledTotalRamRequired)} ram)`,
             );
             return false;
         } else {
-            ns.print(`SUCCESS ${serverIndex}. ${target}: PREP ${ns.formatRam(allocation.totalRamUsed)}`);
+            ns.print(`SUCCESS ${serverIndex}. ${target}: PREP ${ns.formatRam(finalAllocation.totalRamUsed)}`);
         }
 
         // Update the server RAM cache - this is handled by allocateServersForOperations
@@ -977,35 +935,33 @@ export async function main(ns) {
         let totalRamUsed = 0;
 
         if (needsInitialWeaken) {
-            if (allocation.initial_weaken) {
+            if (finalAllocation.initial_weaken) {
                 // Execute weaken on potentially multiple servers
-                for (const [server, threads] of allocation.initial_weaken) {
+                for (const [server, threads] of finalAllocation.initial_weaken) {
                     executeWeaken(ns, server, target, threads, 0, true, weakenTime);
                 }
-                totalRamUsed += allocation.scalingFactor * initialWeakenRam;
+                totalRamUsed += finalAllocation.scalingFactor * initialWeakenRam;
             } else {
                 ns.print(`ERROR: Allocations were malformed for PREP ${target} - initial_weaken`);
             }
         }
 
-        if (needsGrow) {
-            if (allocation.grow && allocation.final_weaken) {
-                // Execute grow on single server (as enforced by the allocation function)
-                const growDelay = needsInitialWeaken ? weakenTime - growthTime + BASE_SCRIPT_DELAY : 0;
-                for (const [server, threads] of allocation.grow) {
-                    executeGrow(ns, server, target, threads, growDelay, false, true, growthTime);
-                }
-                totalRamUsed += allocation.scalingFactor * growRam;
-
-                // Execute final weaken on potentially multiple servers
-                const finalWeakenDelay = needsInitialWeaken ? 2 * BASE_SCRIPT_DELAY : 0;
-                for (const [server, threads] of allocation.final_weaken) {
-                    executeWeaken(ns, server, target, threads, finalWeakenDelay, true, weakenTime);
-                }
-                totalRamUsed += allocation.scalingFactor * finalWeakenRam;
-            } else {
-                ns.print(`ERROR: Allocations were malformed for PREP ${target} - grow and final_weaken`);
+        if (needsGrow && finalAllocation.grow && finalAllocation.final_weaken) {
+            // Execute grow on single server (as enforced by the allocation function)
+            const growDelay = needsInitialWeaken ? weakenTime - growthTime + BASE_SCRIPT_DELAY : 0;
+            for (const [server, threads] of finalAllocation.grow) {
+                executeGrow(ns, server, target, threads, growDelay, false, true, growthTime);
             }
+            totalRamUsed += finalAllocation.scalingFactor * growRam;
+
+            // Execute final weaken on potentially multiple servers
+            const finalWeakenDelay = needsInitialWeaken ? 2 * BASE_SCRIPT_DELAY : 0;
+            for (const [server, threads] of finalAllocation.final_weaken) {
+                executeWeaken(ns, server, target, threads, finalWeakenDelay, true, weakenTime);
+            }
+            totalRamUsed += finalAllocation.scalingFactor * finalWeakenRam;
+        } else if (needsGrow) {
+            ns.print(`ERROR: Allocations were malformed for PREP ${target} - grow and final_weaken`);
         }
 
         return totalRamUsed;
