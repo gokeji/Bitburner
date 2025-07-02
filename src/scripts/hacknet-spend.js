@@ -15,17 +15,17 @@ const hashUpgrades = {
 };
 
 const argsSchema = [
-    ["money", false],
-    ["corporationFunds", false],
+    // ["money", false],
+    // ["corporationFunds", false],
     ["minSecurity", false],
     ["maxMoney", false],
     ["studying", false],
     ["gym", false],
-    ["corporationResearch", false],
-    ["bladeburnerRank", false],
-    ["bladeburnerSP", false],
-    ["codingContract", false],
-    ["companyFavor", false],
+    // ["corporationResearch", false],
+    // ["bladeburnerRank", false],
+    // ["bladeburnerSP", false],
+    // ["codingContract", false],
+    // ["companyFavor", false],
 ];
 
 export function autocomplete(data, args) {
@@ -52,6 +52,9 @@ export async function main(ns) {
 
     ns.ui.openTail();
 
+    let stillNeedMaxMoney = false;
+    let stillNeedMinSecurity = false;
+
     while (true) {
         if (studying) {
             const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.studying);
@@ -73,22 +76,27 @@ export async function main(ns) {
 
         if (maxMoney) {
             const startingMoney = ns.getServerMaxMoney(targetServer);
-            const { cost, success, level } = spendHashesOnUpgrade(ns, "Increase Maximum Money", targetServer);
+            // Server max money is soft capped at 10t
+            if (startingMoney < 10e12) {
+                const { cost, success, level } = spendHashesOnUpgrade(ns, "Increase Maximum Money", targetServer);
 
-            if (success) {
-                const endingMoney = ns.getServerMaxMoney(targetServer);
-                logUpgradeSuccess(
-                    ns,
-                    "Max Money",
-                    `${targetServer} | ${ns.formatNumber(startingMoney)} -> ${ns.formatNumber(endingMoney)}`,
-                    cost,
-                );
+                if (success) {
+                    const endingMoney = ns.getServerMaxMoney(targetServer);
+                    logUpgradeSuccess(
+                        ns,
+                        "Max Money",
+                        `${targetServer} | ${ns.formatNumber(startingMoney)} -> ${ns.formatNumber(endingMoney)}`,
+                        cost,
+                    );
+                }
+            } else {
+                stillNeedMaxMoney = false;
             }
         }
 
         if (minSecurity) {
             const startingSecurity = ns.getServerMinSecurityLevel(targetServer);
-            if (ns.getServer(targetServer).hackDifficulty > 3) {
+            if (ns.getServer(targetServer).hackDifficulty > 5) {
                 const { cost, success, level } = spendHashesOnUpgrade(ns, "Reduce Minimum Security", targetServer);
 
                 if (success) {
@@ -100,9 +108,18 @@ export async function main(ns) {
                         cost,
                     );
                 }
+            } else {
+                stillNeedMinSecurity = false;
             }
         }
-        await ns.sleep(5000);
+
+        if (studying || gym || (minSecurity && stillNeedMinSecurity) || (maxMoney && stillNeedMaxMoney)) {
+            await ns.sleep(5000);
+            continue;
+        } else {
+            ns.print("No more upgrades needed");
+            break;
+        }
     }
 }
 
@@ -122,7 +139,7 @@ function spendHashesOnUpgrade(ns, upgradeName, target = undefined) {
 
         for (let i = 0; i < ns.hacknet.numNodes(); i++) {
             const node = ns.hacknet.getNodeStats(i);
-            if (node.cache < hacknetWithLowestCache.cache) {
+            if (hacknetWithLowestCache === null || node.cache < hacknetWithLowestCache.cache) {
                 hacknetWithLowestCache = node;
                 lowestCacheServerIndex = i;
             }
@@ -149,8 +166,8 @@ function spendHashesOnUpgrade(ns, upgradeName, target = undefined) {
  */
 function logUpgradeSuccess(ns, upgradeName, effectString, cost) {
     const timestamp = new Date().toLocaleTimeString();
-    const message = `SUCCESS: ${timestamp} ${upgradeName} | ${effectString} | ${ns.formatNumber(cost, 2)}h`;
-    const toastMessage = `${upgradeName} | ${effectString} | ${ns.formatNumber(cost, 2)}h`;
+    const message = `SUCCESS: ${timestamp} ${upgradeName} | ${effectString} | ${cost}h`;
+    const toastMessage = `${upgradeName} | ${effectString} | ${cost}h`;
 
     ns.print(message);
     ns.toast(toastMessage);

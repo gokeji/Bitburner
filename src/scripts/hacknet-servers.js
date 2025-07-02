@@ -78,6 +78,14 @@ export async function main(ns) {
         if (upgradeTally.node > 0) ns.print(`${red}New nodes: ${upgradeTally.node}${reset}`);
         ns.print(`Total bitnode hacknet spend: $${ns.formatNumber(bitnodeHacknetSpend)}`);
         ns.print(`=======================\n`);
+
+        // Reset the upgrade tally after printing
+        upgradeTally = {
+            level: 0,
+            ram: 0,
+            core: 0,
+            node: 0,
+        };
     }
 
     function convertHashToMoney(hashes) {
@@ -99,7 +107,9 @@ export async function main(ns) {
 
         const bitnodeHacknetSpend = Math.abs(ns.getMoneySources().sinceInstall.hacknet_expenses);
         const continuousSpendLimit = ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE;
-        if (bitnodeHacknetSpend > HACKNET_MAX_SPEND || bitnodeHacknetSpend > continuousSpendLimit) {
+        if (
+            !(bitnodeHacknetSpend < HACKNET_MAX_SPEND || (continuousMode && bitnodeHacknetSpend < continuousSpendLimit))
+        ) {
             if (continuousMode) {
                 if (!hasPrintedWaitingMessage) {
                     printUpgradeSummary(); // Print summary before waiting

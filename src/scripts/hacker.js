@@ -1251,7 +1251,7 @@ export async function main(ns) {
         const growTime = ns.getGrowTime(xpTarget);
         let growCycles = Math.floor(TICK_DELAY / (growTime + BASE_SCRIPT_DELAY));
         if (always) {
-            growCycles = Math.min(growCycles, 1);
+            growCycles = Math.max(growCycles, 1);
         }
 
         // Collect server/thread pairs for all available RAM

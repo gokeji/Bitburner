@@ -49,6 +49,11 @@ export async function main(ns) {
     ns.ui.moveTail(320, 0);
 
     let cleanupCounter = 0;
+
+    // Clear all caches at startup to ensure fresh data
+    serverMaxMoneyCache.clear();
+    serverOrderCache = null;
+    lastServerList = null;
     cleanupCaches();
 
     while (true) {
