@@ -77,10 +77,10 @@ export async function main(ns) {
     while (true) {
         try {
             await processFactionInvitations();
-            await ns.sleep(10000); // Sleep for 10 seconds
+            await ns.sleep(5000); // Sleep for 5 seconds
         } catch (error) {
             ns.print("Unexpected error: " + error.message);
-            await ns.sleep(10000);
+            await ns.sleep(5000);
         }
     }
 }

@@ -12,6 +12,7 @@ const argsSchema = [
     ["combat", false], // Set to true to include augments that boost combat
     ["charisma", false], // Set to true to include augments that boost charisma
     ["hacknet", false], // Set to true to include augments that boost hacknet
+    ["no-nfg", false], // Set to true to exclude augments that boost NeuroFlux Governor
 ];
 
 /**
@@ -658,6 +659,7 @@ export async function main(ns) {
     const charisma = flags["charisma"];
     const hacknetServer = flags["hacknet"];
     const forceBuy = flags["force-buy"];
+    const noNFG = flags["no-nfg"];
 
     ns.ui.openTail(); // Open tail because there's a lot of good output
     ns.ui.resizeTail(1200, 800);
@@ -690,7 +692,7 @@ export async function main(ns) {
     const ownedAndPurchasedAugmentations = ns.singularity.getOwnedAugmentations(true);
     const availableAugmentations = Array.from(allAugmentations)
         .filter((augmentation) => !ownedAndPurchasedAugmentations.includes(augmentation))
-        .concat("NeuroFlux Governor");
+        .concat(noNFG ? [] : "NeuroFlux Governor");
 
     // Helper function to check if an augmentation has hacking boost
     function hasHackingBoost(stats) {

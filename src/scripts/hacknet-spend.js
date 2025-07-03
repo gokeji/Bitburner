@@ -26,7 +26,7 @@ const argsSchema = [
     // ["bladeburnerSP", false],
     // ["codingContract", false],
     // ["companyFavor", false],
-    ["target", ""],
+    // ["target", ""],
 ];
 
 export function autocomplete(data, args) {
@@ -49,14 +49,17 @@ export async function main(ns) {
     // const bladeburnerSP = flags["bladeburnerSP"];
     // const codingContract = flags["codingContract"];
     // const companyFavor = flags["companyFavor"];
-    const targetServer = flags["target"];
 
     ns.ui.openTail();
 
     let stillNeedMaxMoney = true;
     let stillNeedMinSecurity = true;
 
+    let targetServer = null;
+
     while (true) {
+        targetServer = getMaxMoneyServer(ns, targetServer);
+
         if (studying) {
             const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.studying);
             const studyingBonus = level * 20;
@@ -118,7 +121,7 @@ export async function main(ns) {
             await ns.sleep(5000);
             continue;
         } else {
-            ns.print("No more upgrades needed");
+            ns.print(`No more upgrades needed, targeting ${targetServer}`);
             break;
         }
     }
@@ -172,4 +175,84 @@ function logUpgradeSuccess(ns, upgradeName, effectString, cost) {
 
     ns.print(message);
     ns.toast(toastMessage);
+}
+
+/**
+ * Finds the server with the highest max money
+ * @param {NS} ns - NetScript namespace
+ * @returns {string | null} The server with the highest max money, or null if there are no servers
+ */
+function getMaxMoneyServer(ns, previousMaxMoneyServer) {
+    const servers = getHackableServers(ns);
+    if (servers.length === 0) {
+        return null;
+    }
+    let max = servers.reduce((max, server) => {
+        return ns.getServerMaxMoney(server) > ns.getServerMaxMoney(max) &&
+            ns.getServerMaxMoney(server) < 10e12 &&
+            ns.getServerSecurityLevel(server) > 3
+            ? server
+            : max;
+    }, servers[0]);
+
+    if (previousMaxMoneyServer === null) {
+        return max;
+    }
+
+    const securityDiff = ns.getServerSecurityLevel(max) - ns.getServerSecurityLevel(previousMaxMoneyServer);
+    // const securityDiffRatio = securityDiff / ns.getServerSecurityLevel(max);
+    // const moneyDiff = ns.getServerMaxMoney(max) / ns.getServerMaxMoney(previousMaxMoneyServer);
+
+    return securityDiff < 10 || ns.getServerMaxMoney(max) > ns.getServerMaxMoney(previousMaxMoneyServer) * 1.5
+        ? max
+        : previousMaxMoneyServer;
+}
+
+/**
+ * Gets all servers that are accessible to the player.
+ * Also handles nuking servers, backdooring faction servers, and solving contracts.
+ * Uses caching to avoid expensive BFS traversals on every call.
+ * @param {NS} ns - The Netscript API.
+ * @returns {string[]} - List of server names.
+ */
+function getHackableServers(ns) {
+    // Cache miss - perform BFS traversal
+    const discovered = new Set(["home"]); // Track all discovered servers
+    const toScan = ["home"]; // Queue of servers to scan
+    const resultSet = new Set();
+
+    const isHackable = (server) => {
+        if (!ns.hasRootAccess(server)) return false;
+        if (ns.getServerRequiredHackingLevel(server) > ns.getHackingLevel()) return false;
+        if (ns.getServerMaxMoney(server) === 0) return false;
+        if (server === "home") return false;
+        return true;
+    };
+    // BFS traversal of the server network
+    while (toScan.length > 0) {
+        const server = toScan.shift(); // Process next server in queue
+
+        if (isHackable(server)) {
+            resultSet.add(server);
+        }
+
+        // Scan for connected servers and add new ones to the queue
+        const connectedServers = ns.scan(server);
+        for (const connectedServer of connectedServers) {
+            if (!discovered.has(connectedServer)) {
+                toScan.push(connectedServer);
+                discovered.add(connectedServer);
+            }
+        }
+    }
+
+    // Move home server to end of list so leftover free RAM can be used for "home" server
+    const result = Array.from(resultSet);
+    const homeIndex = result.indexOf("home");
+    if (homeIndex > -1) {
+        const homeServer = result.splice(homeIndex, 1)[0];
+        result.push(homeServer);
+    }
+
+    return result;
 }

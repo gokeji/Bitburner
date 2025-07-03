@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = 160 * 10 ** 9; // 12 B max server value
+const MAX_SERVER_VALUE = -1; //160 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
 
@@ -11,7 +11,7 @@ const IPVGO_OPPONENTS = [
     // "The Black Hand", // hacking money
     // "Tetrads", // strength, defense, dexterity, and agility levels
     "Daedalus", // reputation gain
-    "Illuminati", // faster hack(), grow(), and weaken()
+    // "Illuminati", // faster hack(), grow(), and weaken()
     // "????????????", // w0r1d_d43m0n Hacking Levels
 ];
 
@@ -62,6 +62,7 @@ export async function main(ns) {
         startProgramManagerIfNotRunning(ns);
 
         startAutoJoinFactionsIfNotRunning(ns);
+        startHacknetSpendIfNeeded(ns);
     }
 
     if (showFactionServerPaths) {
@@ -75,6 +76,25 @@ export async function main(ns) {
 
     ns.tprint("INFO Autoplay check complete - all required scripts are now running");
     ns.tprint("INFO Waiting for stock trader and share ram to start");
+
+    if (ns.getServerMaxRam(HOST_NAME) > 16384) {
+        ns.tprint("INFO Home server has enough RAM, first sharing some on home");
+        let runningHomeShare = isScriptRunning(ns, "scripts/share-all-free-ram.js", HOST_NAME, [HOST_NAME]);
+        if (!runningHomeShare) {
+            const success = ns.exec(
+                "scripts/share-all-free-ram.js",
+                HOST_NAME,
+                1,
+                HOST_NAME,
+                Math.max(2048, Math.min(ns.getServerMaxRam("home") / 16, 2 ** 20)),
+            );
+            if (success) {
+                ns.tprint("SUCCESS Successfully started share-all-free-ram.js on home");
+            }
+        } else {
+            ns.tprint("scripts/share-all-free-ram.js is already running on home");
+        }
+    }
 
     while (!startedStockTrader || !sharedRam) {
         if (!sharedRam && shouldShare && ns.serverExists(SERVER_TO_START_SHARING_RAM_ON)) {
@@ -92,7 +112,7 @@ export async function main(ns) {
 
         // Start stock trader and also share ram after we purchase the server to share ram on
         if (totalServerValue > MAX_SERVER_VALUE && !noMaxServerValueCondition) {
-            startStockTraderIfNotRunning(ns);
+            // startStockTraderIfNotRunning(ns);
 
             startedStockTrader = true;
         }
@@ -108,9 +128,18 @@ export async function main(ns) {
  * @param {string} hostname
  * @returns {number}
  */
-function isScriptRunning(ns, scriptName, hostname) {
-    const runningProcesses = ns.ps(hostname);
-    return runningProcesses.filter((process) => process.filename.includes(scriptName))[0]?.pid ?? 0;
+function isScriptRunning(ns, scriptName, hostname, args = []) {
+    if (args.length > 0) {
+        const runningProcesses = ns.ps(hostname);
+        return (
+            runningProcesses.filter(
+                (process) => process.filename.includes(scriptName) && args.every((arg) => process.args.includes(arg)),
+            )[0]?.pid ?? 0
+        );
+    } else {
+        const runningProcesses = ns.ps(hostname);
+        return runningProcesses.filter((process) => process.filename.includes(scriptName))[0]?.pid ?? 0;
+    }
 }
 
 /**
@@ -171,6 +200,10 @@ function startGangIfNeeded(ns) {
     }
 }
 
+function startHacknetSpendIfNeeded(ns) {
+    startScriptIfNotRunning(ns, "scripts/hacknet-spend.js", HOST_NAME, 1, "--maxMoney", "--minSecurity");
+}
+
 function startAutoJoinFactionsIfNotRunning(ns) {
     startScriptIfNotRunning(ns, "scripts/auto-join-factions.js");
 }
@@ -216,7 +249,8 @@ function startStockTraderIfNotRunning(ns) {
 }
 
 function startUpgradeHnetIfNeeded(ns) {
-    startScriptIfNotRunning(ns, "scripts/hacknet-servers.js", HOST_NAME, 1, HACKNET_MAX_PAYBACK_TIME);
+    // startScriptIfNotRunning(ns, "scripts/hacknet-servers.js", HOST_NAME, 1, HACKNET_MAX_PAYBACK_TIME);
+    startScriptIfNotRunning(ns, "scripts/hacknet-servers.js", HOST_NAME, 1, "--continuous");
 }
 
 function launchStatsMonitoring(ns) {

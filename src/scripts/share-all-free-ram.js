@@ -2,6 +2,7 @@
 // Get all free ram on current server and kick off max threads of share.js
 export async function main(ns) {
     const server = ns.args[0];
+    const ramToShare = ns.args[1];
 
     if (!server || !ns.serverExists(server)) {
         ns.tprint("Server does not exist");
@@ -16,7 +17,10 @@ export async function main(ns) {
     while (true) {
         const maxRam = ns.getServerMaxRam(server);
         const usedRam = ns.getServerUsedRam(server);
-        const freeRam = maxRam - usedRam;
+        let freeRam = maxRam - usedRam;
+        if (ramToShare) {
+            freeRam = Math.min(freeRam, ramToShare);
+        }
         const shareScriptRam = 4;
         const maxThreads = Math.floor((freeRam - reserverRam) / shareScriptRam);
 

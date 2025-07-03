@@ -17,16 +17,16 @@ export async function main(ns) {
     const GROW_SCRIPT_RAM_USAGE = 1.75;
     const WEAKEN_SCRIPT_RAM_USAGE = 1.75;
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
 
-    let hackPercentage = 0.5;
+    let hackPercentage = 0.99;
     let minMoneyProtectionThreshold = 1 - hackPercentage - 0.15;
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 185; // GB reserved for home server
-    let MAX_WEAKEN_TIME = 5 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    let MAX_WEAKEN_TIME = 15 * 60 * 1000; // ms max weaken time (Max 10 minutes)
     const ALWAYS_XP_FARM = true;
     const ALLOW_PARTIAL_PREP = false;
 
@@ -224,7 +224,10 @@ export async function main(ns) {
                 const maxSecurityIncrease = serverStats.maxSecurityIncreasePerBatch;
                 // Allow for some buffer. A single batch shouldn't raise it past min + maxIncrease.
                 // A healthy stream of batches should hover around minSecurity. If it gets this high, something is wrong.
-                const securityThreshold = serverInfo.minDifficulty + 10;
+                const securityThreshold = Math.max(
+                    serverInfo.minDifficulty + 10,
+                    serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
+                );
 
                 if (
                     serverInfo.hackDifficulty > securityThreshold ||
@@ -429,7 +432,7 @@ export async function main(ns) {
             growthFactor = ns.getServerGrowth(server);
         }
 
-        const hackThreads = Math.ceil(hackPercentage / hackPercentageFromOneThread);
+        const hackThreads = Math.floor(hackPercentage / hackPercentageFromOneThread);
         const actualHackPercentage = hackThreads * hackPercentageFromOneThread; // Actual amount we'll hack
         const hackSecurityChange = hackThreads * 0.002; // Use known constant instead of ns.hackAnalyzeSecurity
 
@@ -454,7 +457,7 @@ export async function main(ns) {
             );
         } else {
             // Use actual hack amount for grow calculation
-            const growthMultiplier = 1 / (1 - actualHackPercentage);
+            const growthMultiplier = 1 / Math.max(1 - actualHackPercentage, 1);
             growthThreads = Math.ceil(ns.growthAnalyze(server, growthMultiplier, cpuCores));
         }
 
@@ -586,7 +589,7 @@ export async function main(ns) {
         // Calculate thread requirements
         const initialWeakenThreads = Math.ceil((securityLevel - minSecurityLevel) / weakenAmount);
 
-        const growthAmount = maxMoney / currentMoney;
+        const growthAmount = maxMoney / Math.max(currentMoney, 1);
         const growthThreads = Math.ceil(ns.growthAnalyze(target, growthAmount, cpuCores));
         const growthSecurityChange = growthThreads * 0.004;
         const finalWeakenThreads = Math.ceil(growthSecurityChange / weakenAmount);

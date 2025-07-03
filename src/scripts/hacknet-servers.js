@@ -1,16 +1,29 @@
 import { getSafeBitNodeMultipliers } from "./bitnode-multipliers.js";
 import { NS } from "@ns";
 
+const argsSchema = [
+    // ["maxPaybackHours", 0.2],
+    ["netburners", false],
+    ["continuous", false],
+];
+
+export function autocomplete(data, args) {
+    data.flags(argsSchema);
+    return [];
+}
+
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog("ALL");
 
-    let maxPaybackHours = parseFloat(ns.args[0]) || 0.2; // Stop upgrading if payback time > 12 minutes
-    let prioritizeNetburnersRequirement = ns.args.includes("--netburners"); // If true, prioritize buying 8 nodes
-    let continuousMode = ns.args.includes("--continuous"); // If true, continue upgrading as long as spending < 1% of player money
-    let HACKNET_SPEND_PERCENTAGE = 0.001;
+    const flags = ns.flags(argsSchema);
 
-    const HACKNET_MAX_SPEND = 2e9; // 2 billion
+    const maxPaybackHours = parseFloat(ns.args[0]) || 0.2; // Stop upgrading if payback time > 12 minutes
+    const prioritizeNetburnersRequirement = flags["netburners"]; // If true, prioritize buying 8 nodes
+    const continuousMode = flags["continuous"]; // If true, continue upgrading as long as spending < 1% of player money
+    const HACKNET_SPEND_PERCENTAGE = 0.01;
+
+    const HACKNET_MAX_SPEND = Math.max(2e9, ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE); // 2 billion or 1% of player money
 
     ns.ui.openTail();
 
@@ -246,7 +259,7 @@ export async function main(ns) {
         let bestUpgrade = currentNodeUpgrades[0];
 
         // Buy a new node if we have the money and are in continuous mode
-        if (continuousMode && nodePurchaseUpgrade.cost < HACKNET_MAX_SPEND / 5) {
+        if (continuousMode && nodePurchaseUpgrade.cost < HACKNET_MAX_SPEND / 2) {
             bestUpgrade = nodePurchaseUpgrade;
         }
 
