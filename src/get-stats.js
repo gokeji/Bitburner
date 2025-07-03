@@ -477,7 +477,7 @@ function get_server_data(ns, server, useFormulas = false) {
         const now = Date.now();
         const remainingMs = endTimeMs - now;
 
-        if (remainingMs <= 1) return "--";
+        if (remainingMs <= 1) return "~~";
 
         return formatTime(remainingMs);
     };
