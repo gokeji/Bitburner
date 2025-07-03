@@ -17,16 +17,18 @@ export async function main(ns) {
     const GROW_SCRIPT_RAM_USAGE = 1.75;
     const WEAKEN_SCRIPT_RAM_USAGE = 1.75;
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
+
+    // === Hacker Settings ===
+    let hackPercentage = 0.5;
+    let MAX_WEAKEN_TIME = 15 * 60 * 1000; // ms max weaken time (Max 10 minutes)
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
 
-    let hackPercentage = 0.99;
     let minMoneyProtectionThreshold = 1 - hackPercentage - 0.15;
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 185; // GB reserved for home server
-    let MAX_WEAKEN_TIME = 15 * 60 * 1000; // ms max weaken time (Max 10 minutes)
     const ALWAYS_XP_FARM = true;
     const ALLOW_PARTIAL_PREP = false;
 
@@ -896,12 +898,20 @@ export async function main(ns) {
             growthTime,
         } = prepStats;
 
+        let shouldGrow = needsGrow;
+
+        // Check if any prep is actually needed
+        if (!needsInitialWeaken && !needsGrow) {
+            // Server doesn't need prep, return 0 without any success message
+            return 0;
+        }
+
         // Original logic for non-partial
         const operations = [];
         if (needsInitialWeaken) {
             operations.push({ type: "weaken", threads: initialWeakenThreads, id: "initial_weaken" });
         }
-        if (needsGrow) {
+        if (shouldGrow) {
             operations.push({ type: "grow", threads: growthThreads });
             operations.push({ type: "weaken", threads: finalWeakenThreads, id: "final_weaken" });
         }
@@ -917,6 +927,7 @@ export async function main(ns) {
 
             if (weakenOnlyAllocation.success) {
                 finalAllocation = weakenOnlyAllocation;
+                shouldGrow = false;
             }
         }
 
@@ -929,8 +940,6 @@ export async function main(ns) {
                 `INFO: ${isPartial ? `Partial ${ns.formatNumber(finalAllocation.scalingFactor, 5)}X ` : ""}PREP - ${target} Failed. Need ${operationsDescription} (${ns.formatRam(finalAllocation.scaledTotalRamRequired)} ram)`,
             );
             return false;
-        } else {
-            ns.print(`SUCCESS ${serverIndex}. ${target}: PREP ${ns.formatRam(finalAllocation.totalRamUsed)}`);
         }
 
         // Update the server RAM cache - this is handled by allocateServersForOperations
@@ -949,7 +958,7 @@ export async function main(ns) {
             }
         }
 
-        if (needsGrow && finalAllocation.grow && finalAllocation.final_weaken) {
+        if (shouldGrow && finalAllocation.grow && finalAllocation.final_weaken) {
             // Execute grow on single server (as enforced by the allocation function)
             const growDelay = needsInitialWeaken
                 ? weakenTime - growthTime + BASE_SCRIPT_DELAY
@@ -965,8 +974,13 @@ export async function main(ns) {
                 executeWeaken(ns, server, target, threads, finalWeakenDelay, true, weakenTime);
             }
             totalRamUsed += finalAllocation.scalingFactor * finalWeakenRam;
-        } else if (needsGrow) {
+        } else if (shouldGrow) {
             ns.print(`ERROR: Allocations were malformed for PREP ${target} - grow and final_weaken`);
+        }
+
+        // Only print success message if we actually used RAM for prep operations
+        if (totalRamUsed > 0) {
+            ns.print(`SUCCESS ${serverIndex}. ${target}: PREP ${ns.formatRam(totalRamUsed)}`);
         }
 
         return totalRamUsed;
@@ -1203,7 +1217,7 @@ export async function main(ns) {
             serverInfo.hackDifficulty > serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD
         ) {
             const prepRamUsed = prepServer(ns, xpTarget, 1, true);
-            if (prepRamUsed !== false) {
+            if (prepRamUsed !== false && prepRamUsed > 0) {
                 ns.print(`SUCCESS XP Farm: Prepped ${xpTarget} with ${ns.formatRam(prepRamUsed)}`);
             }
             return;

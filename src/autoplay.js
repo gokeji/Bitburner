@@ -11,7 +11,7 @@ const IPVGO_OPPONENTS = [
     // "The Black Hand", // hacking money
     // "Tetrads", // strength, defense, dexterity, and agility levels
     "Daedalus", // reputation gain
-    // "Illuminati", // faster hack(), grow(), and weaken()
+    "Illuminati", // faster hack(), grow(), and weaken()
     // "????????????", // w0r1d_d43m0n Hacking Levels
 ];
 

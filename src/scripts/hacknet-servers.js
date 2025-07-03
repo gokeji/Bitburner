@@ -23,7 +23,7 @@ export async function main(ns) {
     const continuousMode = flags["continuous"]; // If true, continue upgrading as long as spending < 1% of player money
     const HACKNET_SPEND_PERCENTAGE = 0.01;
 
-    const HACKNET_MAX_SPEND = Math.max(2e9, ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE); // 2 billion or 1% of player money
+    const hacknetMaxSpend = Math.max(2e9, ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE); // 2 billion or 1% of player money
 
     ns.ui.openTail();
 
@@ -110,6 +110,131 @@ export async function main(ns) {
         }
     }
 
+    // Function to calculate upgrade options for a specific hacknet node
+    function getNodeUpgradeOptions(nodeIndex, hacknetServer) {
+        let levelCost = ns.hacknet.getLevelUpgradeCost(nodeIndex, 1);
+        let ramCost = ns.hacknet.getRamUpgradeCost(nodeIndex, 1);
+        let coreCost = ns.hacknet.getCoreUpgradeCost(nodeIndex, 1);
+
+        let levelValue =
+            hacknetServer.plusLevel(1).getProd(totalHacknetProdMult) - hacknetServer.getProd(totalHacknetProdMult);
+        let ramValue =
+            hacknetServer.plusRam(1).getProd(totalHacknetProdMult) - hacknetServer.getProd(totalHacknetProdMult);
+        let coreValue =
+            hacknetServer.plusCores(1).getProd(totalHacknetProdMult) - hacknetServer.getProd(totalHacknetProdMult);
+
+        let levelValueMoney = convertHashToMoney(levelValue);
+        let ramValueMoney = convertHashToMoney(ramValue);
+        let coreValueMoney = convertHashToMoney(coreValue);
+
+        // Calculate payback times in seconds
+        let levelPaybackTime = levelCost / levelValueMoney;
+        let ramPaybackTime = ramCost / ramValueMoney;
+        let corePaybackTime = coreCost / coreValueMoney;
+
+        return [
+            {
+                value: levelValue,
+                cost: levelCost,
+                valueMoney: levelValueMoney,
+                ratio: levelValueMoney / levelCost,
+                paybackTime: levelPaybackTime,
+                paybackHours: levelPaybackTime / 3600,
+                index: nodeIndex,
+                type: "level",
+            },
+            {
+                value: ramValue,
+                cost: ramCost,
+                valueMoney: ramValueMoney,
+                ratio: ramValueMoney / ramCost,
+                paybackTime: ramPaybackTime,
+                paybackHours: ramPaybackTime / 3600,
+                index: nodeIndex,
+                type: "ram",
+            },
+            {
+                value: coreValue,
+                cost: coreCost,
+                valueMoney: coreValueMoney,
+                ratio: coreValueMoney / coreCost,
+                paybackTime: corePaybackTime,
+                paybackHours: corePaybackTime / 3600,
+                index: nodeIndex,
+                type: "core",
+            },
+        ];
+    }
+
+    // Function to perform a hacknet upgrade and update tally
+    function performUpgrade(upgrade) {
+        switch (upgrade.type) {
+            case "level":
+                ns.hacknet.upgradeLevel(upgrade.index, 1);
+                upgradeTally.level++;
+                break;
+            case "ram":
+                ns.hacknet.upgradeRam(upgrade.index, 1);
+                upgradeTally.ram++;
+                break;
+            case "core":
+                ns.hacknet.upgradeCore(upgrade.index, 1);
+                upgradeTally.core++;
+                break;
+            case "node":
+                const newNodeIndex = ns.hacknet.purchaseNode();
+                upgradeTally.node++;
+                return newNodeIndex;
+        }
+        return null;
+    }
+
+    // Function to upgrade a newly purchased server to 4-hour payback time
+    async function upgradeNewServerToPaybackTime(nodeIndex, maxPaybackHours) {
+        ns.print(`Upgrading newly purchased server ${nodeIndex} to ${maxPaybackHours}h payback time...`);
+
+        let upgradesMade = 0;
+
+        while (true) {
+            const nodeStats = ns.hacknet.getNodeStats(nodeIndex);
+            const hacknetServer = new HacknetServer(
+                nodeStats.name,
+                nodeStats.level,
+                nodeStats.ram,
+                nodeStats.cores,
+                nodeStats.production,
+                nodeStats.timeOnline,
+                nodeStats.totalProduction,
+                nodeStats.cache,
+                nodeStats.hashCapacity,
+                nodeStats.ramUsed,
+            );
+
+            // Get upgrade options for this node and find valid upgrades
+            let upgradeOptions = getNodeUpgradeOptions(nodeIndex, hacknetServer);
+            let validUpgrades = upgradeOptions.filter(
+                (upgrade) =>
+                    upgrade.paybackHours <= maxPaybackHours && upgrade.cost <= ns.getServerMoneyAvailable("home"),
+            );
+
+            if (validUpgrades.length === 0) {
+                // No more upgrades under the payback threshold or not enough money
+                break;
+            }
+
+            // Sort by payback time (best first) and perform the best upgrade
+            validUpgrades.sort((a, b) => a.paybackHours - b.paybackHours);
+            const bestUpgrade = validUpgrades[0];
+
+            // Perform the upgrade using shared function
+            performUpgrade(bestUpgrade);
+
+            upgradesMade++;
+        }
+
+        ns.print(`INFO Completed initial upgrades for server ${nodeIndex}. Made ${upgradesMade} upgrades.`);
+    }
+
     let hasPrintedWaitingMessage = false;
 
     while (true) {
@@ -121,7 +246,7 @@ export async function main(ns) {
         const bitnodeHacknetSpend = Math.abs(ns.getMoneySources().sinceInstall.hacknet_expenses);
         const continuousSpendLimit = ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE;
         if (
-            !(bitnodeHacknetSpend < HACKNET_MAX_SPEND || (continuousMode && bitnodeHacknetSpend < continuousSpendLimit))
+            !(bitnodeHacknetSpend < hacknetMaxSpend || (continuousMode && bitnodeHacknetSpend < continuousSpendLimit))
         ) {
             if (continuousMode) {
                 if (!hasPrintedWaitingMessage) {
@@ -136,10 +261,10 @@ export async function main(ns) {
             } else {
                 printUpgradeSummary(); // Print summary before stopping
                 ns.print(
-                    `Bitnode hacknet spend exceeds max spend of ${ns.formatNumber(HACKNET_MAX_SPEND)}. Stopping upgrades.`,
+                    `Bitnode hacknet spend exceeds max spend of ${ns.formatNumber(hacknetMaxSpend)}. Stopping upgrades.`,
                 );
                 ns.tprint(
-                    `Bitnode hacknet spend exceeds max spend of ${ns.formatNumber(HACKNET_MAX_SPEND)}. Stopping upgrades.`,
+                    `Bitnode hacknet spend exceeds max spend of ${ns.formatNumber(hacknetMaxSpend)}. Stopping upgrades.`,
                 );
                 break;
             }
@@ -192,75 +317,28 @@ export async function main(ns) {
                 if (ns.getServerMoneyAvailable("home") < ns.hacknet.getPurchaseNodeCost()) {
                     await ns.sleep(10000);
                 } else {
-                    ns.hacknet.purchaseNode();
+                    const newNodeIndex = ns.hacknet.purchaseNode();
                     upgradeTally.node++;
+                    // Immediately upgrade the newly purchased server to 4-hour payback time
+                    await upgradeNewServerToPaybackTime(newNodeIndex, maxPaybackHours);
                 }
             }
         }
 
         for (let idx = 0; idx < ns.hacknet.numNodes(); idx++) {
             let hacknetServer = hacknetServers[idx];
-
-            let levelCost = ns.hacknet.getLevelUpgradeCost(idx, 1);
-            let ramCost = ns.hacknet.getRamUpgradeCost(idx, 1);
-            let coreCost = ns.hacknet.getCoreUpgradeCost(idx, 1);
-
-            let levelValue =
-                hacknetServer.plusLevel(1).getProd(totalHacknetProdMult) - hacknetServer.getProd(totalHacknetProdMult);
-            let ramValue =
-                hacknetServer.plusRam(1).getProd(totalHacknetProdMult) - hacknetServer.getProd(totalHacknetProdMult);
-            let coreValue =
-                hacknetServer.plusCores(1).getProd(totalHacknetProdMult) - hacknetServer.getProd(totalHacknetProdMult);
-
-            let levelValueMoney = convertHashToMoney(levelValue);
-            let ramValueMoney = convertHashToMoney(ramValue);
-            let coreValueMoney = convertHashToMoney(coreValue);
-
-            // Calculate payback times in seconds
-            let levelPaybackTime = levelCost / levelValueMoney;
-            let ramPaybackTime = ramCost / ramValueMoney;
-            let corePaybackTime = coreCost / coreValueMoney;
-
-            currentNodeUpgrades.push(
-                {
-                    value: levelValue,
-                    cost: levelCost,
-                    valueMoney: levelValueMoney,
-                    ratio: levelValueMoney / levelCost,
-                    paybackTime: levelPaybackTime,
-                    paybackHours: levelPaybackTime / 3600, // Convert to hours
-                    index: idx,
-                    type: "level",
-                },
-                {
-                    value: ramValue,
-                    cost: ramCost,
-                    valueMoney: ramValueMoney,
-                    ratio: ramValueMoney / ramCost,
-                    paybackTime: ramPaybackTime,
-                    paybackHours: ramPaybackTime / 3600,
-                    index: idx,
-                    type: "ram",
-                },
-                {
-                    value: coreValue,
-                    cost: coreCost,
-                    valueMoney: coreValueMoney,
-                    ratio: coreValueMoney / coreCost,
-                    paybackTime: corePaybackTime,
-                    paybackHours: corePaybackTime / 3600,
-                    index: idx,
-                    type: "core",
-                },
-            );
+            let upgradeOptions = getNodeUpgradeOptions(idx, hacknetServer);
+            currentNodeUpgrades.push(...upgradeOptions);
         }
 
         currentNodeUpgrades.sort((a, b) => a.paybackTime - b.paybackTime);
         let bestUpgrade = currentNodeUpgrades[0];
 
         // Buy a new node if we have the money and are in continuous mode
-        if (continuousMode && nodePurchaseUpgrade.cost < HACKNET_MAX_SPEND / 2) {
+        if (continuousMode && nodePurchaseUpgrade.cost < (ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE) / 2) {
             bestUpgrade = nodePurchaseUpgrade;
+
+            await upgradeNewServerToPaybackTime(bestUpgrade.index, continuousMode ? 4 : maxPaybackHours);
         }
 
         // Debug all of the upgrade types before returning
@@ -298,24 +376,7 @@ export async function main(ns) {
         }
 
         // Perform the upgrade and tally it
-        switch (bestUpgrade.type) {
-            case "level":
-                ns.hacknet.upgradeLevel(bestUpgrade.index, 1);
-                upgradeTally.level++;
-                break;
-            case "ram":
-                ns.hacknet.upgradeRam(bestUpgrade.index, 1);
-                upgradeTally.ram++;
-                break;
-            case "core":
-                ns.hacknet.upgradeCore(bestUpgrade.index, 1);
-                upgradeTally.core++;
-                break;
-            case "node":
-                ns.hacknet.purchaseNode();
-                upgradeTally.node++;
-                break;
-        }
+        const newNodeIndex = performUpgrade(bestUpgrade);
 
         // await ns.sleep(100);
     }

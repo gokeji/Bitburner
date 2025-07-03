@@ -24,8 +24,8 @@ const argsSchema = [
     ["disable-training", false], // Set to true to disable having sleeves workout at the gym (costs money)
     ["train-to-strength", 69], // Sleeves will go to the gym until they reach this much Str
     ["train-to-defense", 69], // Sleeves will go to the gym until they reach this much Def
-    ["train-to-dexterity", 52], // Sleeves will go to the gym until they reach this much Dex
-    ["train-to-agility", 52], // Sleeves will go to the gym until they reach this much Agi
+    ["train-to-dexterity", 40], // Sleeves will go to the gym until they reach this much Dex
+    ["train-to-agility", 40], // Sleeves will go to the gym until they reach this much Agi
     ["study-to-hacking", 0], // Sleeves will go to university until they reach this much Hak
     ["study-to-charisma", 0], // Sleeves will go to university until they reach this much Cha
     ["intelligence-farm", true], // Set to true to have sleeves study hacking for intelligence after shock recovery is complete
@@ -527,7 +527,7 @@ async function pickSleeveTask(ns, playerInfo, playerWorkInfo, i, sleeve, canTrai
         const trainStat = combatStats[currentStatIndex];
         var gym = ns.enums.LocationName.Sector12PowerhouseGym;
         return [
-            `combat-farm ${trainStat} (${gym})`,
+            `train combat ${trainStat} (${gym})`,
             `ns.sleeve.setToGymWorkout(ns.args[0], ns.args[1], ns.args[2])`,
             [i, gym, trainStat],
             /*   */ `combat farming ${trainStat} (rotation every 5 minutes)`,
