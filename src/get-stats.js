@@ -2,14 +2,13 @@ import { NS } from "@ns";
 
 const REFRESH_RATE = 500;
 const CACHE_EXPIRY_MS = 10000; // Cache server list for 10 seconds
-const PROCESS_CACHE_EXPIRY_MS = 5000; // Cache process data for 5 seconds
+const HGW_DISPLAY_CACHE_EXPIRY_MS = 2000; // Cache HGW display data for 2 seconds
 
 // Global caches to reduce expensive operations
 let serverListCache = null;
 let serverListCacheTime = 5000;
 let executableServersCache = null;
 let executableServersCacheTime = 5000;
-let processCache = new Map(); // server -> {processes, timestamp}
 let hgwStatsCache = new Map(); // targetServer -> {attackInfo, earliestEndTime, timestamp}
 
 // Hacking money rate tracking (similar to karma.js)
@@ -190,30 +189,6 @@ function getServers(ns, type) {
     return result;
 }
 
-// Cached process lookup to avoid expensive ns.ps() calls
-/**
- * @param {NS} ns
- * @param {string} server
- * @returns {import("@ns").ProcessInfo[]}
- */
-function getCachedProcesses(ns, server) {
-    const now = Date.now();
-    const cached = processCache.get(server);
-
-    if (cached && now - cached.timestamp < PROCESS_CACHE_EXPIRY_MS) {
-        return cached.processes;
-    }
-
-    // Only get processes if we have root access
-    if (!ns.hasRootAccess(server)) {
-        return [];
-    }
-
-    const processes = ns.ps(server);
-    processCache.set(server, { processes, timestamp: now });
-    return processes;
-}
-
 /**
  * Finds all HGW processes targeting the target server and returns the total threads and earliest end time.
  * Uses caching to avoid expensive recalculation on every tick.
@@ -247,7 +222,7 @@ function findHGWProcesses(ns, targetServer) {
 
     // Check all servers for hgw scripts targeting this server
     for (const server of executableServers) {
-        const processes = getCachedProcesses(ns, server);
+        const processes = ns.ps(server);
         for (const process of processes) {
             // Check if it's a hgw script targeting our server
             if (hgwScripts[process.filename] && process.args.length >= 1 && process.args[0] === targetServer) {
@@ -566,13 +541,6 @@ function get_table_header() {
 // Cleanup old cache entries to prevent memory leaks
 function cleanupCaches() {
     const now = Date.now();
-
-    // Clean process cache
-    for (const [server, data] of processCache.entries()) {
-        if (now - data.timestamp > PROCESS_CACHE_EXPIRY_MS * 3) {
-            processCache.delete(server);
-        }
-    }
 
     // Clean HGW stats cache
     for (const [server, data] of hgwStatsCache.entries()) {

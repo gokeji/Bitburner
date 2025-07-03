@@ -19,8 +19,8 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let hackPercentage = 0.5;
-    let MAX_WEAKEN_TIME = 15 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    let hackPercentage = 0.3;
+    let MAX_WEAKEN_TIME = 3 * 60 * 1000; // ms max weaken time (Max 10 minutes)
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
 
     let minMoneyProtectionThreshold = 1 - hackPercentage - 0.15;
@@ -32,8 +32,8 @@ export async function main(ns) {
     const ALWAYS_XP_FARM = true;
     const ALLOW_PARTIAL_PREP = false;
 
-    let PREP_MONEY_THRESHOLD = 1.0; // Prep servers until it's at least this much money
-    let SECURITY_LEVEL_THRESHOLD = 0; // Prep servers to be within minSecurityLevel + this amount
+    let PREP_MONEY_THRESHOLD = 0.95; // Prep servers until it's at least this much money
+    let SECURITY_LEVEL_THRESHOLD = 3; // Prep servers to be within minSecurityLevel + this amount
 
     let executableServers = [];
     let hackableServers = [];
@@ -227,8 +227,8 @@ export async function main(ns) {
                 // Allow for some buffer. A single batch shouldn't raise it past min + maxIncrease.
                 // A healthy stream of batches should hover around minSecurity. If it gets this high, something is wrong.
                 const securityThreshold = Math.max(
-                    serverInfo.minDifficulty + 10,
-                    serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
+                    serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD + 10,
+                    serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD + serverStats.totalSecurityIncrease * 2,
                 );
 
                 if (
@@ -1119,7 +1119,7 @@ export async function main(ns) {
             sleepTime,
             isPrep ? "prep" : "hgw",
             tickCounter,
-            `endTime=${Date.now() + weakenTime}`,
+            `endTime=${Date.now() + sleepTime + weakenTime}`,
         );
         if (!pid) {
             ns.tprint(`WARN Failed to execute weaken script on ${target}`);
@@ -1151,7 +1151,7 @@ export async function main(ns) {
             stockArg,
             isPrep ? "prep" : "hgw",
             tickCounter,
-            `endTime=${Date.now() + growTime}`,
+            `endTime=${Date.now() + sleepTime + growTime}`,
         );
         if (!pid) {
             ns.tprint(`WARN Failed to execute grow script on ${target}`);
@@ -1183,7 +1183,7 @@ export async function main(ns) {
             stockArg,
             isPrep ? "prep" : "hgw",
             tickCounter,
-            `endTime=${Date.now() + hackTime}`,
+            `endTime=${Date.now() + sleepTime + hackTime}`,
         );
         if (!pid) {
             ns.tprint(`WARN Failed to execute hack script on ${target}`);

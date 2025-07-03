@@ -26,7 +26,7 @@ const argsSchema = [
     // ["bladeburnerSP", false],
     // ["codingContract", false],
     // ["companyFavor", false],
-    // ["target", ""],
+    ["target", null],
 ];
 
 export function autocomplete(data, args) {
@@ -55,7 +55,7 @@ export async function main(ns) {
     let stillNeedMaxMoney = true;
     let stillNeedMinSecurity = true;
 
-    let targetServer = null;
+    let targetServer = flags["target"];
 
     while (true) {
         targetServer = getMaxMoneyServer(ns, targetServer);

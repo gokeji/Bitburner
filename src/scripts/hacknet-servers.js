@@ -23,7 +23,7 @@ export async function main(ns) {
     const continuousMode = flags["continuous"]; // If true, continue upgrading as long as spending < 1% of player money
     const HACKNET_SPEND_PERCENTAGE = 0.01;
 
-    const hacknetMaxSpend = Math.max(2e9, ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE); // 2 billion or 1% of player money
+    const hacknetMaxSpend = Math.max(2e10, ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE); // 2 billion or 1% of player money
 
     ns.ui.openTail();
 
@@ -338,7 +338,10 @@ export async function main(ns) {
         if (continuousMode && nodePurchaseUpgrade.cost < (ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE) / 2) {
             bestUpgrade = nodePurchaseUpgrade;
 
-            await upgradeNewServerToPaybackTime(bestUpgrade.index, continuousMode ? 4 : maxPaybackHours);
+            // Purchase the node first, then upgrade it
+            const newNodeIndex = performUpgrade(bestUpgrade);
+            await upgradeNewServerToPaybackTime(newNodeIndex, continuousMode ? 4 : maxPaybackHours);
+            continue; // Skip the normal upgrade flow since we already handled this upgrade
         }
 
         // Debug all of the upgrade types before returning
@@ -376,7 +379,7 @@ export async function main(ns) {
         }
 
         // Perform the upgrade and tally it
-        const newNodeIndex = performUpgrade(bestUpgrade);
+        performUpgrade(bestUpgrade);
 
         // await ns.sleep(100);
     }

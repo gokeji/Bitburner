@@ -690,9 +690,13 @@ export async function main(ns) {
     const totalBudget = player.money + portfolio.totalValue;
 
     const ownedAndPurchasedAugmentations = ns.singularity.getOwnedAugmentations(true);
-    const availableAugmentations = Array.from(allAugmentations)
+    let availableAugmentations = Array.from(allAugmentations)
         .filter((augmentation) => !ownedAndPurchasedAugmentations.includes(augmentation))
         .concat(noNFG ? [] : "NeuroFlux Governor");
+
+    if (noNFG) {
+        availableAugmentations = availableAugmentations.filter((aug) => aug !== "NeuroFlux Governor");
+    }
 
     // Helper function to check if an augmentation has hacking boost
     function hasHackingBoost(stats) {
@@ -749,6 +753,7 @@ export async function main(ns) {
         const alwaysIncludeList = [
             "NeuroFlux Governor",
             "Neuroreceptor Management Implant", // Removes penalty for not focusing on task
+            // "The Red Pill",
         ];
 
         // Check each faction separately - create separate entries for each qualifying faction
@@ -1053,7 +1058,7 @@ export async function main(ns) {
         ns.print("\n");
         ns.print("=== Liquidating Stocks ===");
         await ns.exec("./liquidate.js", "home");
-        await ns.sleep(100);
+        await ns.sleep(50);
         ns.print("\n");
         ns.print("=== PURCHASING AUGMENTS ===");
         ns.print(`Purchasing ${result.purchaseOrder.length} augments`);

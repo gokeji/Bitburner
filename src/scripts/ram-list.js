@@ -9,44 +9,9 @@ RAM: 1.75GB
 Supports chart mode with --chart or -c flag for dynamic updating display.
  */
 
-const calculateServerCost = (ns, ram) => {
-    // const cost_per_ram = 55000;
-    // return cost_per_ram * ram;
-    return ns.getPurchasedServerCost(ram); // Need to use this function to get the correct cost for different bitnodes
-};
-
-function get_all_servers(ns) {
-    /*
-	Scans and iterates through all servers.
-	*/
-    var servers = ["home"];
-    var result = [];
-
-    var i = 0;
-    while (i < servers.length) {
-        var server = servers[i];
-        var s = ns.scan(server);
-        for (var j in s) {
-            var con = s[j];
-            if (servers.indexOf(con) < 0) {
-                servers.push(con);
-                result.push(con);
-            }
-        }
-        i += 1;
-    }
-    return result;
-}
-
-// Get purchased servers (servers owned by the player)
-function get_purchased_servers(ns) {
-    const allServers = get_all_servers(ns);
-    return allServers.filter((server) => ns.getServer(server).purchasedByPlayer);
-}
-
 // Get all owned servers (home + purchased servers)
 function get_owned_servers(ns) {
-    const purchasedServers = get_purchased_servers(ns);
+    const purchasedServers = ns.getPurchasedServers();
     return ["home", ...purchasedServers];
 }
 
@@ -69,7 +34,7 @@ function get_server_ram_info(ns, server) {
     var maxRamFormatted = ns.formatRam(maxRam);
 
     // Calculate and format cost
-    var cost = server === "home" ? 0 : calculateServerCost(ns, maxRam);
+    var cost = server === "home" ? 0 : ns.getPurchasedServerCost(maxRam);
     var costFormatted = server === "home" ? "FREE" : "$" + ns.formatNumber(cost, 2);
 
     // Determine server type
@@ -118,7 +83,7 @@ function displayData(ns, displayFn) {
         displayFn(get_server_ram_info(ns, server));
         totalMaxRam += ns.getServerMaxRam(server);
         totalCores += ns.getServer(server).cpuCores;
-        if (server !== "home") totalCost += calculateServerCost(ns, ns.getServerMaxRam(server));
+        if (server !== "home") totalCost += ns.getPurchasedServerCost(ns.getServerMaxRam(server));
     }
 
     displayFn("-".repeat(charsWidth));

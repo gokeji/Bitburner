@@ -39,6 +39,10 @@ function getRamTierToBuy(ns) {
 
     // Increase to maximum tier that we can afford
     while (targetRam * 2 <= maxAllowedRam && ns.getPurchasedServerCost(targetRam * 2) <= currentMoney) {
+        // Guard against upgrading too fast after making 10b from casino.js
+        if (ns.getMoneySources().sinceInstall.total < 12e9 && ns.getPurchasedServerCost(targetRam * 2) > 3e9) {
+            break;
+        }
         targetRam *= 2;
         ns.print(`Increasing RAM tier to ${targetRam} GB`);
     }
