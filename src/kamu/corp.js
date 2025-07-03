@@ -1,10 +1,12 @@
+import { NS } from "@ns";
+
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog("disableLog");
     ns.disableLog("sleep");
 
     if (!ns.getPlayer().hasCorporation) {
-        ns.corporation.createCorporation("MyCorp");
+        ns.corporation.createCorporation("MyCorp", false);
     }
     var corp = ns.corporation.getCorporation();
     if (corp.divisions.length < 1) {
@@ -156,6 +158,10 @@ async function hireEmployees(ns, division, productCity = "Sector-12") {
     }
 }
 
+/**
+ * @param {NS} ns
+ * @param {Division} division
+ */
 function upgradeWarehouses(ns, division) {
     for (const city of cities) {
         // check if warehouses are near max capacity and upgrade if needed
@@ -176,6 +182,9 @@ function upgradeWarehouses(ns, division) {
     }
 }
 
+/**
+ * @param {NS} ns
+ */
 function upgradeCorp(ns) {
     for (const upgrade of upgradeList) {
         // purchase upgrades based on available funds and priority; see upgradeList
@@ -191,20 +200,24 @@ function upgradeCorp(ns) {
         }
     }
     if (
-        !ns.corporation.hasUnlockUpgrade("Shady Accounting") &&
-        ns.corporation.getUnlockUpgradeCost("Shady Accounting") * 2 < ns.corporation.getCorporation().funds
+        !ns.corporation.hasUnlock("Shady Accounting") &&
+        ns.corporation.getUnlockCost("Shady Accounting") * 2 < ns.corporation.getCorporation().funds
     ) {
         ns.print("Unlock Shady Accounting");
-        ns.corporation.unlockUpgrade("Shady Accounting");
+        ns.corporation.purchaseUnlock("Shady Accounting");
     } else if (
-        !ns.corporation.hasUnlockUpgrade("Government Partnership") &&
-        ns.corporation.getUnlockUpgradeCost("Government Partnership") * 2 < ns.corporation.getCorporation().funds
+        !ns.corporation.hasUnlock("Government Partnership") &&
+        ns.corporation.getUnlockCost("Government Partnership") * 2 < ns.corporation.getCorporation().funds
     ) {
         ns.print("Unlock Government Partnership");
-        ns.corporation.unlockUpgrade("Government Partnership");
+        ns.corporation.purchaseUnlock("Government Partnership");
     }
 }
 
+/**
+ * @param {NS} ns
+ * @param {Division} division
+ */
 async function trickInvest(ns, division, productCity = "Sector-12") {
     ns.print("Prepare to trick investors");
     for (var product of division.products) {
@@ -288,6 +301,9 @@ async function trickInvest(ns, division, productCity = "Sector-12") {
     await initCities(ns, ns.corporation.getCorporation().divisions[1]);
 }
 
+/**
+ * @param {NS} ns
+ */
 function doResearch(ns, division) {
     const laboratory = "Hi-Tech R&D Laboratory";
     const marketTAI = "Market-TA.I";
@@ -331,6 +347,10 @@ function doResearch(ns, division) {
     }
 }
 
+/**
+ * @param {NS} ns
+ * @param {Division} division
+ */
 function newProduct(ns, division) {
     //ns.print("Products: " + division.products);
     var productNumbers = [];
@@ -399,6 +419,10 @@ function newProduct(ns, division) {
     ns.corporation.makeProduct(division.name, "Sector-12", newProductName, productInvest, productInvest);
 }
 
+/**
+ * @param {NS} ns
+ * @param {Division} division
+ */
 async function initCities(ns, division, productCity = "Sector-12") {
     for (const city of cities) {
         ns.print("Expand " + division.name + " to City " + city);
@@ -440,9 +464,12 @@ async function initCities(ns, division, productCity = "Sector-12") {
     ns.corporation.makeProduct(division.name, productCity, "Product-0", "1e9", "1e9");
 }
 
+/**
+ * @param {NS} ns
+ */
 async function initialCorpUpgrade(ns) {
     ns.print("unlock upgrades");
-    ns.corporation.unlockUpgrade("Smart Supply");
+    ns.corporation.purchaseUnlock("Smart Supply");
     ns.corporation.levelUpgrade("Smart Storage");
     ns.corporation.levelUpgrade("Smart Storage");
     ns.corporation.levelUpgrade("Smart Storage");
