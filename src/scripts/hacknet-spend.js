@@ -26,6 +26,7 @@ const argsSchema = [
     // ["bladeburnerSP", false],
     // ["codingContract", false],
     // ["companyFavor", false],
+    ["target", ""],
 ];
 
 export function autocomplete(data, args) {
@@ -48,12 +49,12 @@ export async function main(ns) {
     // const bladeburnerSP = flags["bladeburnerSP"];
     // const codingContract = flags["codingContract"];
     // const companyFavor = flags["companyFavor"];
-    const targetServer = ns.args.filter((arg) => arg.startsWith("target="))[0]?.split("=")[1];
+    const targetServer = flags["target"];
 
     ns.ui.openTail();
 
-    let stillNeedMaxMoney = false;
-    let stillNeedMinSecurity = false;
+    let stillNeedMaxMoney = true;
+    let stillNeedMinSecurity = true;
 
     while (true) {
         if (studying) {

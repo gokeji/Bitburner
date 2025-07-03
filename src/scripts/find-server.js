@@ -1,9 +1,18 @@
 import { NS } from "@ns";
 
+const argsSchema = [["faction", false]];
+
+export function autocomplete(data, args) {
+    data.flags(argsSchema);
+    return [];
+}
+
 /** @param {NS} ns **/
 export async function main(ns) {
     // Disable default logging for cleaner output
     ns.disableLog("ALL");
+
+    const flags = ns.flags(argsSchema);
 
     // Get the target server from arguments
     if (ns.args.length === 0) {
@@ -12,12 +21,11 @@ export async function main(ns) {
         return;
     }
 
-    const targetServer = ns.args[0];
-    const fuzzy = true;
-    const printFactionServerPaths = ns.args.includes("--faction");
+    const serverQuery = ns.args[0];
+    const printFactionServerPaths = flags["faction"];
 
     // Function to find path to target server using BFS
-    function findPathToServer(ns, target) {
+    function findPathToServer(ns, query) {
         const queue = [{ server: "home", path: ["home"] }];
         const visited = new Set(["home"]);
 
@@ -25,7 +33,7 @@ export async function main(ns) {
             const { server, path } = queue.shift();
 
             // If we found the target server, return the path
-            if (server === target || (fuzzy && server.toLowerCase().includes(target.toLowerCase()))) {
+            if (server.toLowerCase().includes(query.toLowerCase())) {
                 return { server, path };
             }
 
@@ -66,7 +74,7 @@ export async function main(ns) {
     }
 
     // Find the path to the target server
-    const { server, path } = findPathToServer(ns, targetServer);
+    const { server, path } = findPathToServer(ns, serverQuery);
 
     if (path && server) {
         ns.tprint(`=== Path to ${server} ===`);
@@ -85,6 +93,6 @@ export async function main(ns) {
         ns.tprint(`=== Command to get to ${server} === \n${commandToGetToServer}\n `);
         ns.tprint(`Required hacking level: ${ns.getServerRequiredHackingLevel(server)}`);
     } else {
-        ns.tprint(`ERROR: Server '${targetServer}' not found in the network`);
+        ns.tprint(`ERROR: Server '${serverQuery}' not found in the network`);
     }
 }

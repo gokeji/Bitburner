@@ -12,6 +12,7 @@ alias sleeve-hack=r sleeve.js --study-to-hacking 10000
 alias start-trade=run kamu/stock-trader.js; run scripts/stock-monitor.js
 alias stop-trade=k stock-trader; k stock-monitor
 alias rego=autoplay --go
+alias grow=run scripts/hacknet-spend.js --minSecurity --maxMoney --target
 global alias execute=run scripts/execute.js
 global alias reload=run kill scripts/hacker.js; scripts/cleanup-home-assist.js; run scripts/hacker.js --tail
 global alias ram=run scripts/ram-list.js

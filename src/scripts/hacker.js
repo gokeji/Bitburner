@@ -948,7 +948,9 @@ export async function main(ns) {
 
         if (needsGrow && finalAllocation.grow && finalAllocation.final_weaken) {
             // Execute grow on single server (as enforced by the allocation function)
-            const growDelay = needsInitialWeaken ? weakenTime - growthTime + BASE_SCRIPT_DELAY : 0;
+            const growDelay = needsInitialWeaken
+                ? weakenTime - growthTime + BASE_SCRIPT_DELAY
+                : weakenTime - growthTime - BASE_SCRIPT_DELAY;
             for (const [server, threads] of finalAllocation.grow) {
                 executeGrow(ns, server, target, threads, growDelay, false, true, growthTime);
             }
