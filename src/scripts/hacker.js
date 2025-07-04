@@ -19,17 +19,17 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let hackPercentage = 0.3;
-    let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
-    let PARTIAL_PREP_THRESHOLD = 0.6;
+    let hackPercentage = 0.03;
+    let MAX_WEAKEN_TIME = 3.2 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.3; // Use extra grow and weak threads to correct for out of sync HGW batches
+    let PARTIAL_PREP_THRESHOLD = 0.4;
 
     let minMoneyProtectionThreshold = 1 - hackPercentage - 0.15;
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
 
-    const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
+    const HOME_SERVER_RESERVED_RAM = 180; // GB reserved for home server
     const ALWAYS_XP_FARM = false;
     const ALLOW_PARTIAL_PREP = true;
 
@@ -111,7 +111,8 @@ export async function main(ns) {
         // Get all servers
         executableServers = getServers(ns, "executableOnly");
         hackableServers = getServers(ns, "hackableOnly").filter((server) => {
-            // return server === "foodnstuff";
+            // return server === "the-hub";
+            return true;
             const serverInfo = ns.getServer(server);
             const optimalServer = {
                 ...serverInfo,
@@ -201,12 +202,16 @@ export async function main(ns) {
                 continue;
             }
 
+            if (serverStats.weakenTime > MAX_WEAKEN_TIME) {
+                continue;
+            }
+
             const serverInfo = ns.getServer(currentServer);
 
             // --- Stale Recovery Check ---
             if (isPrep) {
                 const isFullyPrepped =
-                    serverInfo.moneyAvailable >= serverInfo.moneyMax &&
+                    serverInfo.moneyAvailable >= serverInfo.moneyMax * 0.95 &&
                     serverInfo.hackDifficulty <= serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD;
 
                 if (isFullyPrepped) {
@@ -691,7 +696,7 @@ export async function main(ns) {
             }
 
             prioritiesMap.set(server, {
-                priority: throughput / ramNeededPerBatch,
+                priority: throughput / ramNeededPerBatch / (weakenTime / 50000),
                 ramNeededPerBatch: ramNeededPerBatch,
                 throughput: throughput,
                 weakenTime: weakenTime,
@@ -918,13 +923,13 @@ export async function main(ns) {
         }
 
         // Find servers for prep operations with proper RAM accounting
-        const allocation = allocateServersForOperations(ns, operations, allowPartial);
+        const allocation = allocateServersForOperations(ns, operations);
 
         let finalAllocation = allocation;
         if (!allocation.success && allowPartial) {
             // Try again with only weaken operations
             const weakenOnlyOperations = [{ type: "weaken", threads: initialWeakenThreads, id: "initial_weaken" }];
-            const weakenOnlyAllocation = allocateServersForOperations(ns, weakenOnlyOperations, allowPartial);
+            const weakenOnlyAllocation = allocateServersForOperations(ns, weakenOnlyOperations);
 
             if (weakenOnlyAllocation.success) {
                 finalAllocation = weakenOnlyAllocation;

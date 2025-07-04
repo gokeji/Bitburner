@@ -142,7 +142,7 @@ export async function main(ns) {
             const serverName = getNameForNewServer(ns);
             ns.purchaseServer(serverName, ramTierToBuy);
 
-            const purchaseMessage = `Purchased server ${serverName} with ${ramTierToBuy} GB RAM for ${ns.formatNumber(ns.getPurchasedServerCost(ramTierToBuy), 2)}`;
+            const purchaseMessage = `${new Date().toLocaleTimeString()} Purchased server ${serverName} with ${ramTierToBuy} GB RAM for ${ns.formatNumber(ns.getPurchasedServerCost(ramTierToBuy), 2)}`;
             ns.print(purchaseMessage);
             ns.tprint(purchaseMessage);
             ns.toast(purchaseMessage, "success");

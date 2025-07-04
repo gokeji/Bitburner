@@ -3,7 +3,7 @@ import { NS } from "@ns";
 const HOST_NAME = "home";
 const MAX_SERVER_VALUE = -1; //160 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
-const SERVER_TO_START_SHARING_RAM_ON = "b-05";
+const SERVER_TO_START_SHARING_RAM_ON = null; //"b-05";
 
 const IPVGO_OPPONENTS = [
     "Netburners", // increased hacknet production
@@ -96,8 +96,13 @@ export async function main(ns) {
         }
     }
 
-    while (!startedStockTrader || !sharedRam) {
-        if (!sharedRam && shouldShare && ns.serverExists(SERVER_TO_START_SHARING_RAM_ON)) {
+    while (!startedStockTrader || (!sharedRam && SERVER_TO_START_SHARING_RAM_ON)) {
+        if (
+            !sharedRam &&
+            shouldShare &&
+            SERVER_TO_START_SHARING_RAM_ON &&
+            ns.serverExists(SERVER_TO_START_SHARING_RAM_ON)
+        ) {
             startShareAllRamIfNotRunning(ns);
             sharedRam = true;
         }
@@ -171,7 +176,11 @@ function startScriptIfNotRunning(ns, scriptName, hostname = HOST_NAME, threads =
 }
 
 function startDistributedHackIfNotRunning(ns) {
-    startScriptIfNotRunning(ns, "scripts/hacker.js", HOST_NAME, 1, SERVER_TO_START_SHARING_RAM_ON);
+    if (SERVER_TO_START_SHARING_RAM_ON) {
+        startScriptIfNotRunning(ns, "scripts/hacker.js", HOST_NAME, 1, SERVER_TO_START_SHARING_RAM_ON);
+    } else {
+        startScriptIfNotRunning(ns, "scripts/hacker.js", HOST_NAME, 1);
+    }
 }
 
 function restartIpvgo(ns) {

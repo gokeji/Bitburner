@@ -16,17 +16,18 @@ const hashUpgrades = {
 
 const argsSchema = [
     // ["money", false],
-    // ["corporationFunds", false],
+    ["corporationFunds", false],
     ["minSecurity", false],
     ["maxMoney", false],
     ["studying", false],
     ["gym", false],
-    // ["corporationResearch", false],
+    ["corporationResearch", false],
     // ["bladeburnerRank", false],
     // ["bladeburnerSP", false],
-    // ["codingContract", false],
+    ["codingContract", false],
     // ["companyFavor", false],
     ["target", null],
+    ["limit", null],
 ];
 
 export function autocomplete(data, args) {
@@ -38,27 +39,33 @@ export function autocomplete(data, args) {
 export async function main(ns) {
     ns.disableLog("ALL");
     const flags = ns.flags(argsSchema);
+
     const money = flags["money"];
-    // const corporationFunds = flags["corporationFunds"];
     const minSecurity = flags["minSecurity"];
     const maxMoney = flags["maxMoney"];
     const studying = flags["studying"];
     const gym = flags["gym"];
-    // const corporationResearch = flags["corporationResearch"];
+    const corporationFunds = flags["corporationFunds"];
+    const corporationResearch = flags["corporationResearch"];
     // const bladeburnerRank = flags["bladeburnerRank"];
     // const bladeburnerSP = flags["bladeburnerSP"];
-    // const codingContract = flags["codingContract"];
+    const codingContract = flags["codingContract"];
     // const companyFavor = flags["companyFavor"];
 
     ns.ui.openTail();
 
     let stillNeedMaxMoney = true;
     let stillNeedMinSecurity = true;
+    let stillNeedCorporationFunds = true;
+    let stillNeedCorporationResearch = true;
+    let stillNeedCodingContract = true;
 
-    let targetServer = flags["target"];
+    const manualTarget = flags["target"];
+    const limit = flags["limit"];
+    let targetServer = null;
 
     while (true) {
-        targetServer = getMaxMoneyServer(ns, targetServer);
+        targetServer = manualTarget || getMaxMoneyServer(ns, targetServer);
 
         if (studying) {
             const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.studying);
@@ -75,6 +82,42 @@ export async function main(ns) {
 
             if (success) {
                 logUpgradeSuccess(ns, hashUpgrades.gym, `${ns.formatNumber(gymBonus)}%`, cost);
+            }
+        }
+
+        if (corporationFunds) {
+            const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.corporationFunds, null, limit);
+
+            if (cost > limit) {
+                stillNeedCorporationFunds = false;
+            }
+
+            if (success) {
+                logUpgradeSuccess(ns, "Corporation Funds", `${ns.formatNumber(level)}`, cost);
+            }
+        }
+
+        if (corporationResearch) {
+            const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.corporationResearch, null, limit);
+
+            if (cost > limit) {
+                stillNeedCorporationResearch = false;
+            }
+
+            if (success) {
+                logUpgradeSuccess(ns, "Exchange for Corporation Research", `${ns.formatNumber(level)}`, cost);
+            }
+        }
+
+        if (codingContract) {
+            const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.codingContract, null, limit);
+
+            if (cost > limit) {
+                stillNeedCodingContract = false;
+            }
+
+            if (success) {
+                logUpgradeSuccess(ns, "Generate Coding Contract", `${ns.formatNumber(level)}`, cost);
             }
         }
 
@@ -117,7 +160,15 @@ export async function main(ns) {
             }
         }
 
-        if (studying || gym || (minSecurity && stillNeedMinSecurity) || (maxMoney && stillNeedMaxMoney)) {
+        if (
+            studying ||
+            gym ||
+            (corporationFunds && stillNeedCorporationFunds) ||
+            (corporationResearch && stillNeedCorporationResearch) ||
+            (codingContract && stillNeedCodingContract) ||
+            (minSecurity && stillNeedMinSecurity) ||
+            (maxMoney && stillNeedMaxMoney)
+        ) {
             await ns.sleep(5000);
             continue;
         } else {
@@ -134,8 +185,12 @@ export async function main(ns) {
  * @param {string} [target] - Optional target for upgrades that require one
  * @returns {{cost: number, success: boolean, level: number}} Upgrade information
  */
-function spendHashesOnUpgrade(ns, upgradeName, target = undefined) {
+function spendHashesOnUpgrade(ns, upgradeName, target = null, limit = null) {
     const cost = ns.hacknet.hashCost(upgradeName);
+
+    if (limit && cost > limit) {
+        return { cost: 0, success: false, level: 0 };
+    }
 
     if (cost > ns.hacknet.hashCapacity()) {
         let hacknetWithLowestCache = null;
@@ -155,7 +210,7 @@ function spendHashesOnUpgrade(ns, upgradeName, target = undefined) {
     }
 
     // TODO: Buy more cache if needed
-    const success = ns.hacknet.spendHashes(upgradeName, target);
+    const success = target !== null ? ns.hacknet.spendHashes(upgradeName, target) : ns.hacknet.spendHashes(upgradeName);
     const level = ns.hacknet.getHashUpgradeLevel(upgradeName);
 
     return { cost, success, level };

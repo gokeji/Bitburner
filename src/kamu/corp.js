@@ -267,7 +267,7 @@ async function trickInvest(ns, division, productCity = "Sector-12") {
     ns.print("Warehouses are full, start selling");
 
     var initialInvestFunds = ns.corporation.getInvestmentOffer().funds;
-    ns.print("Initial investmant offer: " + ns.nFormat(initialInvestFunds, "0.0a"));
+    ns.print("Initial investmant offer: " + ns.formatNumber(initialInvestFunds, 1));
     for (const city of cities) {
         // put all employees into business to sell as much as possible
         const employees = ns.corporation.getOffice(division.name, city).numEmployees;
@@ -286,12 +286,12 @@ async function trickInvest(ns, division, productCity = "Sector-12") {
         await ns.sleep(200);
     }
 
-    ns.print("Investment offer for 10% shares: " + ns.nFormat(ns.corporation.getInvestmentOffer().funds, "0.0a"));
-    ns.print("Funds before public: " + ns.nFormat(ns.corporation.getCorporation().funds, "0.0a"));
+    ns.print("Investment offer for 10% shares: " + ns.formatNumber(ns.corporation.getInvestmentOffer().funds, 1));
+    ns.print("Funds before public: " + ns.formatNumber(ns.corporation.getCorporation().funds, 1));
 
     ns.corporation.goPublic(800e6);
 
-    ns.print("Funds after  public: " + ns.nFormat(ns.corporation.getCorporation().funds, "0.0a"));
+    ns.print("Funds after  public: " + ns.formatNumber(ns.corporation.getCorporation().funds, 1));
 
     for (const city of cities) {
         // set employees back to normal operation
@@ -370,15 +370,12 @@ function newProduct(ns, division) {
     for (var product of division.products) {
         const productData = ns.corporation.getProduct(division.name, "Sector-12", product);
         if (productData.developmentProgress < 100) {
-            ns.print(
-                division.name + " Product development progress: " + productData.developmentProgress.toFixed(1) + "%",
-            );
+            // ns.print(
+            //     division.name + " Product development progress: " + productData.developmentProgress.toFixed(1) + "%",
+            // );
             return false;
         } else {
             productNumbers.push(product.charAt(product.length - 1));
-            ns.print(
-                "Product " + product + " is ready to sell with desired sell price " + productData.desiredSellPrice,
-            );
             // initial sell value if nothing is defined yet is 0
             if (productData.desiredSellPrice == 0) {
                 ns.print(division.name + " Start selling product " + product);
