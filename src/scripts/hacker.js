@@ -28,9 +28,9 @@ export async function main(ns) {
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
 
-    const HOME_SERVER_RESERVED_RAM = 550; // GB reserved for home server
-    const ALWAYS_XP_FARM = true;
-    const ALLOW_PARTIAL_PREP = false;
+    const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
+    const ALWAYS_XP_FARM = false;
+    const ALLOW_PARTIAL_PREP = true;
 
     let PREP_MONEY_THRESHOLD = 0.95; // Prep servers until it's at least this much money
     let SECURITY_LEVEL_THRESHOLD = 3; // Prep servers to be within minSecurityLevel + this amount
@@ -1080,7 +1080,7 @@ export async function main(ns) {
         }
 
         if (allocation.hack && allocation.grow && allocation.weaken) {
-            // Execute hack operations (can be split across multiple servers)
+            // Execute hack operations
             for (const [server, threads] of allocation.hack) {
                 executeHack(ns, server, target, threads, hackDelay, false, false, hackTime);
             }
@@ -1089,7 +1089,7 @@ export async function main(ns) {
                 executeGrow(ns, server, target, threads, growDelay, false, false, growthTime);
             }
 
-            // Execute weaken operations (can be split across multiple servers)
+            // Execute weaken operations
             for (const [server, threads] of allocation.weaken) {
                 executeWeaken(ns, server, target, threads, weakenDelay, false, weakenTime);
             }
@@ -1288,7 +1288,6 @@ export async function main(ns) {
 
         const serversToIterate = preferHigherCoreCount ? sortedServers : [...sortedServers].reverse();
 
-        // Single loop handles both splittable and non-splittable operations
         for (const server of serversToIterate) {
             // FIX: Get the most current available RAM from the map, not the stale value from the sorted array
             const availableRam = serverRamAvailable.get(server) || 0;
@@ -1343,9 +1342,9 @@ export async function main(ns) {
      *
      * @returns {Object} - Returns allocation result.
      *   Success format: {
-     *     hack: Map<string, number>,     // serverName -> threads (can be split across multiple servers)
-     *     grow: Map<string, number>,     // serverName -> threads (single server only)
-     *     weaken: Map<string, number>,   // serverName -> threads (can be split across multiple servers)
+     *     hack: Map<string, number>,     // serverName -> threads
+     *     grow: Map<string, number>,     // serverName -> threads
+     *     weaken: Map<string, number>,   // serverName -> threads
      *     initial_weaken: Map<string, number>, // if id='initial_weaken'
      *     final_weaken: Map<string, number>,   // if id='final_weaken'
      *     // ... other operations with custom ids
@@ -1355,10 +1354,9 @@ export async function main(ns) {
      *
      * Key behaviors:
      * 1. If insufficient total RAM, scales down all operations proportionally
-     * 2. Grow operations must be allocated to a single server (cannot be split)
-     * 3. Hack and weaken operations can be split across multiple servers
-     * 4. Grow operations are allocated first to ensure they get priority
-     * 5. Remaining operations are allocated to remaining servers
+     * 2. Operations can be split across multiple servers
+     * 3. Grow operations are allocated first to ensure they get priority
+     * 4. Remaining operations are allocated to remaining servers
      * 6. Updates global serverRamCache and removes servers with insufficient RAM (< 1.75GB)
      */
     function allocateServersForOperations(ns, operations, allowPartial = false) {
@@ -1407,7 +1405,7 @@ export async function main(ns) {
 
         // Result object to store allocations
         const result = {
-            success: true,
+            success: false,
             totalRamUsed: 0,
             scalingFactor: scalingFactor,
             totalRamRequired: totalRamRequired,
@@ -1418,6 +1416,11 @@ export async function main(ns) {
         // Validate input
         if (!operations || operations.length === 0 || scaledTotalRamRequired === 0) {
             result.success = false;
+            return result;
+        }
+
+        // Skip low scaling factor so we don't allocate spare threads.
+        if (scalingFactor < 0.4) {
             return result;
         }
 
@@ -1461,7 +1464,7 @@ export async function main(ns) {
             result.totalRamUsed += allocation.totalRamUsed;
         }
 
-        // Step 2: Allocate hack operations (can be split across multiple servers)
+        // Step 2: Allocate hack operations
         for (const hackOp of hackOperations) {
             const opKey = hackOp.id || "hack";
             const allocation = allocateRamForOperation(
@@ -1481,7 +1484,7 @@ export async function main(ns) {
             result.totalRamUsed += allocation.totalRamUsed;
         }
 
-        // Step 3: Allocate weaken operations (can be split across multiple servers)
+        // Step 3: Allocate weaken operations
         for (const weakenOp of weakenOperations) {
             const opKey = weakenOp.id || "weaken";
             const preferHigherCoreCount = true;
@@ -1520,6 +1523,8 @@ export async function main(ns) {
             }
         }
 
+        // All allocations successful
+        result.success = true;
         return result;
     }
 

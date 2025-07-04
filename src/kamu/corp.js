@@ -20,53 +20,7 @@ export async function main(ns) {
 
     while (true) {
         corp = ns.corporation.getCorporation();
-
-        // Debug logging
-        ns.print("Corporation divisions: " + JSON.stringify(corp.divisions));
-
         for (const division of corp.divisions.map((division) => ns.corporation.getDivision(division)).reverse()) {
-            // Safety check
-            if (!division || !division.name) {
-                ns.print("ERROR: Invalid division object: " + JSON.stringify(division));
-                continue;
-            }
-
-            ns.print("Processing division: " + division.name);
-
-            // Debug: Check division state
-            ns.print("Division " + division.name + " cities: " + JSON.stringify(division.cities));
-            ns.print("Division " + division.name + " products: " + JSON.stringify(division.products));
-
-            // Check if division has basic setup in Sector-12 (minimum requirement)
-            if (!division.cities.includes("Sector-12")) {
-                ns.print("Division " + division.name + " not expanded to Sector-12, expanding...");
-                try {
-                    // Only expand to Sector-12 first, not all cities
-                    ns.corporation.expandCity(division.name, "Sector-12");
-                    ns.corporation.purchaseWarehouse(division.name, "Sector-12");
-                    ns.print("Successfully expanded " + division.name + " to Sector-12");
-                } catch (error) {
-                    ns.print("Cannot expand to Sector-12: " + error.message);
-                    continue; // Skip this division if we can't even expand to the main city
-                }
-            }
-
-            // Check if office actually exists even if city is listed
-            try {
-                const office = ns.corporation.getOffice(division.name, "Sector-12");
-                ns.print(
-                    "Office found for " + division.name + " in Sector-12 with " + office.numEmployees + " employees",
-                );
-            } catch (error) {
-                ns.print("Office missing for " + division.name + " in Sector-12");
-                ns.print("WARNING: City is expanded but office doesn't exist");
-                ns.print("This can happen during corporation initialization");
-                ns.print("Continuing with limited operations (no employee management)");
-                ns.print("Current corporation funds: " + ns.formatNumber(ns.corporation.getCorporation().funds, 1));
-                ns.print("Existing products should continue generating revenue");
-                // Continue with the cycle but skip employee-related operations
-            }
-
             upgradeWarehouses(ns, division);
             upgradeCorp(ns);
             hireEmployees(ns, division);
@@ -89,16 +43,8 @@ export async function main(ns) {
  * @param {string} productCity
  */
 function hireEmployees(ns, division, productCity = "Sector-12") {
-    // Check if division exists in product city
-    if (!division.cities.includes(productCity)) {
-        ns.print("Division " + division.name + " not expanded to " + productCity + " yet");
-        return;
-    }
-
-    // Get initial employee count safely
     let employees = ns.corporation.getOffice(division.name, productCity).numEmployees;
 
-    // Upgrade offices and hire employees
     while (
         ns.corporation.getCorporation().funds >
         cities.length * ns.corporation.getOfficeSizeUpgradeCost(division.name, productCity, 3)
