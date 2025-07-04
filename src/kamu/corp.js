@@ -455,7 +455,7 @@ function initCities(ns, division, productCity = "Sector-12") {
             ns.print("Successfully expanded " + division.name + " to " + city);
         }
 
-        //ns.corporation.setSmartSupply(division.name, city, true); // does not work anymore, bug?
+        ns.corporation.setSmartSupply(division.name, city, true);
 
         if (city != productCity) {
             // setup employees

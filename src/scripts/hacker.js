@@ -20,8 +20,9 @@ export async function main(ns) {
 
     // === Hacker Settings ===
     let hackPercentage = 0.3;
-    let MAX_WEAKEN_TIME = 3 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
+    let PARTIAL_PREP_THRESHOLD = 0.6;
 
     let minMoneyProtectionThreshold = 1 - hackPercentage - 0.15;
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
@@ -1056,12 +1057,6 @@ export async function main(ns) {
 
         // If not enough RAM to run H G and W, return failure
         if (!allocation.success) {
-            if (allocation.scaledTotalRamRequired > 0.01 * maxRamAvailable) {
-                // Only warn if this is not a super tiny batch that failed to allocate
-                ns.print(
-                    `INFO: No servers found for batch hack ${target}, need ${ns.formatRam(allocation.scaledTotalRamRequired)} ram`,
-                );
-            }
             return { success: false, ramUsed: 0 }; // Not enough RAM to run H G and W
         }
 
@@ -1420,7 +1415,7 @@ export async function main(ns) {
         }
 
         // Skip low scaling factor so we don't allocate spare threads.
-        if (scalingFactor < 0.4) {
+        if (scalingFactor < PARTIAL_PREP_THRESHOLD) {
             return result;
         }
 
