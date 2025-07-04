@@ -21,7 +21,7 @@ export async function main(ns) {
     // === Hacker Settings ===
     let hackPercentage = 0.03;
     let MAX_WEAKEN_TIME = 3.2 * 60 * 1000; // ms max weaken time (Max 10 minutes)
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.3; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0.4;
 
     let minMoneyProtectionThreshold = 1 - hackPercentage - 0.15;
@@ -211,8 +211,8 @@ export async function main(ns) {
             // --- Stale Recovery Check ---
             if (isPrep) {
                 const isFullyPrepped =
-                    serverInfo.moneyAvailable >= serverInfo.moneyMax * 0.95 &&
-                    serverInfo.hackDifficulty <= serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD;
+                    serverInfo.moneyAvailable >= serverInfo.moneyMax &&
+                    serverInfo.hackDifficulty <= serverInfo.minDifficulty;
 
                 if (isFullyPrepped) {
                     const message = `INFO: ${currentServer} is fully prepped with lingering G/W scripts. Clearing them to start HGW.`;
@@ -280,8 +280,8 @@ export async function main(ns) {
             }
 
             if (
-                (serverInfo.moneyAvailable < serverInfo.moneyMax * PREP_MONEY_THRESHOLD ||
-                    serverInfo.hackDifficulty > serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD) &&
+                (serverInfo.moneyAvailable < serverInfo.moneyMax ||
+                    serverInfo.hackDifficulty > serverInfo.minDifficulty) &&
                 !isTargeted // Do not prep if it has HGW scripts running on it or prep scripts
             ) {
                 const prepRamUsed = prepServer(
@@ -299,7 +299,7 @@ export async function main(ns) {
             }
 
             totalServersAttempted++;
-            if (serverStats.ramForMaxThroughput === 0) {
+            if (serverStats.ramForMaxThroughput === 0 && isTargeted) {
                 ns.print(`WARN: ${currentServer} is not prepped, skipping batch hack`);
                 continue;
             }
@@ -591,8 +591,8 @@ export async function main(ns) {
         const growthTime = ns.getGrowTime(target);
 
         // Check if server is already at min security level
-        const needsInitialWeaken = securityLevel > minSecurityLevel + SECURITY_LEVEL_THRESHOLD;
-        const needsGrow = currentMoney < maxMoney * PREP_MONEY_THRESHOLD;
+        const needsInitialWeaken = securityLevel > minSecurityLevel;
+        const needsGrow = currentMoney < maxMoney;
 
         // Calculate thread requirements
         const initialWeakenThreads = Math.ceil((securityLevel - minSecurityLevel) / weakenAmount);
@@ -690,7 +690,7 @@ export async function main(ns) {
                 ns.getBitNodeMultipliers().ScriptHackMoney;
             const throughput = (theoreticalBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
 
-            if (serverInfo.hackDifficulty > serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD) {
+            if (serverInfo.hackDifficulty > serverInfo.minDifficulty) {
                 // Server needs prep, set RAM allocation to 0 to prevent wasted allocation
                 ramForMaxThroughput = 0;
             }
@@ -1212,10 +1212,7 @@ export async function main(ns) {
 
         let serverInfo = ns.getServer(xpTarget);
 
-        if (
-            serverInfo.moneyAvailable < serverInfo.moneyMax * PREP_MONEY_THRESHOLD ||
-            serverInfo.hackDifficulty > serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD
-        ) {
+        if (serverInfo.moneyAvailable < serverInfo.moneyMax || serverInfo.hackDifficulty > serverInfo.minDifficulty) {
             const prepRamUsed = prepServer(ns, xpTarget, 1, true);
             if (prepRamUsed !== false && prepRamUsed > 0) {
                 ns.print(`SUCCESS XP Farm: Prepped ${xpTarget} with ${ns.formatRam(prepRamUsed)}`);

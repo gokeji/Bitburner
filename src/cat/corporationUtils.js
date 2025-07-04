@@ -225,13 +225,13 @@ async function buyTeaAndThrowParty(ns, divisionName) {
                 ns.corporation.buyTea(divisionName, city);
                 finish = false;
             }
+            // ns.print(
+            //     `Buying Tea and throwing party ${divisionName} ${city} ${office.avgEnergy} ${office.maxEnergy} ${office.avgMorale} ${office.maxMorale}`,
+            // );
             if (office.avgMorale < office.maxMorale - epsilon) {
                 ns.corporation.throwParty(divisionName, city, 5e5);
                 finish = false;
             }
-            ns.print(
-                `${divisionName} ${city} ${office.avgEnergy} ${office.maxEnergy} ${office.avgMorale} ${office.maxMorale}`,
-            );
         }
         if (finish) {
             break;
