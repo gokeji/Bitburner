@@ -29,7 +29,7 @@ export async function main(ns) {
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
 
-    const HOME_SERVER_RESERVED_RAM = 180; // GB reserved for home server
+    const HOME_SERVER_RESERVED_RAM = 1000; // GB reserved for home server
     const ALWAYS_XP_FARM = false;
     const ALLOW_PARTIAL_PREP = true;
 

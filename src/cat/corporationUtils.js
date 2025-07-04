@@ -176,6 +176,7 @@ function hasDivision(ns, divisionName) {
     return ns.corporation.getCorporation().divisions.includes(divisionName);
 }
 function buyUpgrade(ns, upgrade, targetLevel) {
+    ns.print(`Buying ${targetLevel} of ${upgrade}`);
     for (let i = ns.corporation.getUpgradeLevel(upgrade); i < targetLevel; i++) {
         ns.corporation.levelUpgrade(upgrade);
     }
@@ -183,6 +184,12 @@ function buyUpgrade(ns, upgrade, targetLevel) {
         ns.print(`ERROR: Cannot buy enough upgrade level`);
     }
 }
+/**
+ *
+ * @param {import("@ns").NS} ns
+ * @param {string} divisionName
+ * @param {number} targetLevel
+ */
 function buyAdvert(ns, divisionName, targetLevel) {
     for (let i = ns.corporation.getHireAdVertCount(divisionName); i < targetLevel; i++) {
         ns.corporation.hireAdVert(divisionName);
@@ -204,6 +211,10 @@ function upgradeWarehouse(ns, divisionName, city, targetLevel) {
     }
     ns.corporation.upgradeWarehouse(divisionName, city, amount);
 }
+/**
+ * @param {import("@ns").NS} ns
+ * @param {string} divisionName
+ */
 async function buyTeaAndThrowParty(ns, divisionName) {
     const epsilon = 0.5;
     while (true) {
@@ -218,6 +229,9 @@ async function buyTeaAndThrowParty(ns, divisionName) {
                 ns.corporation.throwParty(divisionName, city, 5e5);
                 finish = false;
             }
+            ns.print(
+                `${divisionName} ${city} ${office.avgEnergy} ${office.maxEnergy} ${office.avgMorale} ${office.maxMorale}`,
+            );
         }
         if (finish) {
             break;
