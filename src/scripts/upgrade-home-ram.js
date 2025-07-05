@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 
 /** @param {NS} ns **/
-function main(ns) {
+export async function main(ns) {
     while (true) {
         if (ns.getPlayer().money * 0.1 > ns.singularity.getUpgradeHomeRamCost()) {
             ns.singularity.upgradeHomeRam();
@@ -9,6 +9,12 @@ function main(ns) {
             ns.print(`Upgraded home ram to ${ns.getServerMaxRam("home")} GB`);
             ns.toast(`Upgraded home ram to ${ns.getServerMaxRam("home")} GB`);
         }
-        ns.sleep(10000);
+        if (ns.getPlayer().money * 0.05 > ns.singularity.getUpgradeHomeCoresCost()) {
+            ns.singularity.upgradeHomeCores();
+            ns.tprint(`Upgraded home cores to ${ns.getServer("home").cpuCores} cores`);
+            ns.print(`Upgraded home cores to ${ns.getServer("home").cpuCores} cores`);
+            ns.toast(`Upgraded home cores to ${ns.getServer("home").cpuCores} cores`);
+        }
+        await ns.sleep(10000);
     }
 }

@@ -18,6 +18,7 @@ export async function main(ns) {
 
         { type: "faction", target: "Netburners", goal: "12500" },
         { type: "faction", target: "NiteSec", goal: "favor" },
+        { type: "homicide" },
     ];
 
     let hasMessaged = false;
@@ -84,7 +85,15 @@ export async function main(ns) {
                 break;
             case "homicide":
                 if (ns.heart.break() > -54000) {
-                    ns.singularity.commitCrime("homicide", true);
+                    if (!currentWork || currentWork.type !== "CRIME" || currentWork.crimeType !== "Homicide") {
+                        ns.singularity.commitCrime("homicide", true);
+                        ns.print(`${new Date().toLocaleTimeString()} Starting homicide`);
+                        hasMessaged = false;
+                    }
+                    if (!hasMessaged) {
+                        ns.print(`${new Date().toLocaleTimeString()} Waiting for gang unlock`);
+                        hasMessaged = true;
+                    }
                     await ns.sleep(10000);
                 } else {
                     ns.print(`${new Date().toLocaleTimeString()} Gang is unlocked`);
