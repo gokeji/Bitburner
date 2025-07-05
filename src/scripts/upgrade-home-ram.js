@@ -3,13 +3,13 @@ import { NS } from "@ns";
 /** @param {NS} ns **/
 export async function main(ns) {
     while (true) {
-        if (ns.getPlayer().money * 0.1 > ns.singularity.getUpgradeHomeRamCost()) {
+        if (ns.getPlayer().money * 0.2 > ns.singularity.getUpgradeHomeRamCost()) {
             ns.singularity.upgradeHomeRam();
             ns.tprint(`Upgraded home ram to ${ns.getServerMaxRam("home")} GB`);
             ns.print(`Upgraded home ram to ${ns.getServerMaxRam("home")} GB`);
             ns.toast(`Upgraded home ram to ${ns.getServerMaxRam("home")} GB`);
         }
-        if (ns.getPlayer().money * 0.05 > ns.singularity.getUpgradeHomeCoresCost()) {
+        if (ns.getPlayer().money * 0.06 > ns.singularity.getUpgradeHomeCoresCost()) {
             ns.singularity.upgradeHomeCores();
             ns.tprint(`Upgraded home cores to ${ns.getServer("home").cpuCores} cores`);
             ns.print(`Upgraded home cores to ${ns.getServer("home").cpuCores} cores`);

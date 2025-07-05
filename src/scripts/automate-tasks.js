@@ -12,12 +12,18 @@ export async function main(ns) {
             type: "graft",
             target: "OmniTek InfoLoad",
         },
-        { type: "faction", target: "CyberSec", goal: "2000" },
+        {
+            type: "graft",
+            target: "Xanipher",
+        },
 
-        { type: "faction", target: "Tian Di Hui", goal: "6250" },
+        // { type: "faction", target: "CyberSec", goal: "2000" },
 
-        { type: "faction", target: "Netburners", goal: "12500" },
-        { type: "faction", target: "NiteSec", goal: "favor" },
+        // { type: "faction", target: "Tian Di Hui", goal: "6250" },
+
+        // { type: "faction", target: "Netburners", goal: "7500" },
+        { type: "faction", target: "NiteSec", goal: "45000" },
+        // { type: "faction", target: "NiteSec", goal: "favor" },
         { type: "homicide" },
     ];
 
@@ -37,9 +43,15 @@ export async function main(ns) {
                     break;
                 }
                 ns.singularity.travelToCity("New Tokyo");
-                ns.grafting.graftAugmentation(task.target);
-                await waitForOngoingGraft(ns);
-                taskQueue.shift();
+                const success = ns.grafting.graftAugmentation(task.target);
+                if (success) {
+                    await waitForOngoingGraft(ns);
+                    taskQueue.shift();
+                } else {
+                    ns.print(`${new Date().toLocaleTimeString()} Failed to graft ${task.target}`);
+                    taskQueue.unshift(task);
+                    taskQueue.shift();
+                }
                 break;
             case "faction":
                 if (!ns.getPlayer().factions.includes(task.target)) {

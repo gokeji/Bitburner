@@ -344,6 +344,34 @@ export async function main(ns) {
             continue; // Skip the normal upgrade flow since we already handled this upgrade
         }
 
+        // Upgrade cache if one of the improvements is about to exceed it
+        if (continuousMode) {
+            const allHashUpgrades = ns.hacknet.getHashUpgrades();
+            for (let upgrade of allHashUpgrades) {
+                const upgradeCost = ns.hacknet.hashCost(upgrade);
+                if (upgradeCost > ns.hacknet.hashCapacity()) {
+                    let hacknetWithLowestCache = null;
+                    let lowestCacheServerIndex = null;
+
+                    for (let i = 0; i < ns.hacknet.numNodes(); i++) {
+                        const node = ns.hacknet.getNodeStats(i);
+                        if (hacknetWithLowestCache === null || node.cache < hacknetWithLowestCache.cache) {
+                            hacknetWithLowestCache = node;
+                            lowestCacheServerIndex = i;
+                        }
+                    }
+
+                    if (
+                        hacknetWithLowestCache &&
+                        ns.hacknet.getCacheUpgradeCost(lowestCacheServerIndex) <
+                            (ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE) / 2
+                    ) {
+                        ns.hacknet.upgradeCache(lowestCacheServerIndex);
+                    }
+                }
+            }
+        }
+
         // Debug all of the upgrade types before returning
         // for (let upgrade of currentNodeUpgrades) {
         //     ns.print(
