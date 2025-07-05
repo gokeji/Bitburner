@@ -7,45 +7,84 @@ export async function main(ns) {
     ns.disableLog("sleep");
     ns.disableLog("singularity.commitCrime");
 
-    let isGrafting = false;
+    let taskQueue = [
+        {
+            type: "graft",
+            target: "OmniTek InfoLoad",
+        },
+        { type: "faction", target: "CyberSec", goal: "2000" },
 
-    while (true) {
+        { type: "faction", target: "Tian Di Hui", goal: "6250" },
+
+        { type: "faction", target: "Netburners", goal: "12500" },
+        { type: "faction", target: "Netburners", goal: "12500" },
+        { type: "faction", target: "NiteSec", goal: "favor" },
+    ];
+
+    while (taskQueue.length > 0) {
+        await waitForOngoingGraft();
+
+        const task = taskQueue[0];
+
+        switch (task.type) {
+            case "graft":
+                if (ns.singularity.getOwnedAugmentations(true).includes(task.target)) {
+                    ns.print(`${new Date().toLocaleTimeString()} Already have ${task.target}`);
+                    taskQueue.shift();
+                    break;
+                }
+                ns.singularity.travelToCity("New Tokyo");
+                ns.grafting.graftAugmentation(task.target);
+                await waitForOngoingGraft();
+                break;
+            case "faction":
+                if (!ns.getPlayer().factions.includes(task.target)) {
+                    ns.print(`${new Date().toLocaleTimeString()} Player has not joined ${task.target} yet`);
+                    // Move this behind the next task
+                    taskQueue.unshift(task);
+                    taskQueue.shift();
+                    await ns.sleep(10000);
+                    break;
+                }
+
+                let taskGoalIsMet = false;
+                if (task.goal === "favor") {
+                    const favorAfterReset =
+                        ns.singularity.getFactionFavor(task.target) + ns.singularity.getFactionFavorGain(task.target);
+                    taskGoalIsMet = favorAfterReset >= 150;
+                } else {
+                    taskGoalIsMet = ns.singularity.getFactionRep(task.target) >= task.goal;
+                }
+
+                if (!taskGoalIsMet) {
+                    ns.singularity.workForFaction(task.target, "hacking", true);
+                    await ns.sleep(10000);
+                } else {
+                    // Completed faction goal
+                    ns.print(`${new Date().toLocaleTimeString()} Completed faction goal for ${task.target}`);
+                    taskQueue.shift();
+                }
+
+                break;
+            case "homicide":
+                if (ns.heart.break() > -54000) {
+                    ns.singularity.commitCrime("homicide", true);
+                    await ns.sleep(10000);
+                } else {
+                    ns.print(`${new Date().toLocaleTimeString()} Gang is unlocked`);
+                    taskQueue.shift();
+                }
+                break;
+        }
+    }
+
+    async function waitForOngoingGraft() {
         try {
             ns.print("Waiting for graft...");
             await ns.grafting.waitForOngoingGrafting();
-            isGrafting = false;
-            ns.print(`${new Date().toISOString()}: Grafting complete, starting crime`);
+            ns.print(`${new Date().toLocaleTimeString()} Graft complete`);
         } catch (e) {
-            const graftQlink = ns.grafting.graftAugmentation("QLink");
-            if (graftQlink) {
-                isGrafting = true;
-                ns.print(`${new Date().toISOString()}: Started grafting QLink`);
-            } else {
-                const graftGene = ns.grafting.graftAugmentation("SPTN-97 Gene Modification");
-                if (graftGene) {
-                    isGrafting = true;
-                    ns.print(`${new Date().toISOString()}: Started grafting Gene`);
-                } else {
-                    ns.print(`${new Date().toISOString()}: Failed to graft SPTN-97 Gene Modification`);
-                }
-            }
+            ns.print(`${new Date().toLocaleTimeString()} No graft ongoing`);
         }
-
-        if (!isGrafting) {
-            if (ns.heart.break() > -54000) {
-                ns.singularity.commitCrime("homicide", true);
-            } else {
-                const success = ns.singularity.workForFaction("BitRunners", "hacking");
-                if (!success) {
-                    ns.print(`${new Date().toISOString()}: Failed to work for BitRunners`);
-                    const success2 = ns.singularity.workForFaction("NiteSec", "hacking");
-                    if (!success2) {
-                        ns.print(`${new Date().toISOString()}: Failed to work for NiteSec`);
-                        ns.singularity.workForFaction("The Black Hand", "hacking");
-                    }
-                }
-            }
-        }
-        await ns.sleep(10000);
     }
 }

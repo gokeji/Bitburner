@@ -19,9 +19,9 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let hackPercentage = 0.03;
-    let MAX_WEAKEN_TIME = 3.2 * 60 * 1000; // ms max weaken time (Max 10 minutes)
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
+    let hackPercentage = 0.2;
+    let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.1; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0.4;
 
     let minMoneyProtectionThreshold = 1 - hackPercentage - 0.15;
@@ -29,8 +29,8 @@ export async function main(ns) {
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
 
-    const HOME_SERVER_RESERVED_RAM = 1000; // GB reserved for home server
-    const ALWAYS_XP_FARM = false;
+    const HOME_SERVER_RESERVED_RAM = 200; // GB reserved for home server
+    const ALWAYS_XP_FARM = true;
     const ALLOW_PARTIAL_PREP = true;
 
     let PREP_MONEY_THRESHOLD = 0.95; // Prep servers until it's at least this much money
@@ -202,7 +202,7 @@ export async function main(ns) {
                 continue;
             }
 
-            if (serverStats.weakenTime > MAX_WEAKEN_TIME) {
+            if (ns.getWeakenTime(currentServer) > MAX_WEAKEN_TIME) {
                 continue;
             }
 

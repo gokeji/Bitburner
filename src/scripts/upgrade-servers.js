@@ -160,6 +160,6 @@ export async function main(ns) {
             ns.toast(upgradeMessage, "success");
         }
 
-        await ns.sleep(10000);
+        await ns.sleep(5000);
     }
 }

@@ -7,7 +7,7 @@ export async function main(ns) {
     ns.disableLog("ALL");
 
     if (!ns.stock.hasTIXAPIAccess()) {
-        ns.tprint("ERROR: TIX API access required");
+        ns.tprint("INFO: TIX API access required");
         return;
     }
 
