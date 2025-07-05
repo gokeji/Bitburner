@@ -19,8 +19,8 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let hackPercentage = 0.2;
-    let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    let hackPercentage = 0.5;
+    let MAX_WEAKEN_TIME = 20 * 60 * 1000; // ms max weaken time (Max 10 minutes)
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.1; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0.4;
 

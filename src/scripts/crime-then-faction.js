@@ -17,12 +17,14 @@ export async function main(ns) {
         { type: "faction", target: "Tian Di Hui", goal: "6250" },
 
         { type: "faction", target: "Netburners", goal: "12500" },
-        { type: "faction", target: "Netburners", goal: "12500" },
         { type: "faction", target: "NiteSec", goal: "favor" },
     ];
 
+    let hasMessaged = false;
+
     while (taskQueue.length > 0) {
-        await waitForOngoingGraft();
+        await waitForOngoingGraft(ns);
+        let currentWork = ns.singularity.getCurrentWork();
 
         const task = taskQueue[0];
 
@@ -35,7 +37,8 @@ export async function main(ns) {
                 }
                 ns.singularity.travelToCity("New Tokyo");
                 ns.grafting.graftAugmentation(task.target);
-                await waitForOngoingGraft();
+                await waitForOngoingGraft(ns);
+                taskQueue.shift();
                 break;
             case "faction":
                 if (!ns.getPlayer().factions.includes(task.target)) {
@@ -47,21 +50,34 @@ export async function main(ns) {
                     break;
                 }
 
-                let taskGoalIsMet = false;
+                let goalReputation = task.goal;
                 if (task.goal === "favor") {
-                    const favorAfterReset =
-                        ns.singularity.getFactionFavor(task.target) + ns.singularity.getFactionFavorGain(task.target);
-                    taskGoalIsMet = favorAfterReset >= 150;
-                } else {
-                    taskGoalIsMet = ns.singularity.getFactionRep(task.target) >= task.goal;
+                    const currentFavor = ns.singularity.getFactionFavor(task.target);
+                    goalReputation =
+                        ns.formulas.reputation.calculateFavorToRep(150) -
+                        ns.formulas.reputation.calculateFavorToRep(currentFavor);
                 }
 
-                if (!taskGoalIsMet) {
-                    ns.singularity.workForFaction(task.target, "hacking", true);
+                if (ns.singularity.getFactionRep(task.target) < goalReputation) {
+                    if (!currentWork || currentWork.type !== "FACTION" || currentWork.factionName !== task.target) {
+                        ns.singularity.workForFaction(task.target, "hacking", true);
+                        ns.print(
+                            `${new Date().toLocaleTimeString()} Starting work for ${task.target}, goal: ${ns.formatNumber(goalReputation)}`,
+                        );
+                        hasMessaged = false;
+                    }
+                    if (!hasMessaged) {
+                        ns.print(
+                            `${new Date().toLocaleTimeString()} Waiting for ${task.target} work, goal: ${ns.formatNumber(goalReputation)}`,
+                        );
+                        hasMessaged = true;
+                    }
                     await ns.sleep(10000);
                 } else {
                     // Completed faction goal
-                    ns.print(`${new Date().toLocaleTimeString()} Completed faction goal for ${task.target}`);
+                    ns.print(
+                        `${new Date().toLocaleTimeString()} Completed faction goal ${ns.formatNumber(goalReputation)} rep for ${task.target}`,
+                    );
                     taskQueue.shift();
                 }
 
@@ -77,14 +93,14 @@ export async function main(ns) {
                 break;
         }
     }
+    /** @param {NS} ns **/
+    async function waitForOngoingGraft(ns) {
+        let currentWork = ns.singularity.getCurrentWork();
 
-    async function waitForOngoingGraft() {
-        try {
+        if (currentWork && currentWork.type === "GRAFTING") {
             ns.print("Waiting for graft...");
             await ns.grafting.waitForOngoingGrafting();
             ns.print(`${new Date().toLocaleTimeString()} Graft complete`);
-        } catch (e) {
-            ns.print(`${new Date().toLocaleTimeString()} No graft ongoing`);
         }
     }
 }
