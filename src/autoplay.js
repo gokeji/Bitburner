@@ -12,7 +12,7 @@ const IPVGO_OPPONENTS = [
     "Tetrads", // strength, defense, dexterity, and agility levels
     "Daedalus", // reputation gain
     "Illuminati", // faster hack(), grow(), and weaken()
-    // "????????????", // w0r1d_d43m0n Hacking Levels
+    // "????????????", // w0r1d_d43m0n Hacking Levels - will be dynamically added later
 ];
 
 export function autocomplete(data, args) {
@@ -183,12 +183,21 @@ function startDistributedHackIfNotRunning(ns) {
     }
 }
 
+/** @param {NS} ns */
 function restartIpvgo(ns) {
     // Check if "master/ipvgo.js" is running on HOST_NAME (different check script name)
     let ipvgoPid = isScriptRunning(ns, "ipvgo-smart.js", HOST_NAME);
 
     if (ipvgoPid) {
         ns.kill(ipvgoPid);
+    }
+
+    const hasFlightExe = ns.fileExists("fl1ght.exe", "home");
+    const hasDaedalusFaction = ns.getPlayer().factions.includes("Daedalus");
+    const hasRedPill = !hasFlightExe && hasDaedalusFaction;
+
+    if (hasRedPill) {
+        IPVGO_OPPONENTS.push("????????????");
     }
 
     startScriptIfNotRunning(ns, "ipvgo-smart.js", HOST_NAME, 1, ...IPVGO_OPPONENTS);
