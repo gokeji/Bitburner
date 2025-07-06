@@ -20,7 +20,7 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let hackPercentage = 0.99;
+    let hackPercentage = 0.5;
     let MAX_WEAKEN_TIME = 20 * 60 * 1000; // ms max weaken time (Max 10 minutes)
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0.4;
@@ -282,8 +282,8 @@ export async function main(ns) {
                 // Allow for some buffer. A single batch shouldn't raise it past min + maxIncrease.
                 // A healthy stream of batches should hover around minSecurity. If it gets this high, something is wrong.
                 const securityThreshold = Math.max(
-                    serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD + 10,
-                    serverInfo.minDifficulty + SECURITY_LEVEL_THRESHOLD + serverStats.totalSecurityIncrease * 2,
+                    serverInfo.minDifficulty + 15,
+                    serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
                 );
 
                 if (

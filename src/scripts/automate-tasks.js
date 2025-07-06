@@ -8,28 +8,32 @@ export async function main(ns) {
     ns.disableLog("singularity.commitCrime");
 
     let taskQueue = [
-        // {
-        //     type: "graft",
-        //     target: "OmniTek InfoLoad",
-        // },
-        // {
-        //     type: "graft",
-        //     target: "Xanipher",
-        // },
+        { type: "faction", target: "CyberSec", goal: "2000" },
+        { type: "homicide" },
+        {
+            type: "graft",
+            target: "OmniTek InfoLoad",
+        },
+        {
+            type: "graft",
+            target: "ADR-V2 Pheromone Gene",
+        },
+        {
+            type: "graft",
+            target: "Xanipher",
+        },
 
-        // { type: "faction", target: "CyberSec", goal: "2000" },
+        { type: "faction", target: "Tian Di Hui", goal: "6250" },
+        { type: "graft", target: "QLink" },
 
-        // { type: "faction", target: "Tian Di Hui", goal: "6250" },
+        { type: "faction", target: "Netburners", goal: "7500" },
+        { type: "faction", target: "NiteSec", goal: "45000" },
 
-        // { type: "faction", target: "Netburners", goal: "7500" },
-        // { type: "faction", target: "NiteSec", goal: "45000" },
-        // { type: "homicide" },
-        // { type: "graft", target: "QLink" },
         // { type: "faction", target: "BitRunners", goal: "100000" },
         // { type: "faction", target: "Tian Di Hui", goal: "75000" },
         // { type: "faction", target: "BitRunners", goal: "favor" },
         // { type: "faction", target: "Chongqing", goal: "37500" },
-        { type: "faction", target: "Daedalus", goal: "favor" },
+        // { type: "faction", target: "Daedalus", goal: "favor" },
     ];
 
     let hasMessaged = false;
@@ -54,17 +58,26 @@ export async function main(ns) {
                     taskQueue.shift();
                 } else {
                     ns.print(`${new Date().toLocaleTimeString()} Failed to graft ${task.target}`);
-                    taskQueue.unshift(task);
-                    taskQueue.shift();
+                    taskQueue.shift(); // Remove current task
+                    if (taskQueue.length > 0) {
+                        taskQueue.splice(1, 0, task); // Insert after the next task (at index 1)
+                    } else {
+                        taskQueue.push(task); // If no other tasks, put it back at the end
+                    }
+                    await ns.sleep(5000);
                 }
                 break;
             case "faction":
                 if (!ns.getPlayer().factions.includes(task.target)) {
                     ns.print(`${new Date().toLocaleTimeString()} Player has not joined ${task.target} yet`);
-                    // Move this behind the next task
-                    taskQueue.unshift(task);
-                    taskQueue.shift();
-                    await ns.sleep(10000);
+                    // Move this behind the next task (if there is one)
+                    taskQueue.shift(); // Remove current task
+                    if (taskQueue.length > 0) {
+                        taskQueue.splice(1, 0, task); // Insert after the next task (at index 1)
+                    } else {
+                        taskQueue.push(task); // If no other tasks, put it back at the end
+                    }
+                    await ns.sleep(5000);
                     break;
                 }
 

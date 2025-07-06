@@ -28,6 +28,5 @@
     },
     "dependencies": {
         "@sabaki/go-board": "^1.4.3"
-    },
-    "type": "module"
+    }
 }

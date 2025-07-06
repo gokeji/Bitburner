@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = -1; //160 * 10 ** 9; // 12 B max server value
+const MAX_SERVER_VALUE = 640 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
 
@@ -55,6 +55,8 @@ export async function main(ns) {
     restartUpgradeServers(ns);
 
     restartIpvgo(ns);
+
+    startUpgradeHomeRamIfNeeded(ns);
 
     if (!lowRamMode) {
         // Start TOR and program managers
@@ -234,6 +236,10 @@ function restartUpgradeServers(ns) {
     }
 
     const result = startScriptIfNotRunning(ns, "scripts/upgrade-servers.js", HOST_NAME, 1, MAX_SERVER_VALUE);
+}
+
+function startUpgradeHomeRamIfNeeded(ns) {
+    const result = startScriptIfNotRunning(ns, "scripts/upgrade-home-ram.js");
 }
 
 function startStockTraderIfNotRunning(ns) {
