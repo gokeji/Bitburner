@@ -40,6 +40,9 @@ export async function main(ns) {
     ns.disableLog("ALL");
     const flags = ns.flags(argsSchema);
 
+    const MIN_HACK_DIFFICULTY = 10;
+    const MAX_MONEY = 10e12;
+
     const money = flags["money"];
     const minSecurity = flags["minSecurity"];
     const maxMoney = flags["maxMoney"];
@@ -124,7 +127,7 @@ export async function main(ns) {
         if (maxMoney) {
             const startingMoney = ns.getServerMaxMoney(targetServer);
             // Server max money is soft capped at 10t
-            if (startingMoney < 10e12) {
+            if (startingMoney < MAX_MONEY) {
                 const { cost, success, level } = spendHashesOnUpgrade(ns, "Increase Maximum Money", targetServer);
 
                 if (success) {
@@ -143,7 +146,7 @@ export async function main(ns) {
 
         if (minSecurity) {
             const startingSecurity = ns.getServerMinSecurityLevel(targetServer);
-            if (ns.getServer(targetServer).hackDifficulty > 10) {
+            if (ns.getServer(targetServer).hackDifficulty > MIN_HACK_DIFFICULTY) {
                 const { cost, success, level } = spendHashesOnUpgrade(ns, "Reduce Minimum Security", targetServer);
 
                 if (success) {
@@ -244,8 +247,8 @@ function getMaxMoneyServer(ns, previousMaxMoneyServer) {
     }
     let max = servers.reduce((max, server) => {
         return ns.getServerMaxMoney(server) > ns.getServerMaxMoney(max) &&
-            ns.getServerMaxMoney(server) < 10e12 &&
-            ns.getServerSecurityLevel(server) > 10
+            ns.getServerMaxMoney(server) < MAX_MONEY &&
+            ns.getServerSecurityLevel(server) > MIN_HACK_DIFFICULTY
             ? server
             : max;
     }, servers[0]);

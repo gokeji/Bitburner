@@ -20,9 +20,9 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let hackPercentage = 0.9;
+    let hackPercentage = 0.99;
     let MAX_WEAKEN_TIME = 20 * 60 * 1000; // ms max weaken time (Max 10 minutes)
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.3; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.4; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0.4;
 
     let minMoneyProtectionThreshold = 1 - hackPercentage - 0.25;
@@ -112,17 +112,8 @@ export async function main(ns) {
         // Get all servers
         executableServers = getServers(ns, "executableOnly");
         hackableServers = getServers(ns, "hackableOnly").filter((server) => {
-            // return server === "the-hub";
+            // return server === "ecorp";
             return true;
-            const serverInfo = ns.getServer(server);
-            const optimalServer = {
-                ...serverInfo,
-                hackDifficulty: serverInfo.minDifficulty,
-                moneyAvailable: serverInfo.moneyMax,
-            };
-            const player = ns.getPlayer();
-            const weakenTime = ns.formulas.hacking.weakenTime(optimalServer, player);
-            return weakenTime < MAX_WEAKEN_TIME;
         });
 
         maxRamAvailable = executableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
@@ -285,6 +276,7 @@ export async function main(ns) {
                         )}) below ${ns.formatPercent(minMoneyProtectionThreshold)} of max money. Recovering.`;
                     }
                     ns.print(message);
+                    ns.tprint(message);
                     killAllScriptsForTarget(ns, currentServer, ["hack"]);
                     recoveringServers.add(currentServer); // Tag server for fast-path recovery check
 
@@ -473,7 +465,7 @@ export async function main(ns) {
             growthFactor = ns.getServerGrowth(server);
         }
 
-        const hackThreads = Math.floor(hackPercentage / hackPercentageFromOneThread);
+        const hackThreads = Math.ceil(hackPercentage / hackPercentageFromOneThread);
         const actualHackPercentage = hackThreads * hackPercentageFromOneThread; // Actual amount we'll hack
         const hackSecurityChange = hackThreads * 0.002; // Use known constant instead of ns.hackAnalyzeSecurity
 
