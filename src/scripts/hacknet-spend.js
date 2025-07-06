@@ -233,6 +233,7 @@ export function logUpgradeSuccess(ns, upgradeName, effectString, cost) {
 
     ns.print(message);
     ns.toast(toastMessage);
+    ns.tprint(message);
 }
 
 /**

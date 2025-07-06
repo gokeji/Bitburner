@@ -22,8 +22,9 @@ export async function main(ns) {
     // === Hacker Settings ===
     let hackPercentage = 0.99;
     let MAX_WEAKEN_TIME = 20 * 60 * 1000; // ms max weaken time (Max 10 minutes)
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.4; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0.4;
+    let ALLOW_HASH_UPGRADES = true;
 
     let minMoneyProtectionThreshold = 1 - hackPercentage - 0.25;
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
@@ -47,6 +48,7 @@ export async function main(ns) {
     let globalPrioritiesMap = new Map();
     const recoveringServers = new Set(); // In-memory state for servers in active recovery
     let serverBatchTimings = new Map(); // Stores the original batch timings for each server
+    let serverBaselineSecurityLevels = new Map(); // Stores the original min security levels for each server
 
     // Weaken drift protection - servers on hold due to excessive timing drift
     let serversOnHold = new Map(); // Map<string, number> - server name to resume timestamp
@@ -163,7 +165,8 @@ export async function main(ns) {
             highestPriorityServerScriptInfo &&
             highestPriorityServerScriptInfo.hasHack &&
             highestPriorityServerScriptInfo.hasGrow &&
-            highestPriorityServerScriptInfo.hasWeaken
+            highestPriorityServerScriptInfo.hasWeaken &&
+            ALLOW_HASH_UPGRADES
         ) {
             const highestPriorityServerInfo = ns.getServer(highestPriorityServer);
             if (highestPriorityServerInfo.moneyMax < 10e12 && CORRECTIVE_GROW_WEAK_MULTIPLIER > 1.1) {
@@ -180,6 +183,27 @@ export async function main(ns) {
                         ns,
                         "Max Money",
                         `${highestPriorityServer} | ${ns.formatNumber(startingMoney)} -> ${ns.formatNumber(endingMoney)}`,
+                        cost,
+                    );
+                }
+            }
+            if (
+                highestPriorityServerInfo.hackDifficulty > 10 &&
+                highestPriorityServerInfo.hackDifficulty === highestPriorityServerInfo.minDifficulty
+            ) {
+                const startingSecurity = ns.getServerMinSecurityLevel(highestPriorityServer);
+                const { cost, success, level } = spendHashesOnUpgrade(
+                    ns,
+                    "Reduce Minimum Security",
+                    highestPriorityServer,
+                );
+
+                if (success) {
+                    const endingSecurity = ns.getServerMinSecurityLevel(highestPriorityServer);
+                    logUpgradeSuccess(
+                        ns,
+                        "Min Security",
+                        `${highestPriorityServer} | ${ns.formatNumber(startingSecurity)} -> ${ns.formatNumber(endingSecurity)}`,
                         cost,
                     );
                 }
@@ -266,12 +290,12 @@ export async function main(ns) {
                 ) {
                     let message = "";
                     if (serverInfo.hackDifficulty > securityThreshold) {
-                        message = `WARN: Security on ${currentServer} (${ns.formatNumber(
+                        message = `WARN: ${new Date().toLocaleTimeString()} Security on ${currentServer} (${ns.formatNumber(
                             serverInfo.hackDifficulty,
                             2,
                         )}) breached threshold (${ns.formatNumber(securityThreshold, 2)}). Recovering.`;
                     } else {
-                        message = `WARN: Money on ${currentServer} ($${ns.formatNumber(
+                        message = `WARN: ${new Date().toLocaleTimeString()} Money on ${currentServer} ($${ns.formatNumber(
                             serverInfo.moneyAvailable,
                         )}) below ${ns.formatPercent(minMoneyProtectionThreshold)} of max money. Recovering.`;
                     }
@@ -283,6 +307,9 @@ export async function main(ns) {
                     if (serverBatchTimings.has(currentServer)) {
                         serverBatchTimings.delete(currentServer);
                         ns.print(`INFO: ${currentServer} entering prep. Clearing stored batch timings.`);
+                    }
+                    if (serverBaselineSecurityLevels.has(currentServer)) {
+                        serverBaselineSecurityLevels.delete(currentServer);
                     }
                     continue; // Skip processing this server for HGW/prep this tick
                 }
@@ -374,14 +401,25 @@ export async function main(ns) {
                     totalRamUsed += ramUsedForBatches;
 
                     if (!serverBatchTimings.has(currentServer)) {
-                        const { weakenTime, growthTime, hackTime, securityLevel } = serverStats;
+                        const { weakenTime, growthTime, hackTime } = serverStats;
                         serverBatchTimings.set(currentServer, {
                             originalWeakenTime: weakenTime,
                             originalGrowthTime: growthTime,
                             originalHackTime: hackTime,
-                            originalSecurityLevel: securityLevel,
                         });
                     }
+
+                    // always update baseline security level
+                    const originalBaselineSecurity =
+                        serverBaselineSecurityLevels.get(currentServer) ?? serverInfo.minDifficulty;
+                    let baselineToUse = originalBaselineSecurity;
+                    if (serverInfo.hackDifficulty < originalBaselineSecurity) {
+                        ns.print(
+                            `INFO: ${currentServer} new baseline security: ${ns.formatNumber(originalBaselineSecurity, 2)} -> ${ns.formatNumber(serverInfo.hackDifficulty, 2)}`,
+                        );
+                        baselineToUse = serverInfo.hackDifficulty;
+                    }
+                    serverBaselineSecurityLevels.set(currentServer, baselineToUse);
                 }
             } else {
                 // ns.print(
@@ -715,15 +753,10 @@ export async function main(ns) {
                 ns.getBitNodeMultipliers().ScriptHackMoney;
             const throughput = (theoreticalBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
 
-            if (server === "phantasy") {
-                ns.print(
-                    `INFO: ${server} ${serverInfo.hackDifficulty} > ${serverBatchTimings.get(server)?.originalSecurityLevel ?? serverInfo.minDifficulty}`,
-                );
-            }
-            if (
-                serverInfo.hackDifficulty >
-                (serverBatchTimings.get(server)?.originalSecurityLevel ?? serverInfo.minDifficulty)
-            ) {
+            // if (server === "ecorp") {
+            //     ns.print(`INFO: ${server} ${serverInfo.hackDifficulty} > ${serverBaselineSecurityLevels.get(server)}`);
+            // }
+            if (serverInfo.hackDifficulty > serverBaselineSecurityLevels.get(server)) {
                 // Server needs prep, set RAM allocation to 0 to prevent wasted allocation
                 ramForMaxThroughput = 0;
             }
@@ -743,7 +776,6 @@ export async function main(ns) {
                 maxSecurityIncreasePerBatch: totalSecurityIncrease,
                 timePerBatch: timePerBatch,
                 ramForMaxThroughput: ramForMaxThroughput,
-                securityLevel: serverInfo.hackDifficulty,
             });
         }
 
@@ -1628,7 +1660,7 @@ export async function main(ns) {
         let totalMsChange = 0;
         let totalCurrentTime = 0;
 
-        const DRIFT_THRESHOLD_PERCENT = 0.05; // 5% drift threshold for holds
+        const DRIFT_THRESHOLD_PERCENT = 0.01; // 1% drift threshold for holding HGW and resuming on new weaken time
         const HOLD_BUFFER_MS = DELAY_BETWEEN_BATCHES * 4;
 
         for (const [server, { originalWeakenTime }] of serverBatchTimings.entries()) {
@@ -1656,8 +1688,6 @@ export async function main(ns) {
                     ns.print(
                         `WARN: ${server} drift ${ns.formatPercent(percentChange)} > ${DRIFT_THRESHOLD_PERCENT}% threshold. Hold for ${ns.formatNumber(holdDurationMs / 1000, 1)}s`,
                     );
-
-                    killAllScriptsForTarget(ns, server, ["hack", "grow", "weaken"]);
                     serverBatchTimings.delete(server);
                 }
             }

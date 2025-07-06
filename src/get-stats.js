@@ -38,7 +38,7 @@ export async function main(ns) {
             }
         });
 
-    const charsWidth = 135; // Updated to include 8-char priority column + 6-char batch column + 5-char time column + separators
+    const charsWidth = 137; // Updated to include 8-char priority column + 6-char batch column + 5-char time column + separators
 
     // Chart mode: dynamic updating terminal display
     ns.ui.openTail();
@@ -474,7 +474,7 @@ function get_server_data(ns, server, useFormulas = false) {
         `${pad_str(server, 18)}|` +
         `${pad_str(formatMoney(moneyAvailable, 2), 8)}/${pad_str(formatMoney(moneyMax, 2), 7)}${pad_str(`(${formatPercentage(moneyPercentage, 1)})`, 8)}|` +
         `${progressBar}|` +
-        `${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(ns.formatNumber(securityMin, 0), 2)})|` +
+        `${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(ns.formatNumber(securityMin, 1), 4)})|` +
         `${pad_str(ram, 4)}G|` +
         `${pad_str(requiredHackingSkill, 5)}|` +
         `${pad_str(formatMoney(priority, 2), 8)}|` +
@@ -535,7 +535,7 @@ function generate_chart_data(ns, servers) {
 
 // Add table header function that matches exact column spacing
 function get_table_header() {
-    return `${pad_str("Server", 18)}|${pad_str("Money Available/Max (%)", 24)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 10)}|${pad_str("RAM", 5)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Batch", 6)}|${pad_str("Due", 6)}|${pad_str("Attack Threads", 24)}`;
+    return `${pad_str("Server", 18)}|${pad_str("Money Available/Max (%)", 24)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 12)}|${pad_str("RAM", 5)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Batch", 6)}|${pad_str("Due", 6)}|${pad_str("Attack Threads", 24)}`;
 }
 
 // Cleanup old cache entries to prevent memory leaks
