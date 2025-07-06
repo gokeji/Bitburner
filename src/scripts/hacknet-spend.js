@@ -143,7 +143,7 @@ export async function main(ns) {
 
         if (minSecurity) {
             const startingSecurity = ns.getServerMinSecurityLevel(targetServer);
-            if (ns.getServer(targetServer).hackDifficulty > 5) {
+            if (ns.getServer(targetServer).hackDifficulty > 10) {
                 const { cost, success, level } = spendHashesOnUpgrade(ns, "Reduce Minimum Security", targetServer);
 
                 if (success) {
@@ -185,7 +185,7 @@ export async function main(ns) {
  * @param {string} [target] - Optional target for upgrades that require one
  * @returns {{cost: number, success: boolean, level: number}} Upgrade information
  */
-function spendHashesOnUpgrade(ns, upgradeName, target = null, limit = null) {
+export function spendHashesOnUpgrade(ns, upgradeName, target = null, limit = null) {
     const cost = ns.hacknet.hashCost(upgradeName);
 
     if (limit && cost > limit) {
@@ -223,7 +223,7 @@ function spendHashesOnUpgrade(ns, upgradeName, target = null, limit = null) {
  * @param {string} effectString - Description of the upgrade effect
  * @param {number} cost - Cost of the upgrade
  */
-function logUpgradeSuccess(ns, upgradeName, effectString, cost) {
+export function logUpgradeSuccess(ns, upgradeName, effectString, cost) {
     const timestamp = new Date().toLocaleTimeString();
     const message = `SUCCESS: ${timestamp} ${upgradeName} | ${effectString} | ${cost}h`;
     const toastMessage = `${upgradeName} | ${effectString} | ${cost}h`;
@@ -245,7 +245,7 @@ function getMaxMoneyServer(ns, previousMaxMoneyServer) {
     let max = servers.reduce((max, server) => {
         return ns.getServerMaxMoney(server) > ns.getServerMaxMoney(max) &&
             ns.getServerMaxMoney(server) < 10e12 &&
-            ns.getServerSecurityLevel(server) > 3
+            ns.getServerSecurityLevel(server) > 10
             ? server
             : max;
     }, servers[0]);

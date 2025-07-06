@@ -1,4 +1,5 @@
 import { NS } from "@ns";
+import { spendHashesOnUpgrade, logUpgradeSuccess } from "./hacknet-spend.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -19,18 +20,18 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let hackPercentage = 0.5;
+    let hackPercentage = 0.9;
     let MAX_WEAKEN_TIME = 20 * 60 * 1000; // ms max weaken time (Max 10 minutes)
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.1; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.3; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0.4;
 
-    let minMoneyProtectionThreshold = 1 - hackPercentage - 0.15;
+    let minMoneyProtectionThreshold = 1 - hackPercentage - 0.25;
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 200; // GB reserved for home server
-    const ALWAYS_XP_FARM = true;
+    const ALWAYS_XP_FARM = false;
     const ALLOW_PARTIAL_PREP = true;
 
     let PREP_MONEY_THRESHOLD = 0.95; // Prep servers until it's at least this much money
@@ -162,6 +163,37 @@ export async function main(ns) {
         let totalRamUsed = 0;
         let serverIndex = 0;
         let successfullyProcessedServers = []; // Track servers that have been successfully processed this tick
+
+        // Spend hashes on the highest priority server to upgrade max money
+        const highestPriorityServer = serversByThroughput[0];
+        const highestPriorityServerScriptInfo = runningScriptInfo.get(highestPriorityServer);
+        if (
+            highestPriorityServer &&
+            highestPriorityServerScriptInfo &&
+            highestPriorityServerScriptInfo.hasHack &&
+            highestPriorityServerScriptInfo.hasGrow &&
+            highestPriorityServerScriptInfo.hasWeaken
+        ) {
+            const highestPriorityServerInfo = ns.getServer(highestPriorityServer);
+            if (highestPriorityServerInfo.moneyMax < 10e12 && CORRECTIVE_GROW_WEAK_MULTIPLIER > 1.1) {
+                const startingMoney = ns.getServerMaxMoney(highestPriorityServer);
+                const { cost, success, level } = spendHashesOnUpgrade(
+                    ns,
+                    "Increase Maximum Money",
+                    highestPriorityServer,
+                );
+
+                if (success) {
+                    const endingMoney = ns.getServerMaxMoney(highestPriorityServer);
+                    logUpgradeSuccess(
+                        ns,
+                        "Max Money",
+                        `${highestPriorityServer} | ${ns.formatNumber(startingMoney)} -> ${ns.formatNumber(endingMoney)}`,
+                        cost,
+                    );
+                }
+            }
+        }
 
         // Distribute available RAM based on server priority
         let ramToDistribute = maxRamAvailable; // Use total network RAM
@@ -350,11 +382,12 @@ export async function main(ns) {
                     totalRamUsed += ramUsedForBatches;
 
                     if (!serverBatchTimings.has(currentServer)) {
-                        const { weakenTime, growthTime, hackTime } = serverStats;
+                        const { weakenTime, growthTime, hackTime, securityLevel } = serverStats;
                         serverBatchTimings.set(currentServer, {
                             originalWeakenTime: weakenTime,
                             originalGrowthTime: growthTime,
                             originalHackTime: hackTime,
+                            originalSecurityLevel: securityLevel,
                         });
                     }
                 }
@@ -690,7 +723,15 @@ export async function main(ns) {
                 ns.getBitNodeMultipliers().ScriptHackMoney;
             const throughput = (theoreticalBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
 
-            if (serverInfo.hackDifficulty > serverInfo.minDifficulty) {
+            if (server === "phantasy") {
+                ns.print(
+                    `INFO: ${server} ${serverInfo.hackDifficulty} > ${serverBatchTimings.get(server)?.originalSecurityLevel ?? serverInfo.minDifficulty}`,
+                );
+            }
+            if (
+                serverInfo.hackDifficulty >
+                (serverBatchTimings.get(server)?.originalSecurityLevel ?? serverInfo.minDifficulty)
+            ) {
                 // Server needs prep, set RAM allocation to 0 to prevent wasted allocation
                 ramForMaxThroughput = 0;
             }
@@ -710,6 +751,7 @@ export async function main(ns) {
                 maxSecurityIncreasePerBatch: totalSecurityIncrease,
                 timePerBatch: timePerBatch,
                 ramForMaxThroughput: ramForMaxThroughput,
+                securityLevel: serverInfo.hackDifficulty,
             });
         }
 
