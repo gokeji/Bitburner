@@ -32,7 +32,7 @@ export async function main(ns) {
     const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 200; // GB reserved for home server
-    const ALWAYS_XP_FARM = false;
+    const ALWAYS_XP_FARM = true;
     const ALLOW_PARTIAL_PREP = true;
 
     let PREP_MONEY_THRESHOLD = 0.95; // Prep servers until it's at least this much money
@@ -158,7 +158,9 @@ export async function main(ns) {
         let successfullyProcessedServers = []; // Track servers that have been successfully processed this tick
 
         // Spend hashes on the highest priority server to upgrade max money
-        const highestPriorityServer = serversByThroughput[0];
+        const highestPriorityServer = serversByThroughput.find((server) => {
+            return ns.getServerMaxMoney(server) < 10e12 && ns.getServerMinSecurityLevel(server) > 10;
+        });
         const highestPriorityServerScriptInfo = runningScriptInfo.get(highestPriorityServer);
         if (
             highestPriorityServer &&
