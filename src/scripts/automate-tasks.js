@@ -12,35 +12,41 @@ export async function main(ns) {
         { type: "homicide" },
         {
             type: "graft",
-            target: "OmniTek InfoLoad",
+            target: "ADR-V2 Pheromone Gene",
         },
+
+        { type: "graft", target: "QLink" },
         {
             type: "graft",
-            target: "ADR-V2 Pheromone Gene",
+            target: "OmniTek InfoLoad",
         },
         {
             type: "graft",
             target: "Xanipher",
         },
-
         { type: "faction", target: "Tian Di Hui", goal: "6250" },
-        { type: "graft", target: "QLink" },
 
         { type: "faction", target: "Netburners", goal: "7500" },
         { type: "faction", target: "NiteSec", goal: "45000" },
+        { type: "faction", target: "NiteSec", goal: "favor" },
 
-        // { type: "faction", target: "BitRunners", goal: "100000" },
-        // { type: "faction", target: "Tian Di Hui", goal: "75000" },
-        // { type: "faction", target: "BitRunners", goal: "favor" },
+        { type: "faction", target: "BitRunners", goal: "100000" },
+        { type: "faction", target: "Tian Di Hui", goal: "75000" },
+        { type: "faction", target: "BitRunners", goal: "favor" },
         // { type: "faction", target: "Chongqing", goal: "37500" },
         // { type: "faction", target: "Daedalus", goal: "favor" },
     ];
 
     let hasMessaged = false;
+    let failedTasks = new Set(); // Track tasks that have failed recently
+
+    ns.print("\n\n\n\n\n\n");
 
     while (taskQueue.length > 0) {
-        await waitForOngoingGraft(ns);
         let currentWork = ns.singularity.getCurrentWork();
+        // ns.print(currentWork);
+        await waitForOngoingGraft(ns);
+        // let currentWork = ns.singularity.getCurrentWork();
 
         const task = taskQueue[0];
 

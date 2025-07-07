@@ -1,17 +1,17 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = 640 * 10 ** 9; // 12 B max server value
+const MAX_SERVER_VALUE = -1; //640 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
 
 const IPVGO_OPPONENTS = [
-    "Netburners", // increased hacknet production
-    "Slum Snakes", // crime success rate
-    "The Black Hand", // hacking money
-    "Tetrads", // strength, defense, dexterity, and agility levels
+    // "Netburners", // increased hacknet production
+    // "Slum Snakes", // crime success rate
+    // "The Black Hand", // hacking money
+    // "Tetrads", // strength, defense, dexterity, and agility levels
     "Daedalus", // reputation gain
-    "Illuminati", // faster hack(), grow(), and weaken()
+    // "Illuminati", // faster hack(), grow(), and weaken()
     // "????????????", // w0r1d_d43m0n Hacking Levels - will be dynamically added later
 ];
 

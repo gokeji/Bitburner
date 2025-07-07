@@ -12,7 +12,8 @@ const argsSchema = [
     ["combat", false], // Set to true to include augments that boost combat
     ["charisma", false], // Set to true to include augments that boost charisma
     ["hacknet", false], // Set to true to include augments that boost hacknet
-    ["no-nfg", false], // Set to true to exclude augments that boost NeuroFlux Governor
+    ["no-nfg", false], // Set to true to exclude NeuroFlux Governors
+    ["no-gang", false], // Set to true to exclude augments from the gang faction
 ];
 
 /**
@@ -660,6 +661,7 @@ export async function main(ns) {
     const hacknetServer = flags["hacknet"];
     const forceBuy = flags["force-buy"];
     const noNFG = flags["no-nfg"];
+    const noGang = flags["no-gang"];
 
     ns.ui.openTail(); // Open tail because there's a lot of good output
     ns.ui.resizeTail(1200, 800);
@@ -671,15 +673,12 @@ export async function main(ns) {
     let allAugmentations = new Set();
 
     for (const faction of factions) {
+        if (noGang && ns.gang.getGangInformation().faction === faction) continue;
+
         const factionAugmentations = ns.singularity.getAugmentationsFromFaction(faction);
 
         factionAugmentations.forEach((augmentation) => {
             allAugmentations.add(augmentation);
-        });
-
-        factionAugmentations.push({
-            faction,
-            augmentations: factionAugmentations,
         });
     }
 
@@ -759,6 +758,9 @@ export async function main(ns) {
         // Check each faction separately - create separate entries for each qualifying faction
         for (const faction of augFactions) {
             if (player.factions.includes(faction)) {
+                // Skip gang faction if no-gang flag is set
+                if (noGang && ns.gang.getGangInformation().faction === faction) continue;
+
                 const factionRep = ns.singularity.getFactionRep(faction);
 
                 const hackingBoost = hasHackingBoost(stats);
