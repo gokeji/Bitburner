@@ -17,20 +17,28 @@ export async function main(ns) {
     // Stop committing crime as it slows down casino.js
     ns.singularity.stopAction();
 
-    // Wait for casino to make 10B
-    while (ns.getMoneySources().sinceInstall.casino < 10e9) {
-        ns.print(`Waiting for casino to make 10B`);
+    // If we're in lategame and already have 1b right after install, we don't need to run casino.js
+    if (ns.getPlayer().money < 1e9) {
+        // Wait for casino to make 10B
+        while (ns.getMoneySources().sinceInstall.casino < 10e9) {
+            ns.print(`Waiting for casino to make 10B`);
 
-        // Run casino.js
-        if (!ns.scriptRunning("casino.js", "home")) {
-            ns.run("casino.js");
+            // Run casino.js
+            if (!ns.scriptRunning("casino.js", "home")) {
+                ns.run("casino.js");
+            }
+
+            await ns.sleep(5000);
         }
-
-        await ns.sleep(5000);
     }
 
     // Upgrade home ram to at least 512GB
     while (ns.getServer("home").maxRam < 512) {
+        if (ns.getPlayer().money < ns.singularity.getUpgradeHomeRamCost()) {
+            ns.print(`Not enough money to upgrade home ram, waiting...`);
+            await ns.sleep(5000);
+            continue;
+        }
         ns.singularity.upgradeHomeRam();
         ns.print(`Upgraded home ram to ${ns.getServer("home").maxRam}GB`);
     }
