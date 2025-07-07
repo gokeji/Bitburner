@@ -159,7 +159,7 @@ export async function main(ns) {
 
         // Spend hashes on the highest priority server to upgrade max money
         const highestPriorityServer = serversByThroughput.find((server) => {
-            return ns.getServerMaxMoney(server) < 10e12 && ns.getServerMinSecurityLevel(server) > 10;
+            return ns.getServerMaxMoney(server) < 10e12 || ns.getServerMinSecurityLevel(server) > 10;
         });
         const highestPriorityServerScriptInfo = runningScriptInfo.get(highestPriorityServer);
         if (
@@ -505,7 +505,8 @@ export async function main(ns) {
             growthFactor = ns.getServerGrowth(server);
         }
 
-        const hackThreads = Math.ceil(hackPercentage / hackPercentageFromOneThread);
+        const hackThreads =
+            hackPercentageFromOneThread === 0 ? 0 : Math.ceil(hackPercentage / hackPercentageFromOneThread);
         const actualHackPercentage = hackThreads * hackPercentageFromOneThread; // Actual amount we'll hack
         const hackSecurityChange = hackThreads * 0.002; // Use known constant instead of ns.hackAnalyzeSecurity
 

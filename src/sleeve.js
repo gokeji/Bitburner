@@ -512,7 +512,7 @@ async function pickSleeveTask(ns, playerInfo, playerWorkInfo, i, sleeve, canTrai
     if (sleeve.shock > 75) return shockRecoveryTask(sleeve, i, `there appears to be nothing better to do`);
 
     // If shock recovery is complete and combat farming is enabled, train combat stats in rotation
-    if (options["combat-farm"] && sleeve.shock === 0) {
+    if (options["combat-farm"]) {
         if (sleeve.city != ns.enums.CityName.Sector12) {
             log(ns, `Moving Sleeve ${i} from ${sleeve.city} to Sector-12 so that they can train combat stats.`);
             await getNsDataThroughFile(ns, "ns.sleeve.travel(ns.args[0], ns.args[1])", null, [
@@ -535,7 +535,7 @@ async function pickSleeveTask(ns, playerInfo, playerWorkInfo, i, sleeve, canTrai
     }
 
     // If shock recovery is complete and intelligence farming is enabled, study hacking for intelligence
-    if (options["intelligence-farm"] && sleeve.shock === 0) {
+    if (options["intelligence-farm"]) {
         if (sleeve.city != ns.enums.CityName.Volhaven) {
             log(ns, `Moving Sleeve ${i} from ${sleeve.city} to Volhaven so that they can study for intelligence.`);
             await getNsDataThroughFile(ns, "ns.sleeve.travel(ns.args[0], ns.args[1])", null, [
