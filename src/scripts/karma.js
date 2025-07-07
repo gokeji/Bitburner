@@ -7,9 +7,9 @@ import { NS } from "@ns";
 export async function main(ns) {
     ns.disableLog("ALL");
     ns.ui.openTail(); // Log Window
-    ns.ui.resizeTail(180, 80);
+    ns.ui.resizeTail(180, 120);
     const windowSize = ns.ui.windowSize();
-    ns.ui.moveTail(windowSize[0] - 340, 40);
+    ns.ui.moveTail(windowSize[0] - 400, 40);
 
     var karmaHistory = [];
 
@@ -30,8 +30,18 @@ export async function main(ns) {
             rate = (karma - oldest.karma) / ((now - oldest.time) / 1000);
         }
 
+        const timeTillGangSeconds = rate === 0 ? 0 : (-54000 - karma) / rate;
+        const timeTillGang = `${Math.floor(timeTillGangSeconds / 3600)
+            .toString()
+            .padStart(2, "0")}:${Math.floor((timeTillGangSeconds % 3600) / 60)
+            .toString()
+            .padStart(2, "0")}:${Math.floor(timeTillGangSeconds % 60)
+            .toString()
+            .padStart(2, "0")}`;
+
         ns.print("🔴 Karma: " + ns.formatNumber(karma));
         ns.print("🔴 Rate : " + ns.formatNumber(rate) + "/s");
+        ns.print("🔴 Due  : " + timeTillGang);
 
         await ns.sleep(1000);
     }

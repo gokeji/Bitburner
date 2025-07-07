@@ -2,20 +2,8 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const serverInfo = ns.getServer("zb-institute");
-    const calcServer = {
-        ...serverInfo,
-        minSecurityLevel: 1,
-        maxMoney: 10e12,
-    };
-    const player = ns.getPlayer();
-    const hackPercentageFromOneThread = ns.formulas.hacking.hackPercent(serverInfo, player);
-    ns.print(`hackPercentageFromOneThread: ${hackPercentageFromOneThread}`);
-    ns.print(`zb-institute max money: ${serverInfo.moneyMax}`);
-    const threads = ns.hackAnalyzeThreads("zb-institute", serverInfo.moneyMax * 0.01);
-    ns.print(`threads to hack 1% of max money: ${threads}`);
-    const hackChance = ns.hackAnalyzeChance("zb-institute", serverInfo.moneyMax * 0.01);
-    ns.print(`hackChance: ${hackChance}`);
+    const studyExp = ns.formulas.work.universityGains(ns.getPlayer(), "Algorithms", "ZB Institute of Technology");
+    ns.print(studyExp);
     // while (true) {
     //     const daedalusFavor =
     //         ns.singularity.getFactionFavor("Daedalus") + ns.singularity.getFactionFavorGain("Daedalus");

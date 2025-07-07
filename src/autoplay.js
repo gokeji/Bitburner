@@ -40,9 +40,6 @@ export async function main(ns) {
             }
         });
 
-    // Start all required scripts if not running
-    startDistributedHackIfNotRunning(ns);
-
     startUpgradeHnetIfNeeded(ns);
 
     // After unlocking gangs, sleeves should be assigned manually
@@ -97,6 +94,20 @@ export async function main(ns) {
             ns.tprint("scripts/share-all-free-ram.js is already running on home");
         }
     }
+
+    // Study Algorithms until we have 1350 exp to bootstrap early game hacking levels
+    while (ns.getPlayer().exp.hacking < 1350) {
+        if (ns.getPlayer().city !== "Volhaven") {
+            ns.singularity.travelToCity("Volhaven");
+        }
+        let success = ns.singularity.universityCourse("ZB Institute of Technology", "Algorithms");
+        if (!success) {
+            ns.tprint("ERROR Failed to start Algorithms course");
+            break;
+        }
+        await ns.sleep(5000);
+    }
+    startDistributedHackIfNotRunning(ns);
 
     while (!startedStockTrader || (!sharedRam && SERVER_TO_START_SHARING_RAM_ON)) {
         if (
