@@ -364,9 +364,10 @@ export async function main(ns) {
                     if (
                         hacknetWithLowestCache &&
                         ns.hacknet.getCacheUpgradeCost(lowestCacheServerIndex) <
-                            (ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE) / 2
+                            ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE
                     ) {
                         ns.hacknet.upgradeCache(lowestCacheServerIndex);
+                        ns.print(`Upgraded cache on node ${lowestCacheServerIndex}`);
                     }
                 }
             }

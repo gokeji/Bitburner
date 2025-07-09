@@ -2,8 +2,7 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const studyExp = ns.formulas.work.universityGains(ns.getPlayer(), "Algorithms", "ZB Institute of Technology");
-    ns.print(studyExp);
+    await ns.stanek.chargeFragment(0, 0);
     // while (true) {
     //     const daedalusFavor =
     //         ns.singularity.getFactionFavor("Daedalus") + ns.singularity.getFactionFavorGain("Daedalus");
