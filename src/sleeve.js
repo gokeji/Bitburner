@@ -11,7 +11,7 @@ import {
 } from "./helpers.js";
 
 const argsSchema = [
-    ["min-shock-recovery", 97], // Minimum shock recovery before attempting to train or do crime (Set to 100 to disable, 0 to recover fully)
+    ["min-shock-recovery", 94], // Minimum shock recovery before attempting to train or do crime (Set to 100 to disable, 0 to recover fully)
     ["shock-recovery", 0], // Set to a number between 0 and 1 to devote that ratio of time to periodic shock recovery (until shock is at 0)
     ["crime", null], // If specified, sleeves will perform only this crime regardless of stats
     ["homicide-chance-threshold", 0.35], // Sleeves on crime will automatically start homicide once their chance of success exceeds this ratio
@@ -419,6 +419,14 @@ async function pickSleeveTask(ns, playerInfo, playerWorkInfo, i, sleeve, canTrai
             ];
         }
     }
+    // If gangs are available, prioritize homicide until we've got the requisite -54K karma to unlock them
+    if (
+        !playerInGang &&
+        !options["disable-gang-homicide-priority"] &&
+        2 in ownedSourceFiles &&
+        ns.heart.break() > -54000
+    )
+        return await crimeTask(ns, "homicide", i, sleeve, "we want gang karma"); // Ignore chance - even a failed homicide generates more Karma than every other crime
     // If player is currently working for faction or company rep, a sleeve can help him out (Note: Only one sleeve can work for a faction)
     if (i == followPlayerSleeve && playerWorkInfo.type == "FACTION") {
         // TODO: We should be able to borrow logic from work-for-factions.js to have more sleeves work for useful factions / companies
@@ -441,14 +449,6 @@ async function pickSleeveTask(ns, playerInfo, playerWorkInfo, i, sleeve, canTrai
             /*   */ `helping earn rep with company ${companyName}.`,
         ];
     }
-    // If gangs are available, prioritize homicide until we've got the requisite -54K karma to unlock them
-    if (
-        !playerInGang &&
-        !options["disable-gang-homicide-priority"] &&
-        2 in ownedSourceFiles &&
-        ns.heart.break() > -54000
-    )
-        return await crimeTask(ns, "homicide", i, sleeve, "we want gang karma"); // Ignore chance - even a failed homicide generates more Karma than every other crime
     // If the player is in bladeburner, and has already unlocked gangs with Karma, generate contracts and operations
     if (playerInBladeburner) {
         // Hack: Without paying much attention to what's happening in bladeburner, pre-assign a variety of tasks by sleeve index
