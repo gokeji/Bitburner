@@ -8,29 +8,29 @@ export async function main(ns) {
     ns.disableLog("singularity.commitCrime");
 
     let taskQueue = [
-        { type: "faction", target: "CyberSec", goal: "2000" },
+        // { type: "faction", target: "CyberSec", goal: "2000" },
         {
             type: "graft",
             target: "ADR-V2 Pheromone Gene",
         },
-        { type: "faction", target: "Tian Di Hui", goal: "6250" },
+        // { type: "faction", target: "Tian Di Hui", goal: "6250" },
 
-        { type: "faction", target: "Netburners", goal: "7500" },
-        { type: "faction", target: "Netburners", goal: "12500" },
-        { type: "faction", target: "NiteSec", goal: "45000" },
+        // { type: "faction", target: "Netburners", goal: "7500" },
+        // { type: "faction", target: "Netburners", goal: "12500" },
 
         { type: "homicide" },
-        // { type: "graft", target: "QLink" },
-        // {
-        //     type: "graft",
-        //     target: "Xanipher",
-        // },
         {
             type: "graft",
             target: "OmniTek InfoLoad",
         },
-        { type: "faction", target: "NiteSec", goal: "favor" },
-        { type: "faction", target: "Daedalus", goal: "favor" },
+        // { type: "graft", target: "QLink" },
+        { type: "faction", target: "NiteSec", goal: "45000" },
+        {
+            type: "graft",
+            target: "Xanipher",
+        },
+        // { type: "faction", target: "NiteSec", goal: "favor" },
+        // { type: "faction", target: "Daedalus", goal: "favor" },
         // { type: "reset" },
 
         { type: "faction", target: "BitRunners", goal: "100000" },

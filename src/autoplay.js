@@ -1,9 +1,10 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = 12 * 10 ** 9; // 12 B max server value
+const MAX_SERVER_VALUE = 120 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
+const SERVER_TO_STANEK = "b-01";
 
 const IPVGO_OPPONENTS = [
     "Netburners", // increased hacknet production
@@ -109,6 +110,8 @@ export async function main(ns) {
     }
     startDistributedHackIfNotRunning(ns);
 
+    startStanekChargeIfNotRunning(ns);
+
     while (!startedStockTrader || (!sharedRam && SERVER_TO_START_SHARING_RAM_ON)) {
         if (
             !sharedRam &&
@@ -189,8 +192,17 @@ function startScriptIfNotRunning(ns, scriptName, hostname = HOST_NAME, threads =
 }
 
 function startDistributedHackIfNotRunning(ns) {
+    // Build ignore servers list
+    const ignoreServers = [];
     if (SERVER_TO_START_SHARING_RAM_ON) {
-        startScriptIfNotRunning(ns, "scripts/hacker.js", HOST_NAME, 1, SERVER_TO_START_SHARING_RAM_ON);
+        ignoreServers.push(SERVER_TO_START_SHARING_RAM_ON);
+    }
+    if (SERVER_TO_STANEK) {
+        ignoreServers.push(SERVER_TO_STANEK);
+    }
+
+    if (ignoreServers.length > 0) {
+        startScriptIfNotRunning(ns, "scripts/hacker.js", HOST_NAME, 1, ...ignoreServers);
     } else {
         startScriptIfNotRunning(ns, "scripts/hacker.js", HOST_NAME, 1);
     }
@@ -320,4 +332,10 @@ function startProgramManagerIfNotRunning(ns) {
     }
 
     startScriptIfNotRunning(ns, "scripts/program-manager.js", HOST_NAME, 1, "-c");
+}
+
+function startStanekChargeIfNotRunning(ns) {
+    if (SERVER_TO_STANEK && ns.serverExists(SERVER_TO_STANEK)) {
+        startScriptIfNotRunning(ns, "scripts/stanek-charge.js", HOST_NAME, 1, "--server", SERVER_TO_STANEK);
+    }
 }
