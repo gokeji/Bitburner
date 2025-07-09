@@ -71,9 +71,24 @@ export async function main(ns) {
                 XPathResult.FIRST_ORDERED_NODE_TYPE,
                 null,
             ).singleNodeValue.parentElement.children[4].firstChild.firstChild;
+            let max_bet = Math.min(ns.getPlayer().money / 2, 10000000);
             Object.getOwnPropertyDescriptor(eval("window").HTMLInputElement.prototype, "value").set.call(
                 wagerField,
-                "10000000",
+                max_bet.toString(),
+            );
+            wagerField.dispatchEvent(new Event("input", { bubbles: true }));
+            await ns.sleep(0);
+        } else {
+            let wagerField = doc.evaluate(
+                "//button[text()='Stop playing']",
+                doc,
+                null,
+                XPathResult.FIRST_ORDERED_NODE_TYPE,
+                null,
+            ).singleNodeValue.parentElement.children[4].firstChild.firstChild;
+            Object.getOwnPropertyDescriptor(eval("window").HTMLInputElement.prototype, "value").set.call(
+                wagerField,
+                "1",
             );
             wagerField.dispatchEvent(new Event("input", { bubbles: true }));
             await ns.sleep(0);
@@ -106,7 +121,7 @@ export async function main(ns) {
         z = z + 1;
         ns.print(wheels[0]);
         ns.print(seen);
-        await ns.sleep(2000);
+        await ns.sleep(1800);
         seen.push(
             parseInt(
                 doc.evaluate("//button[text()='Stop playing']", doc, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null)

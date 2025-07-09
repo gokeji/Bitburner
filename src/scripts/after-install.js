@@ -20,16 +20,16 @@ export async function main(ns) {
             await ns.sleep(5000);
         }
 
-        // Stop committing crime as it slows down casino.js
-        ns.singularity.stopAction();
-
         // Wait for casino to make 10B
         while (ns.getMoneySources().sinceInstall.casino < 10e9) {
             ns.print(`Waiting for casino to make 10B`);
 
-            // Run casino.js
-            if (!ns.scriptRunning("casino.js", "home")) {
-                ns.run("casino.js");
+            // Run roulette navigator (which will start roulette.js)
+            if (
+                !ns.scriptRunning("scripts/roulette-navigator.js", "home") &&
+                !ns.scriptRunning("scripts/roulette.js", "home")
+            ) {
+                ns.run("scripts/roulette-navigator.js");
             }
 
             await ns.sleep(5000);
