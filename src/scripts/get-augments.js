@@ -56,9 +56,10 @@ function calculateDonationCost(ns, faction, repNeeded) {
  * @param {Object} player - Player object
  * @param {number} currentNeuroFluxGovernorLevel - Current NeuroFlux level
  * @param {number} neurofluxCount - Number of NeuroFlux to purchase
+ * @param {boolean} allowDonation - Whether donations are allowed
  * @returns {Object} Validation result with canPurchase, error, bestFaction, and maxRepReq
  */
-function validateNeuroFluxReputation(ns, player, currentNeuroFluxGovernorLevel, neurofluxCount) {
+function validateNeuroFluxReputation(ns, player, currentNeuroFluxGovernorLevel, neurofluxCount, allowDonation = false) {
     if (neurofluxCount <= 0) {
         return { canPurchase: true, error: "", bestFaction: null, maxRepReq: 0 };
     }
@@ -70,6 +71,7 @@ function validateNeuroFluxReputation(ns, player, currentNeuroFluxGovernorLevel, 
     const neuroFluxFactions = ns.singularity.getAugmentationFactions("NeuroFlux Governor");
     let maxFactionRep = 0;
     let bestNeuroFluxFaction = null;
+    let canAffordWithDonation = false;
 
     for (const faction of neuroFluxFactions) {
         if (player.factions.includes(faction)) {
@@ -78,13 +80,27 @@ function validateNeuroFluxReputation(ns, player, currentNeuroFluxGovernorLevel, 
                 maxFactionRep = factionRep;
                 bestNeuroFluxFaction = faction;
             }
+
+            // Check if we can donate to this faction
+            if (allowDonation && factionRep < maxNeuroFluxRepReq) {
+                const favor = ns.singularity.getFactionFavor(faction);
+                if (favor >= 150) {
+                    canAffordWithDonation = true;
+                }
+            }
         }
     }
 
-    const canPurchase = maxFactionRep >= maxNeuroFluxRepReq;
-    const error = canPurchase
-        ? ""
-        : `Insufficient reputation for final NeuroFlux Governor (Level ${finalNeuroFluxLevel}). Required: ${ns.formatNumber(maxNeuroFluxRepReq)}, Available: ${ns.formatNumber(maxFactionRep)} from ${bestNeuroFluxFaction || "no faction"}`;
+    const canPurchase = maxFactionRep >= maxNeuroFluxRepReq || (allowDonation && canAffordWithDonation);
+
+    let error = "";
+    if (!canPurchase) {
+        if (allowDonation) {
+            error = `Insufficient reputation for final NeuroFlux Governor (Level ${finalNeuroFluxLevel}). Required: ${ns.formatNumber(maxNeuroFluxRepReq)}, Available: ${ns.formatNumber(maxFactionRep)} from ${bestNeuroFluxFaction || "no faction"}. No faction has 150+ favor for donations.`;
+        } else {
+            error = `Insufficient reputation for final NeuroFlux Governor (Level ${finalNeuroFluxLevel}). Required: ${ns.formatNumber(maxNeuroFluxRepReq)}, Available: ${ns.formatNumber(maxFactionRep)} from ${bestNeuroFluxFaction || "no faction"}`;
+        }
+    }
 
     return {
         canPurchase,
@@ -93,6 +109,7 @@ function validateNeuroFluxReputation(ns, player, currentNeuroFluxGovernorLevel, 
         maxRepReq: maxNeuroFluxRepReq,
         maxAvailableRep: maxFactionRep,
         finalLevel: finalNeuroFluxLevel,
+        canAffordWithDonation,
     };
 }
 
@@ -117,9 +134,15 @@ function displayNeuroFluxStatus(ns, validation, isPurchasing, forceBuy) {
             ns.print("⚠️  Use --buy with caution - NeuroFlux purchases may fail due to insufficient reputation.");
         }
     } else {
-        ns.print(
-            `\n✅ NeuroFlux Governor Level ${validation.finalLevel}: Rep sufficient (${ns.formatNumber(validation.maxAvailableRep)} from ${validation.bestFaction})`,
-        );
+        if (validation.canAffordWithDonation && validation.maxAvailableRep < validation.maxRepReq) {
+            ns.print(
+                `\n✅ NeuroFlux Governor Level ${validation.finalLevel}: Rep available with donation (${ns.formatNumber(validation.maxAvailableRep)} from ${validation.bestFaction}, will donate for remaining)`,
+            );
+        } else {
+            ns.print(
+                `\n✅ NeuroFlux Governor Level ${validation.finalLevel}: Rep sufficient (${ns.formatNumber(validation.maxAvailableRep)} from ${validation.bestFaction})`,
+            );
+        }
     }
 }
 
@@ -1010,16 +1033,45 @@ export async function main(ns) {
 
             ns.print(`\n📊 COMPARISON:`);
             ns.print(
-                `   Original plan: ${result.purchaseOrder.length} augments, stat score: ${result.totalStatScore.toFixed(3)}`,
+                `   Original plan: ${result.purchaseOrder.length} augments, stat score: ${(result.totalStatScore || 0).toFixed(3)}`,
             );
             ns.print(
                 `   Optimized plan: ${optimizedResult.purchaseOrder.length} augments, stat score: ${optimizedTotalStats.toFixed(3)}`,
             );
             ns.print(
-                `   Improvement: ${((optimizedTotalStats - result.totalStatScore) * 100).toFixed(1)}% better stat increase`,
+                `   Improvement: ${((optimizedTotalStats - (result.totalStatScore || 0)) * 100).toFixed(1)}% better stat increase`,
             );
 
             result = optimizedResult;
+        }
+    }
+
+    // Now that we have the final result, check if we need to add NeuroFlux donation costs
+    if (allowDonation && result.neurofluxCount > 0) {
+        const neuroFluxValidation = validateNeuroFluxReputation(
+            ns,
+            player,
+            currentNeuroFluxPurchaseLevel,
+            result.neurofluxCount,
+            allowDonation,
+        );
+
+        if (neuroFluxValidation.canAffordWithDonation && neuroFluxValidation.bestFaction) {
+            const currentRep = ns.singularity.getFactionRep(neuroFluxValidation.bestFaction);
+            const favor = ns.singularity.getFactionFavor(neuroFluxValidation.bestFaction);
+
+            if (currentRep < neuroFluxValidation.maxRepReq && favor >= 150) {
+                const repShortfall = neuroFluxValidation.maxRepReq - currentRep;
+                const neuroFluxDonationCost = ns.formulas.reputation.donationForRep(repShortfall, ns.getPlayer());
+
+                // Update the faction donation costs if this faction needs more than we already calculated
+                const existingDonation = factionDonationCosts.get(neuroFluxValidation.bestFaction) || 0;
+                if (neuroFluxDonationCost > existingDonation) {
+                    const additionalCost = neuroFluxDonationCost - existingDonation;
+                    factionDonationCosts.set(neuroFluxValidation.bestFaction, neuroFluxDonationCost);
+                    totalDonationCosts += additionalCost;
+                }
+            }
         }
     }
 
@@ -1153,6 +1205,7 @@ export async function main(ns) {
         player,
         currentNeuroFluxPurchaseLevel,
         result.neurofluxCount,
+        allowDonation,
     );
     displayNeuroFluxStatus(ns, neuroFluxValidation, shouldPurchase, forceBuy);
 
