@@ -129,6 +129,8 @@ export async function main(ns) {
                         ns.singularity.commitCrime("homicide", true);
                         ns.print(`${new Date().toLocaleTimeString()} Starting homicide`);
                         hasMessaged = false;
+
+                        ns.run("scripts/karma.js");
                     }
                     if (!hasMessaged) {
                         ns.print(`${new Date().toLocaleTimeString()} Waiting for gang unlock`);

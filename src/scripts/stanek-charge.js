@@ -49,17 +49,35 @@ export async function main(ns) {
             ns.scp("./charge.js", targetServer);
         }
 
-        for (const fragment of fragments) {
-            let success = false;
-            if (!fragment.effect.includes("adjacent")) {
-                while (!success) {
-                    success = ns.exec(`./charge.js`, targetServer, threadsToUse, fragment.x, fragment.y);
-                    await ns.sleep(100);
+        // Filter out adjacent fragments and find the one with lowest charge
+        const chargeableFragments = fragments.filter((fragment) => !fragment.effect.includes("adjacent"));
 
-                    if (success) {
-                        ns.print(`Charged fragment [${fragment.x}, ${fragment.y}] - ${fragment.numCharge} charges`);
-                    }
-                }
+        if (chargeableFragments.length === 0) {
+            await ns.sleep(100);
+            continue;
+        }
+
+        // Find fragment with lowest charge
+        const lowestChargeFragment = chargeableFragments.reduce((lowest, current) =>
+            current.numCharge < lowest.numCharge ? current : lowest,
+        );
+
+        let success = false;
+        while (!success) {
+            success = ns.exec(
+                `./charge.js`,
+                targetServer,
+                threadsToUse,
+                lowestChargeFragment.x,
+                lowestChargeFragment.y,
+            );
+            await ns.sleep(50);
+
+            if (success) {
+                ns.print(
+                    `Charged fragment [${lowestChargeFragment.x}, ${lowestChargeFragment.y}] - ${lowestChargeFragment.numCharge} charges`,
+                );
+                break; // Exit the while loop after successful charge
             }
         }
     }
