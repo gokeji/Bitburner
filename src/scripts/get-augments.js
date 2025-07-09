@@ -14,7 +14,41 @@ const argsSchema = [
     ["hacknet", false], // Set to true to include augments that boost hacknet
     ["no-nfg", false], // Set to true to exclude NeuroFlux Governors
     ["no-gang", false], // Set to true to exclude augments from the gang faction
+    ["allow-donation", true], // Set to true to consider donations for reputation (requires 150+ favor)
 ];
+
+/**
+ * Calculates the money cost to donate for the required reputation
+ * @param {NS} ns - NetScript object
+ * @param {string} faction - Faction name
+ * @param {number} repNeeded - Reputation needed
+ * @returns {Object} Object with canDonate, cost, and favor information
+ */
+function calculateDonationCost(ns, faction, repNeeded) {
+    const player = ns.getPlayer();
+    const currentRep = ns.singularity.getFactionRep(faction);
+    const favor = ns.singularity.getFactionFavor(faction);
+
+    // Need 150+ favor to donate
+    if (favor < 150) {
+        return { canDonate: false, cost: 0, favor: favor, repShortfall: repNeeded - currentRep };
+    }
+
+    // If we already have enough reputation, no donation needed
+    if (currentRep >= repNeeded) {
+        return { canDonate: true, cost: 0, favor: favor, repShortfall: 0 };
+    }
+
+    const repShortfall = repNeeded - currentRep;
+    const donationCost = ns.formulas.reputation.donationForRep(repShortfall, player);
+
+    return {
+        canDonate: true,
+        cost: donationCost,
+        favor: favor,
+        repShortfall: repShortfall,
+    };
+}
 
 /**
  * Validates NeuroFlux Governor reputation requirements
@@ -652,6 +686,9 @@ export async function main(ns) {
     // const hackingMultiplier = ns.singularity.getHackingLevelMultiplier();
     // const hackingLevel = Math.floor(14.14 * (32 * Math.log(100000000000 + 534.6) - 200))
 
+    // ns.singularity.donateToFaction("Daedalus", 2e11);
+    // ns.formulas.reputation.donationForRep(2.5e6, ns.getPlayer());
+
     const flags = ns.flags(argsSchema);
     const shouldPurchase = flags["buy"];
     const hacking = flags["hacking"];
@@ -662,6 +699,7 @@ export async function main(ns) {
     const forceBuy = flags["force-buy"];
     const noNFG = flags["no-nfg"];
     const noGang = flags["no-gang"];
+    const allowDonation = flags["allow-donation"];
 
     ns.ui.openTail(); // Open tail because there's a lot of good output
     ns.ui.resizeTail(1200, 800);
@@ -769,6 +807,10 @@ export async function main(ns) {
                 const charismaBoost = hasCharismaBoost(stats);
                 const hacknetBoost = hasHacknetBoost(stats);
 
+                // For affordability, if allow-donation is true and faction has 150+ favor, consider it affordable
+                const favor = ns.singularity.getFactionFavor(faction);
+                const canAffordRep = factionRep >= repReq || (allowDonation && favor >= 150);
+
                 const aug = {
                     name: augmentation,
                     cost: price / 1000000, // Convert to millions for easier reading
@@ -783,7 +825,10 @@ export async function main(ns) {
                     stats: stats,
                 };
 
-                if (factionRep >= repReq && canAffordPrice) {
+                // Can afford if we have the price AND either have enough rep OR can donate for rep
+                const canAffordBoth = canAffordPrice && canAffordRep;
+
+                if (canAffordBoth) {
                     // Check if any filtering flags are set
                     const anyFilterActive = hacking || rep || combat || charisma || hacknetServer;
 
@@ -881,13 +926,58 @@ export async function main(ns) {
     ns.print(`Before deduplication: ${affordableAugmentations.length} augments`);
     ns.print(`After deduplication: ${deduplicatedAugmentations.length} augments`);
 
+    // Calculate donation costs per faction if allow-donation is enabled
+    let totalDonationCosts = 0;
+    const factionDonationCosts = new Map(); // faction -> donation cost
+
+    if (allowDonation) {
+        // Group augments by faction and find max reputation needed per faction
+        const factionMaxRep = new Map(); // faction -> max rep needed
+
+        for (const aug of deduplicatedAugmentations) {
+            const currentRep = ns.singularity.getFactionRep(aug.faction);
+            const favor = ns.singularity.getFactionFavor(aug.faction);
+
+            if (currentRep < aug.repReq && favor >= 150) {
+                const currentMax = factionMaxRep.get(aug.faction) || 0;
+                factionMaxRep.set(aug.faction, Math.max(currentMax, aug.repReq));
+            }
+        }
+
+        // Calculate donation cost for each faction
+        for (const [faction, maxRepNeeded] of factionMaxRep) {
+            const currentRep = ns.singularity.getFactionRep(faction);
+            const repShortfall = maxRepNeeded - currentRep;
+
+            if (repShortfall > 0) {
+                const donationCost = ns.formulas.reputation.donationForRep(repShortfall, ns.getPlayer());
+                factionDonationCosts.set(faction, donationCost);
+                totalDonationCosts += donationCost;
+            }
+        }
+    }
+
+    // Calculate effective budget after accounting for donation costs
+    const adjustedBudget = totalBudget - totalDonationCosts;
+
+    if (allowDonation && totalDonationCosts > 0) {
+        ns.print(`\n=== DONATION SUMMARY ===`);
+        ns.print(`Total donation costs: $${ns.formatNumber(totalDonationCosts)}`);
+        ns.print(`Budget after donations: $${ns.formatNumber(adjustedBudget)}`);
+
+        // Show donations per faction
+        for (const [faction, cost] of factionDonationCosts) {
+            ns.print(`  - ${faction}: $${ns.formatNumber(cost)}`);
+        }
+    }
+
     // Convert to format expected by optimizeAugmentPurchases
     const augmentsForOptimizer = deduplicatedAugmentations.map((aug) => ({
         name:
             aug.name === "NeuroFlux Governor"
                 ? `NeuroFlux Governor - Level ${currentNeuroFluxPurchaseLevel}`
                 : aug.name,
-        cost: aug.cost, // Already in millions
+        cost: aug.cost, // Just the augment cost, donations handled separately
         faction: aug.faction,
         prereqs: aug.prereqs,
         hackingBoost: aug.hackingBoost,
@@ -898,8 +988,8 @@ export async function main(ns) {
         available: true,
     }));
 
-    // Optimize the purchase order
-    let result = optimizeAugmentPurchases(augmentsForOptimizer, totalBudget);
+    // Use adjusted budget for optimization (the budget after considering donation costs)
+    let result = optimizeAugmentPurchases(augmentsForOptimizer, adjustedBudget);
 
     // Create flags object for optimization scoring
     const optimizationFlags = { hacking, rep, combat, charisma, hacknetServer };
@@ -914,7 +1004,7 @@ export async function main(ns) {
     if (result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
         ns.print("🔍 Cannot afford all augments with current filter. Trying price filtering optimization...");
 
-        const optimizedResult = optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, optimizationFlags);
+        const optimizedResult = optimizeWithPriceFiltering(ns, augmentsForOptimizer, adjustedBudget, optimizationFlags);
         if (optimizedResult) {
             const optimizedTotalStats = optimizedResult.totalStatScore;
 
@@ -957,6 +1047,11 @@ export async function main(ns) {
     if (result.maxPriceFilter) {
         ns.print(`INFO Price filter applied: Max $${ns.formatNumber(result.maxPriceFilter * 1000000)}`);
     }
+    if (allowDonation) {
+        ns.print(`INFO Donations: Enabled (includes costs for reputation requirements)`);
+    } else {
+        ns.print(`INFO Donations: Disabled (only augments with sufficient reputation)`);
+    }
     ns.print("");
 
     for (let i = 0; i < result.purchaseOrder.length; i++) {
@@ -967,8 +1062,9 @@ export async function main(ns) {
         const charismaMark = aug.charismaBoost ? " 🗣️" : "";
         const hacknetMark = aug.hacknetBoost ? " 🖥️" : "";
         const prereqInfo = aug.prereqs.length > 0 ? `\n      - Requires: ${aug.prereqs.join(", ")}` : "";
+
         ns.print(
-            `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} [Base: $${ns.formatNumber(aug.cost * 1000000)}] - ${aug.name}${hackingMark}${repMark}${combatMark}${charismaMark}${hacknetMark}${prereqInfo}`,
+            `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} - ${aug.name}${hackingMark}${repMark}${combatMark}${charismaMark}${hacknetMark}${prereqInfo}`,
         );
     }
 
@@ -984,8 +1080,9 @@ export async function main(ns) {
             const charismaMark = aug.charismaBoost ? " 🗣️" : "";
             const hacknetMark = aug.hacknetBoost ? " 🖥️" : "";
             const prereqInfo = aug.prereqs.length > 0 ? `\n      - Requires: ${aug.prereqs.join(", ")}` : "";
+
             ns.print(
-                `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} [Base: $${ns.formatNumber(aug.cost * 1000000)}] - ${aug.name}${hackingMark}${repMark}${combatMark}${charismaMark}${hacknetMark}${prereqInfo}`,
+                `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} - ${aug.name}${hackingMark}${repMark}${combatMark}${charismaMark}${hacknetMark}${prereqInfo}`,
             );
         }
     }
@@ -1002,6 +1099,10 @@ export async function main(ns) {
         ns.print(`Stock portfolio value: $0 (no positions)`);
     }
     ns.print(`Total available budget: $${ns.formatNumber(totalBudget)}`);
+    if (allowDonation && totalDonationCosts > 0) {
+        ns.print(`Total donation costs: $${ns.formatNumber(totalDonationCosts)}`);
+        ns.print(`Budget after donations: $${ns.formatNumber(adjustedBudget)}`);
+    }
     ns.print("\n");
     ns.print("=== PURCHASE SUMMARY ===");
     ns.print(`Total augments to purchase: ${result.purchaseOrder.length}`);
@@ -1018,13 +1119,17 @@ export async function main(ns) {
     ns.print(`  - Combat augments: ${combatAugmentsCount}`);
     ns.print(`  - Charisma augments: ${charismaAugmentsCount}`);
     ns.print(`  - Hacknet augments: ${hacknetAugmentsCount}`);
+
+    if (allowDonation && totalDonationCosts > 0) {
+        ns.print(`  - Total donation cost: $${ns.formatNumber(totalDonationCosts)}`);
+    }
     ns.print(`\n`);
 
     if (result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
         ns.print(`Augments not purchased due to budget: ${result.unpurchasedAugments.length}`);
     }
     ns.print(`Total cost: $${ns.formatNumber(result.totalCost * 1000000)}`);
-    ns.print(`Remaining budget: $${ns.formatNumber(totalBudget - result.totalCost * 1000000)}`);
+    ns.print(`Remaining budget: $${ns.formatNumber(adjustedBudget - result.totalCost * 1000000)}`);
 
     ns.print("\n");
     ns.print(`Total cost of all augments: $${ns.formatNumber(result.totalCostOfAll * 1000000)}`);
@@ -1064,6 +1169,24 @@ export async function main(ns) {
         ns.print("\n");
         ns.print("=== PURCHASING AUGMENTS ===");
         ns.print(`Purchasing ${result.purchaseOrder.length} augments`);
+
+        // First, handle all donations if needed
+        if (allowDonation) {
+            if (factionDonationCosts.size > 0) {
+                ns.print("\n=== MAKING DONATIONS ===");
+                for (const [faction, amount] of factionDonationCosts) {
+                    ns.print(`Donating $${ns.formatNumber(amount)} to ${faction}...`);
+                    const success = ns.singularity.donateToFaction(faction, amount);
+                    if (success) {
+                        ns.print(`✅ Successfully donated $${ns.formatNumber(amount)} to ${faction}`);
+                    } else {
+                        ns.print(`❌ Failed to donate to ${faction} - may not have enough money or 150 favor`);
+                    }
+                }
+                ns.print("");
+            }
+        }
+
         for (let i = 0; i < result.purchaseOrder.length; i++) {
             const aug = result.purchaseOrder[i];
 

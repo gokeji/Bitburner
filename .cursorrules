@@ -1,5 +1,9 @@
 These are my bitBurner scripts, the video game.
 
+## My Coding Guidelines
+
+- No defensive programming unless it's completely necessary. I want my objects and data to have a standard and predictable signature so we don't need defensive programming. Defensive programming just means we are uncertain about what data we will be getting.
+
 ## Bitburner Hacking Optimization Context
 
 ### Game Mechanics & Constraints
