@@ -6,12 +6,12 @@ const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
 
 const IPVGO_OPPONENTS = [
-    "Netburners", // increased hacknet production
+    // "Netburners", // increased hacknet production
     // "Slum Snakes", // crime success rate
-    "The Black Hand", // hacking money
-    "Tetrads", // strength, defense, dexterity, and agility levels
+    // "The Black Hand", // hacking money
+    // "Tetrads", // strength, defense, dexterity, and agility levels
     "Daedalus", // reputation gain
-    "Illuminati", // faster hack(), grow(), and weaken()
+    // "Illuminati", // faster hack(), grow(), and weaken()
     // "????????????", // w0r1d_d43m0n Hacking Levels - will be dynamically added later
 ];
 
@@ -205,9 +205,7 @@ function restartIpvgo(ns) {
         ns.kill(ipvgoPid);
     }
 
-    const hasFlightExe = ns.fileExists("fl1ght.exe", "home");
-    const hasDaedalusFaction = ns.getPlayer().factions.includes("Daedalus");
-    const hasRedPill = !hasFlightExe && hasDaedalusFaction;
+    const hasRedPill = ns.singularity.getOwnedAugmentations().includes("The Red Pill");
 
     if (hasRedPill) {
         IPVGO_OPPONENTS.push("????????????");

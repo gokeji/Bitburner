@@ -20,9 +20,9 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let hackPercentage = 0.5;
+    let hackPercentage = 0.9;
     let MAX_WEAKEN_TIME = 20 * 60 * 1000; // ms max weaken time (Max 10 minutes)
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.4; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0.4;
     let ALLOW_HASH_UPGRADES = true;
 
@@ -31,7 +31,7 @@ export async function main(ns) {
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
 
-    const HOME_SERVER_RESERVED_RAM = 200; // GB reserved for home server
+    const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
     const ALWAYS_XP_FARM = true;
     const ALLOW_PARTIAL_PREP = true;
 
@@ -46,9 +46,9 @@ export async function main(ns) {
 
     // Global priorities map that persists across the scheduling loop
     let globalPrioritiesMap = new Map();
-    const recoveringServers = new Set(); // In-memory state for servers in active recovery
     let serverBatchTimings = new Map(); // Stores the original batch timings for each server
     let serverBaselineSecurityLevels = new Map(); // Stores the original min security levels for each server
+    let serverPrepTimings = new Map();
 
     // Weaken drift protection - servers on hold due to excessive timing drift
     let serversOnHold = new Map(); // Map<string, number> - server name to resume timestamp
@@ -267,7 +267,6 @@ export async function main(ns) {
                     const message = `INFO: ${currentServer} is fully prepped with lingering G/W scripts. Clearing them to start HGW.`;
                     ns.print(message);
                     killAllScriptsForTarget(ns, currentServer, ["grow", "weaken"]);
-                    recoveringServers.delete(currentServer); // Server is no longer in recovery
                     // Invalidate the state for this tick, as the server is now truly idle.
                     isPrep = false;
                     isTargeted = false;
@@ -304,7 +303,6 @@ export async function main(ns) {
                     ns.print(message);
                     ns.tprint(message);
                     killAllScriptsForTarget(ns, currentServer, ["hack"]);
-                    recoveringServers.add(currentServer); // Tag server for fast-path recovery check
 
                     if (serverBatchTimings.has(currentServer)) {
                         serverBatchTimings.delete(currentServer);
@@ -319,8 +317,22 @@ export async function main(ns) {
 
             // Continue to next server if it's already being prepped
             if (isPrep) {
-                // ns.print(`INFO: Server ${currentServer} is already being prepped`);
-                continue;
+                // If prep timing is worse than new prediction, kill threads and restart prep
+                if (serverPrepTimings.has(currentServer)) {
+                    const prepTiming = serverPrepTimings.get(currentServer);
+                    const prepStats = getServerPrepStats(ns, currentServer);
+                    const newWeakenTime = prepStats.weakenTime;
+
+                    if (prepTiming.startTime + prepTiming.weakenTime > Date.now() + newWeakenTime) {
+                        // Hack levels improved so much that we should re-prep since it'll be faster
+                        killAllScriptsForTarget(ns, currentServer, ["grow", "weaken"]);
+                        isPrep = false;
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
+                }
             }
 
             // This is a guard against invalid batches that might have 0 threads for very high security servers
@@ -347,6 +359,10 @@ export async function main(ns) {
                     totalRamUsed += prepRamUsed;
                     successfullyProcessedServers.push(currentServer);
                     ramToDistribute -= prepRamUsed;
+                    serverPrepTimings.set(currentServer, {
+                        weakenTime: serverStats.weakenTime,
+                        startTime: Date.now(),
+                    });
                 }
                 continue; // Move on to next server
             }

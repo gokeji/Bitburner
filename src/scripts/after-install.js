@@ -7,18 +7,22 @@ import { NS } from "@ns";
 export async function main(ns) {
     ns.disableLog("ALL");
 
-    // Do crime until we hit 230K money
-    while (ns.getPlayer().money < 230000) {
-        ns.singularity.commitCrime("Shoplift");
-        ns.print(`Doing Shoplift until we have 230K money`);
-        await ns.sleep(5000);
-    }
+    const isLateGame =
+        ns.getPlayer().mults.hacking > 5 ||
+        ns.getServerMaxRam("home") > 2 ** 20 ||
+        ns.gang.getGangInformation().territory > 0.4;
 
-    // Stop committing crime as it slows down casino.js
-    ns.singularity.stopAction();
+    if (!isLateGame) {
+        // Do crime until we hit 230K money
+        while (ns.getPlayer().money < 230000) {
+            ns.singularity.commitCrime("Shoplift");
+            ns.print(`Doing Shoplift until we have 230K money`);
+            await ns.sleep(5000);
+        }
 
-    // If we're in lategame and already have 1b right after install, we don't need to run casino.js
-    if (ns.getPlayer().money < 1e9) {
+        // Stop committing crime as it slows down casino.js
+        ns.singularity.stopAction();
+
         // Wait for casino to make 10B
         while (ns.getMoneySources().sinceInstall.casino < 10e9) {
             ns.print(`Waiting for casino to make 10B`);

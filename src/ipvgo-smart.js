@@ -1,3 +1,5 @@
+import { NS } from "@ns";
+
 /**Author:
  * Discord:
  * - Sphyxis
@@ -103,7 +105,7 @@ export async function main(ns) {
                     if ((results = await movePiece(getRandomStrat()))) break;
                     ns.print("Turn Passed");
                     passed = true;
-                    results = await ns.go.passTurn(playAsWhite);
+                    results = await tryPassTurn();
                     break;
                 case 1: //The Black Hand
                     if ((results = await movePiece(getRandomCounterLib()))) break;
@@ -123,7 +125,7 @@ export async function main(ns) {
                     if ((results = await movePiece(getRandomStrat()))) break;
                     ns.print("Turn Passed");
                     passed = true;
-                    results = await ns.go.passTurn(playAsWhite);
+                    results = await tryPassTurn();
                     break;
                 case 2: //Mr. Mustacio - Slum Snakes
                     if ((results = await movePiece(getRandomCounterLib()))) break;
@@ -143,7 +145,7 @@ export async function main(ns) {
                     if ((results = await movePiece(getRandomStrat()))) break;
                     ns.print("Turn Passed");
                     passed = true;
-                    results = await ns.go.passTurn(playAsWhite);
+                    results = await tryPassTurn();
                     break;
                 case 3: //Daedalus
                     if ((results = await movePiece(getRandomCounterLib()))) break;
@@ -163,7 +165,7 @@ export async function main(ns) {
                     if ((results = await movePiece(getRandomStrat()))) break;
                     ns.print("Turn Passed");
                     passed = true;
-                    results = await ns.go.passTurn(playAsWhite);
+                    results = await tryPassTurn();
                     break;
                 case 4: //Tetrads
                     if ((results = await movePiece(getRandomCounterLib()))) break;
@@ -183,7 +185,7 @@ export async function main(ns) {
                     if ((results = await movePiece(getRandomStrat()))) break;
                     ns.print("Turn Passed");
                     passed = true;
-                    results = await ns.go.passTurn(playAsWhite);
+                    results = await tryPassTurn();
                     break;
                 case 5: //Illum
                     if ((results = await movePiece(getRandomCounterLib()))) break;
@@ -202,7 +204,7 @@ export async function main(ns) {
                     if ((results = await movePiece(getRandomStrat()))) break;
                     ns.print("Turn Passed");
                     passed = true;
-                    results = await ns.go.passTurn(playAsWhite);
+                    results = await tryPassTurn();
                     break;
                 case 6: //??????
                     if ((results = await movePiece(getRandomCounterLib()))) break;
@@ -222,7 +224,7 @@ export async function main(ns) {
                     if ((results = await movePiece(getRandomStrat()))) break;
                     ns.print("Turn Passed");
                     passed = true;
-                    results = await ns.go.passTurn(playAsWhite);
+                    results = await tryPassTurn();
                     break;
             } //End of style switch
         } // end of turn >= 3
@@ -251,6 +253,19 @@ export async function main(ns) {
                 break;
             default:
                 STYLE = 6;
+        }
+    }
+
+    async function tryPassTurn() {
+        try {
+            return await ns.go.passTurn(playAsWhite);
+        } catch (error) {
+            // If the error indicates the game is over, simulate a gameOver result
+            if (error.message && error.message.includes("The game is over")) {
+                checkNewGame({ type: "gameOver" }, false);
+                return { type: "gameOver" };
+            }
+            throw error; // Re-throw if it's a different error
         }
     }
 

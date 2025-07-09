@@ -13,6 +13,9 @@ export async function main(ns) {
         "Tian Di Hui",
         "The Syndicate",
         "BitRunners",
+        "New Tokyo",
+        "Ishima",
+        "Chongqing",
     ];
 
     // Function to process faction invitations
@@ -33,7 +36,7 @@ export async function main(ns) {
                 try {
                     const enemies = ns.singularity.getFactionEnemies(faction);
 
-                    if (enemies.length === 0) {
+                    if (enemies.length === 0 || autoJoinFactions.includes(faction)) {
                         // No enemies, safe to join
                         const success = ns.singularity.joinFaction(faction);
                         if (success) {
@@ -46,7 +49,10 @@ export async function main(ns) {
                             ns.toast(`❌ Failed to join ${faction}`, "error");
                         }
                         if (faction === "Daedalus") {
-                            await ns.grafting.waitForOngoingGrafting();
+                            const currentWork = ns.singularity.getCurrentWork();
+                            if (currentWork.type === "GRAFTING") {
+                                await ns.grafting.waitForOngoingGrafting();
+                            }
                             const success = ns.singularity.workForFaction(faction, "hacking");
                             if (success) {
                                 ns.print(`✅ Working for ${faction}!`);

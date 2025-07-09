@@ -8,33 +8,36 @@ export async function main(ns) {
     ns.disableLog("singularity.commitCrime");
 
     let taskQueue = [
-        { type: "faction", target: "CyberSec", goal: "2000" },
+        // { type: "faction", target: "CyberSec", goal: "2000" },
+        // {
+        //     type: "graft",
+        //     target: "ADR-V2 Pheromone Gene",
+        // },
+        // { type: "faction", target: "Tian Di Hui", goal: "6250" },
+
+        // { type: "faction", target: "Netburners", goal: "7500" },
+        // { type: "faction", target: "NiteSec", goal: "45000" },
+
+        // {
+        //     type: "graft",
+        //     target: "OmniTek InfoLoad",
+        // },
+        // {
+        //     type: "graft",
+        //     target: "Xanipher",
+        // },
         // { type: "homicide" },
-        {
-            type: "graft",
-            target: "ADR-V2 Pheromone Gene",
-        },
-        { type: "faction", target: "Tian Di Hui", goal: "6250" },
-
-        { type: "faction", target: "Netburners", goal: "7500" },
-        { type: "faction", target: "NiteSec", goal: "45000" },
-
-        { type: "graft", target: "QLink" },
-        {
-            type: "graft",
-            target: "OmniTek InfoLoad",
-        },
-        {
-            type: "graft",
-            target: "Xanipher",
-        },
-        { type: "faction", target: "NiteSec", goal: "favor" },
+        // { type: "graft", target: "QLink" },
+        // { type: "faction", target: "NiteSec", goal: "favor" },
+        { type: "faction", target: "Daedalus", goal: "favor" },
+        { type: "reset" },
 
         { type: "faction", target: "BitRunners", goal: "100000" },
+        { type: "faction", target: "Daedalus", goal: "favor" },
         { type: "faction", target: "Tian Di Hui", goal: "75000" },
         { type: "faction", target: "BitRunners", goal: "favor" },
-        { type: "faction", target: "Chongqing", goal: "37500" },
-        { type: "faction", target: "Daedalus", goal: "favor" },
+        // { type: "faction", target: "Chongqing", goal: "37500" },
+        { type: "faction", target: "The Black Hand", goal: "favor" },
     ];
 
     let hasMessaged = false;
@@ -136,6 +139,14 @@ export async function main(ns) {
                     taskQueue.shift();
                 }
                 break;
+            case "reset":
+                ns.run("scripts/get-augments.js", 1, "--hacking", "--rep", "--hacknet", "--buy", "--force-buy");
+                ns.run("scripts/get-augments.js", 1, "--buy", "--force-buy");
+                await ns.sleep(10000);
+                while (ns.getPlayer().money > ns.singularity.getUpgradeHomeRamCost()) {
+                    ns.singularity.upgradeHomeRam();
+                }
+                ns.singularity.installAugmentations("scripts/after-install.js");
         }
     }
     /** @param {NS} ns **/
