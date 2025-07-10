@@ -14,7 +14,7 @@ const UPGRADE_THRESHOLD = 0.33;
  *
  * @param {NS} ns
  */
-function getRamTierToBuy(ns) {
+function getRamTierToBuy(ns, firstTime) {
     const maxAllowedServers = ns.getPurchasedServerLimit();
     const maxAllowedRam = getMaxRamAllowed(ns);
 
@@ -25,8 +25,26 @@ function getRamTierToBuy(ns) {
         0,
     );
 
+    const serverSoftcap = ns.getBitNodeMultipliers().PurchasedServerSoftcap;
+    const costMult = Math.pow(serverSoftcap, Math.log2(homeServerRam) - 6);
+    // 1 - 2
+    // 24 - 4
+    // 48 - 8
+    // 96 - 16
+    const costAdjustmentFactor = Math.max(Math.floor(Math.log(costMult) / Math.log(3)), 1);
+    // ns.print(costAdjustmentFactor);
+    const startingRamPurchaseMult = 2 ** costAdjustmentFactor;
+    const startingRamTarget = homeServerRam / startingRamPurchaseMult;
+
+    if (firstTime) {
+        ns.print(`Server softcap: ${serverSoftcap}`);
+        ns.print(`Cost multiplier for home ram ${ns.formatRam(homeServerRam)} is ${ns.formatNumber(costMult)}X`);
+        ns.print(
+            `Starting upgrade with 1/${startingRamPurchaseMult} of home ram: ${ns.formatRam(startingRamTarget)}/${ns.formatRam(homeServerRam)}`,
+        );
+    }
     // Set ram tier to match current max
-    let targetRam = Math.min(maxAllowedRam, Math.max(purchasedServersMaxRam, homeServerRam / 2));
+    let targetRam = Math.min(maxAllowedRam, Math.max(purchasedServersMaxRam, startingRamTarget));
 
     const currentMoney = ns.getServerMoneyAvailable("home");
 
@@ -92,6 +110,7 @@ export async function main(ns) {
 
     let ramTierToBuy = 0;
     let ramTierForMessaging = 0;
+    let firstTime = true;
 
     while (true) {
         const purchasedServers = ns.getPurchasedServers();
@@ -123,7 +142,8 @@ export async function main(ns) {
         }
 
         // Calculate the ram tier to buy
-        ramTierToBuy = getRamTierToBuy(ns);
+        ramTierToBuy = getRamTierToBuy(ns, firstTime);
+        firstTime = false;
 
         // If we cannot afford it, sleep and wait for more money
         if (ns.getPurchasedServerCost(ramTierToBuy) > ns.getServerMoneyAvailable("home")) {
