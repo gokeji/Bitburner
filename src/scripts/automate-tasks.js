@@ -24,19 +24,19 @@ export async function main(ns) {
             target: "OmniTek InfoLoad",
         },
         // { type: "graft", target: "QLink" },
-        { type: "faction", target: "NiteSec", goal: "45000" },
         {
             type: "graft",
             target: "Xanipher",
         },
+        // { type: "faction", target: "NiteSec", goal: "45000" },
         // { type: "faction", target: "NiteSec", goal: "favor" },
         // { type: "faction", target: "Daedalus", goal: "favor" },
         // { type: "reset" },
 
         { type: "faction", target: "BitRunners", goal: "100000" },
-        { type: "faction", target: "Daedalus", goal: "favor" },
+        // { type: "faction", target: "Daedalus", goal: "favor" },
         { type: "faction", target: "Tian Di Hui", goal: "75000" },
-        { type: "faction", target: "BitRunners", goal: "favor" },
+        // { type: "faction", target: "BitRunners", goal: "favor" },
         { type: "faction", target: "Chongqing", goal: "37500" },
         { type: "faction", target: "The Black Hand", goal: "favor" },
     ];

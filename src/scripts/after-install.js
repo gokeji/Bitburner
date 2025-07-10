@@ -7,10 +7,9 @@ import { NS } from "@ns";
 export async function main(ns) {
     ns.disableLog("ALL");
 
-    const isLateGame =
-        ns.getPlayer().mults.hacking > 5 ||
-        ns.getServerMaxRam("home") > 2 ** 20 ||
-        (ns.gang.inGang() && ns.gang.getGangInformation().territory > 0.4);
+    const isLateGame = ns.getPlayer().mults.hacking > 5 || ns.getServerMaxRam("home") > 2 ** 20;
+    //  ||
+    // (ns.gang.inGang() && ns.gang.getGangInformation().territory > 0.4);
 
     if (!isLateGame) {
         // Do crime until we hit 230K money

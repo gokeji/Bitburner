@@ -18,39 +18,6 @@ const argsSchema = [
 ];
 
 /**
- * Calculates the money cost to donate for the required reputation
- * @param {NS} ns - NetScript object
- * @param {string} faction - Faction name
- * @param {number} repNeeded - Reputation needed
- * @returns {Object} Object with canDonate, cost, and favor information
- */
-function calculateDonationCost(ns, faction, repNeeded) {
-    const player = ns.getPlayer();
-    const currentRep = ns.singularity.getFactionRep(faction);
-    const favor = ns.singularity.getFactionFavor(faction);
-
-    // Need 150+ favor to donate
-    if (favor < 150) {
-        return { canDonate: false, cost: 0, favor: favor, repShortfall: repNeeded - currentRep };
-    }
-
-    // If we already have enough reputation, no donation needed
-    if (currentRep >= repNeeded) {
-        return { canDonate: true, cost: 0, favor: favor, repShortfall: 0 };
-    }
-
-    const repShortfall = repNeeded - currentRep;
-    const donationCost = ns.formulas.reputation.donationForRep(repShortfall, player);
-
-    return {
-        canDonate: true,
-        cost: donationCost,
-        favor: favor,
-        repShortfall: repShortfall,
-    };
-}
-
-/**
  * Validates NeuroFlux Governor reputation requirements
  * @param {NS} ns - NetScript object
  * @param {Object} player - Player object
@@ -831,8 +798,10 @@ export async function main(ns) {
                 const hacknetBoost = hasHacknetBoost(stats);
 
                 // For affordability, if allow-donation is true and faction has 150+ favor, consider it affordable
+                const specialFactions = ["Church of the Machine God"];
                 const favor = ns.singularity.getFactionFavor(faction);
-                const canAffordRep = factionRep >= repReq || (allowDonation && favor >= 150);
+                const canAffordRep =
+                    factionRep >= repReq || (allowDonation && favor >= 150 && !specialFactions.includes(faction));
 
                 const aug = {
                     name: augmentation,

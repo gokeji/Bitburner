@@ -49,11 +49,11 @@ export async function main(ns) {
             ns.scp("./charge.js", targetServer);
         }
 
-        // Filter out adjacent fragments and find the one with lowest charge
+        // Filter out adjacent fragments
         const chargeableFragments = fragments.filter((fragment) => !fragment.effect.includes("adjacent"));
 
         if (chargeableFragments.length === 0) {
-            await ns.sleep(100);
+            await ns.sleep(1000);
             continue;
         }
 
@@ -63,22 +63,20 @@ export async function main(ns) {
         );
 
         let success = false;
-        while (!success) {
-            success = ns.exec(
-                `./charge.js`,
-                targetServer,
-                threadsToUse,
-                lowestChargeFragment.x,
-                lowestChargeFragment.y,
-            );
-            await ns.sleep(50);
+        success = ns.exec(`./charge.js`, targetServer, threadsToUse, lowestChargeFragment.x, lowestChargeFragment.y);
 
-            if (success) {
-                ns.print(
-                    `Charged fragment [${lowestChargeFragment.x}, ${lowestChargeFragment.y}] - ${lowestChargeFragment.numCharge} charges`,
-                );
-                break; // Exit the while loop after successful charge
+        if (success) {
+            ns.print(
+                `Charged fragment [${lowestChargeFragment.x}, ${lowestChargeFragment.y}] - ${lowestChargeFragment.numCharge} charges`,
+            );
+
+            // Wait for the charge operation to complete before selecting next target
+            while (ns.isRunning(`./charge.js`, targetServer, lowestChargeFragment.x, lowestChargeFragment.y)) {
+                await ns.sleep(50);
             }
+        } else {
+            ns.print(`Failed to start charge script`);
+            await ns.sleep(100);
         }
     }
 }
