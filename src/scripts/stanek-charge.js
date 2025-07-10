@@ -32,6 +32,9 @@ export async function main(ns) {
     while (true) {
         const fragments = ns.stanek.activeFragments();
 
+        // ns.print(JSON.stringify(fragments, null, 2));
+        // return;
+
         const maxRam = ns.getServerMaxRam(targetServer);
         const usedRam = ns.getServerUsedRam(targetServer);
         const freeRam = maxRam - usedRam;
@@ -57,17 +60,29 @@ export async function main(ns) {
             continue;
         }
 
-        // Find fragment with lowest charge
-        const lowestChargeFragment = chargeableFragments.reduce((lowest, current) =>
-            current.numCharge < lowest.numCharge ? current : lowest,
+        let highestCharge = chargeableFragments.reduce((highest, current) =>
+            current.highestCharge > highest.highestCharge ? current : highest,
+        ).highestCharge;
+
+        const haveDifferentHighestCharge = chargeableFragments.some(
+            (fragment) => fragment.highestCharge !== highestCharge,
         );
+
+        // Find fragment with lowest highest charge or num charge
+        const lowestChargeFragment = chargeableFragments.reduce((lowest, current) => {
+            if (haveDifferentHighestCharge) {
+                return current.highestCharge < lowest.highestCharge ? current : lowest;
+            } else {
+                return current.numCharge < lowest.numCharge ? current : lowest;
+            }
+        });
 
         let success = false;
         success = ns.exec(`./charge.js`, targetServer, threadsToUse, lowestChargeFragment.x, lowestChargeFragment.y);
 
         if (success) {
             ns.print(
-                `Charged fragment [${lowestChargeFragment.x}, ${lowestChargeFragment.y}] - ${lowestChargeFragment.numCharge} charges`,
+                `Charged fragment [${lowestChargeFragment.x}, ${lowestChargeFragment.y}] - ${ns.formatNumber(lowestChargeFragment.numCharge)} charges - ${threadsToUse}t`,
             );
 
             // Wait for the charge operation to complete before selecting next target
