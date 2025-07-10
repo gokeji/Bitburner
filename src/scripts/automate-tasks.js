@@ -82,129 +82,129 @@ export async function main(ns) {
     }
 
     ns.print(`Completed all queued tasks`);
+}
 
-    /** @param {NS} ns **/
-    async function waitForOngoingGraft(ns) {
-        let currentWork = ns.singularity.getCurrentWork();
-        if (currentWork && currentWork.type === "GRAFTING") {
-            ns.print("Waiting for graft...");
-            await ns.grafting.waitForOngoingGrafting();
-            ns.print(`${new Date().toLocaleTimeString()} Graft complete`);
-        }
+/** @param {NS} ns **/
+async function waitForOngoingGraft(ns) {
+    let currentWork = ns.singularity.getCurrentWork();
+    if (currentWork && currentWork.type === "GRAFTING") {
+        ns.print("Waiting for graft...");
+        await ns.grafting.waitForOngoingGrafting();
+        ns.print(`${new Date().toLocaleTimeString()} Graft complete`);
     }
+}
 
-    /** @param {NS} ns **/
-    function canWorkOnTask(ns, task) {
-        switch (task.type) {
-            case "graft":
-                const graftCost = ns.grafting.getAugmentationGraftPrice(task.target);
-                const travelCost = ns.getPlayer().city === "New Tokyo" ? 0 : 200000;
-                return ns.getPlayer().money > graftCost + travelCost;
-            case "faction":
-                return ns.getPlayer().factions.includes(task.target); // Must be in faction
-            case "homicide":
-                return true; // Can always attempt homicide
-            case "reset":
-                return true; // Can always attempt reset
-            default:
+/** @param {NS} ns **/
+function canWorkOnTask(ns, task) {
+    switch (task.type) {
+        case "graft":
+            const graftCost = ns.grafting.getAugmentationGraftPrice(task.target);
+            const travelCost = ns.getPlayer().city === "New Tokyo" ? 0 : 200000;
+            return ns.getPlayer().money > graftCost + travelCost;
+        case "faction":
+            return ns.getPlayer().factions.includes(task.target); // Must be in faction
+        case "homicide":
+            return true; // Can always attempt homicide
+        case "reset":
+            return true; // Can always attempt reset
+        default:
+            return false;
+    }
+}
+
+/** @param {NS} ns **/
+function isTaskComplete(ns, task) {
+    switch (task.type) {
+        case "graft":
+            return ns.singularity.getOwnedAugmentations(false).includes(task.target);
+        case "faction":
+            if (!ns.getPlayer().factions.includes(task.target)) return false;
+            let goalReputation = task.goal;
+            if (task.goal === "favor") {
+                const currentFavor = ns.singularity.getFactionFavor(task.target);
+                goalReputation =
+                    ns.formulas.reputation.calculateFavorToRep(150) -
+                    ns.formulas.reputation.calculateFavorToRep(currentFavor);
+            }
+            return ns.singularity.getFactionRep(task.target) >= goalReputation;
+        case "homicide":
+            return ns.heart.break() <= -54000;
+        case "reset":
+            return false; // Always execute reset when reached
+    }
+}
+
+/** @param {NS} ns **/
+async function executeTask(ns, task, isFirstTime = false) {
+    const currentWork = ns.singularity.getCurrentWork();
+
+    switch (task.type) {
+        case "graft":
+            if (ns.getPlayer().city !== "New Tokyo") {
+                ns.singularity.travelToCity("New Tokyo");
+            }
+            const success = ns.grafting.graftAugmentation(task.target);
+            if (success) {
+                await waitForOngoingGraft(ns);
+                return true;
+            } else {
+                ns.print(`ERROR: ${new Date().toLocaleTimeString()} Failed to graft ${task.target}`);
                 return false;
-        }
-    }
+            }
 
-    /** @param {NS} ns **/
-    function isTaskComplete(ns, task) {
-        switch (task.type) {
-            case "graft":
-                return ns.singularity.getOwnedAugmentations(false).includes(task.target);
-            case "faction":
-                if (!ns.getPlayer().factions.includes(task.target)) return false;
-                let goalReputation = task.goal;
-                if (task.goal === "favor") {
-                    const currentFavor = ns.singularity.getFactionFavor(task.target);
-                    goalReputation =
-                        ns.formulas.reputation.calculateFavorToRep(150) -
-                        ns.formulas.reputation.calculateFavorToRep(currentFavor);
-                }
-                return ns.singularity.getFactionRep(task.target) >= goalReputation;
-            case "homicide":
-                return ns.heart.break() <= -54000;
-            case "reset":
-                return false; // Always execute reset when reached
-        }
-    }
+        case "faction":
+            let goalReputation = task.goal;
+            const currentReputation = ns.singularity.getFactionRep(task.target);
+            if (task.goal === "favor") {
+                const currentFavor = ns.singularity.getFactionFavor(task.target);
+                goalReputation =
+                    ns.formulas.reputation.calculateFavorToRep(150) -
+                    ns.formulas.reputation.calculateFavorToRep(currentFavor);
+            }
 
-    /** @param {NS} ns **/
-    async function executeTask(ns, task, isFirstTime = false) {
-        const currentWork = ns.singularity.getCurrentWork();
-
-        switch (task.type) {
-            case "graft":
-                if (ns.getPlayer().city !== "New Tokyo") {
-                    ns.singularity.travelToCity("New Tokyo");
-                }
-                const success = ns.grafting.graftAugmentation(task.target);
-                if (success) {
-                    await waitForOngoingGraft(ns);
-                    return true;
-                } else {
-                    ns.print(`ERROR: ${new Date().toLocaleTimeString()} Failed to graft ${task.target}`);
-                    return false;
-                }
-
-            case "faction":
-                let goalReputation = task.goal;
-                const currentReputation = ns.singularity.getFactionRep(task.target);
-                if (task.goal === "favor") {
-                    const currentFavor = ns.singularity.getFactionFavor(task.target);
-                    goalReputation =
-                        ns.formulas.reputation.calculateFavorToRep(150) -
-                        ns.formulas.reputation.calculateFavorToRep(currentFavor);
-                }
-
-                if (!currentWork || currentWork.type !== "FACTION" || currentWork.factionName !== task.target) {
-                    const success = ns.singularity.workForFaction(task.target, "hacking", true);
-                    if (success && isFirstTime) {
-                        ns.print(
-                            `${new Date().toLocaleTimeString()} Starting work for ${task.target}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)}`,
-                        );
-                    }
-                    if (!success) {
-                        ns.print(`ERROR: ${new Date().toLocaleTimeString()} Failed to work for ${task.target}`);
-                        return false;
-                    }
-                } else if (isFirstTime) {
+            if (!currentWork || currentWork.type !== "FACTION" || currentWork.factionName !== task.target) {
+                const success = ns.singularity.workForFaction(task.target, "hacking", true);
+                if (success && isFirstTime) {
                     ns.print(
-                        `${new Date().toLocaleTimeString()} Currently working for ${task.target}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)}`,
+                        `${new Date().toLocaleTimeString()} Starting work for ${task.target}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)}`,
                     );
                 }
-                return true;
-
-            case "homicide":
-                if (!currentWork || currentWork.type !== "CRIME" || currentWork.crimeType !== "Homicide") {
-                    const success = ns.singularity.commitCrime("homicide", true);
-                    if (success && isFirstTime) {
-                        ns.print(`${new Date().toLocaleTimeString()} Starting homicide`);
-                        ns.run("scripts/karma.js");
-                    }
-                    if (!success) {
-                        ns.print(`ERROR: ${new Date().toLocaleTimeString()} Failed to commit homicide`);
-                        return false;
-                    }
-                } else if (isFirstTime) {
-                    ns.print(`${new Date().toLocaleTimeString()} Currently doing homicide`);
+                if (!success) {
+                    ns.print(`ERROR: ${new Date().toLocaleTimeString()} Failed to work for ${task.target}`);
+                    return false;
                 }
-                return true;
+            } else if (isFirstTime) {
+                ns.print(
+                    `${new Date().toLocaleTimeString()} Currently working for ${task.target}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)}`,
+                );
+            }
+            return true;
 
-            case "reset":
-                ns.run("scripts/get-augments.js", 1, "--hacking", "--rep", "--hacknet", "--buy", "--force-buy");
-                ns.run("scripts/get-augments.js", 1, "--buy", "--force-buy");
-                await ns.sleep(10000);
-                while (ns.getPlayer().money > ns.singularity.getUpgradeHomeRamCost()) {
-                    ns.singularity.upgradeHomeRam();
+        case "homicide":
+            if (!currentWork || currentWork.type !== "CRIME" || currentWork.crimeType !== "Homicide") {
+                const success = ns.singularity.commitCrime("homicide", true);
+                if (success && isFirstTime) {
+                    ns.print(`${new Date().toLocaleTimeString()} Starting homicide`);
+                    ns.run("scripts/karma.js");
                 }
-                ns.singularity.installAugmentations("scripts/after-install.js");
-                return true;
-        }
+                if (!success) {
+                    ns.print(`ERROR: ${new Date().toLocaleTimeString()} Failed to commit homicide`);
+                    return false;
+                }
+            } else if (isFirstTime) {
+                ns.print(`${new Date().toLocaleTimeString()} Currently doing homicide`);
+            }
+            return true;
+
+        case "reset":
+            ns.run("scripts/get-augments.js", 1, "--hacking", "--rep", "--hacknet", "--buy", "--force-buy");
+            ns.run("scripts/get-augments.js", 1, "--buy", "--force-buy");
+            await ns.sleep(10000);
+            while (ns.getPlayer().money > ns.singularity.getUpgradeHomeRamCost()) {
+                ns.singularity.upgradeHomeRam();
+            }
+            ns.singularity.installAugmentations("scripts/after-install.js");
+            return true;
     }
 }
 
