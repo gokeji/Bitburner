@@ -8,89 +8,116 @@ export async function main(ns) {
     ns.disableLog("singularity.commitCrime");
 
     let taskQueue = [
-        // { type: "faction", target: "CyberSec", goal: "2000" },
-        {
-            type: "graft",
-            target: "ADR-V2 Pheromone Gene",
-        },
-        // { type: "faction", target: "Tian Di Hui", goal: "6250" },
-
-        // { type: "faction", target: "Netburners", goal: "7500" },
-        // { type: "faction", target: "Netburners", goal: "12500" },
-
-        { type: "homicide" },
-        {
-            type: "graft",
-            target: "OmniTek InfoLoad",
-        },
-        // { type: "graft", target: "QLink" },
+        { type: "graft", target: "QLink" },
         {
             type: "graft",
             target: "Xanipher",
         },
+        {
+            type: "graft",
+            target: "OmniTek InfoLoad",
+        },
+        {
+            type: "graft",
+            target: "ADR-V2 Pheromone Gene",
+        },
+        { type: "faction", target: "Daedalus", goal: "100000" },
+        { type: "faction", target: "Daedalus", goal: "favor" },
+        { type: "homicide" },
+        // { type: "faction", target: "CyberSec", goal: "2000" },
+        // { type: "faction", target: "Tian Di Hui", goal: "6250" },
+
+        // { type: "faction", target: "Netburners", goal: "7500" },
+        // { type: "faction", target: "Netburners", goal: "12500" },
         // { type: "faction", target: "NiteSec", goal: "45000" },
+        { type: "faction", target: "Tian Di Hui", goal: "75000" },
         // { type: "faction", target: "NiteSec", goal: "favor" },
-        // { type: "faction", target: "Daedalus", goal: "favor" },
         // { type: "reset" },
 
         { type: "faction", target: "BitRunners", goal: "100000" },
-        // { type: "faction", target: "Daedalus", goal: "favor" },
-        { type: "faction", target: "Tian Di Hui", goal: "75000" },
-        // { type: "faction", target: "BitRunners", goal: "favor" },
         { type: "faction", target: "Chongqing", goal: "37500" },
+        { type: "faction", target: "BitRunners", goal: "favor" },
         { type: "faction", target: "The Black Hand", goal: "favor" },
     ];
 
-    let hasMessaged = false;
-    let failedTasks = new Set(); // Track tasks that have failed recently
-
     ns.print("\n\n\n\n\n\n");
 
-    while (taskQueue.length > 0) {
-        let currentWork = ns.singularity.getCurrentWork();
-        // ns.print(currentWork);
+    let currentTaskId = null; // Track current task to avoid spam
+    let completedTasks = [];
+
+    function getTaskId(task) {
+        return `${task.type}-${task.target || ""}-${task.goal || ""}`;
+    }
+
+    while (taskQueue.length > completedTasks.length) {
+        // Always wait for ongoing graft first
         await waitForOngoingGraft(ns);
-        // let currentWork = ns.singularity.getCurrentWork();
 
-        const task = taskQueue[0];
+        for (let task of taskQueue) {
+            const taskId = getTaskId(task);
+            if (isTaskComplete(ns, task)) {
+                if (!completedTasks.includes(taskId)) {
+                    completedTasks.push(taskId);
+                    ns.print(
+                        `${new Date().toLocaleTimeString()} Already completed: ${task.type} ${task.target || ""} ${task.goal || ""}`,
+                    );
+                }
+                continue;
+            }
+            if (canWorkOnTask(ns, task)) {
+                const isFirstTime = currentTaskId !== taskId;
+                currentTaskId = taskId;
 
+                const success = await executeTask(ns, task, isFirstTime);
+                if (success) {
+                    break;
+                } else {
+                    // Should not happen but move on to next task if previous one fails for some reason
+                    continue;
+                }
+            }
+        }
+
+        await ns.sleep(10000);
+    }
+
+    ns.print(`Completed all queued tasks`);
+
+    /** @param {NS} ns **/
+    async function waitForOngoingGraft(ns) {
+        let currentWork = ns.singularity.getCurrentWork();
+        if (currentWork && currentWork.type === "GRAFTING") {
+            ns.print("Waiting for graft...");
+            await ns.grafting.waitForOngoingGrafting();
+            ns.print(`${new Date().toLocaleTimeString()} Graft complete`);
+        }
+    }
+
+    /** @param {NS} ns **/
+    function canWorkOnTask(ns, task) {
         switch (task.type) {
             case "graft":
-                if (ns.singularity.getOwnedAugmentations(true).includes(task.target)) {
-                    ns.print(`${new Date().toLocaleTimeString()} Already have ${task.target}`);
-                    taskQueue.shift();
-                    break;
-                }
-                ns.singularity.travelToCity("New Tokyo");
-                const success = ns.grafting.graftAugmentation(task.target);
-                if (success) {
-                    await waitForOngoingGraft(ns);
-                    taskQueue.shift();
-                } else {
-                    ns.print(`${new Date().toLocaleTimeString()} Failed to graft ${task.target}`);
-                    taskQueue.shift(); // Remove current task
-                    if (taskQueue.length > 0) {
-                        taskQueue.splice(1, 0, task); // Insert after the next task (at index 1)
-                    } else {
-                        taskQueue.push(task); // If no other tasks, put it back at the end
-                    }
-                    await ns.sleep(5000);
-                }
-                break;
+                const graftCost = ns.grafting.getAugmentationGraftPrice(task.target);
+                const travelCost = ns.getPlayer().city === "New Tokyo" ? 0 : 200000;
+                return ns.getPlayer().money > graftCost + travelCost;
             case "faction":
-                if (!ns.getPlayer().factions.includes(task.target)) {
-                    ns.print(`${new Date().toLocaleTimeString()} Player has not joined ${task.target} yet`);
-                    // Move this behind the next task (if there is one)
-                    taskQueue.shift(); // Remove current task
-                    if (taskQueue.length > 0) {
-                        taskQueue.splice(1, 0, task); // Insert after the next task (at index 1)
-                    } else {
-                        taskQueue.push(task); // If no other tasks, put it back at the end
-                    }
-                    await ns.sleep(5000);
-                    break;
-                }
+                return ns.getPlayer().factions.includes(task.target); // Must be in faction
+            case "homicide":
+                return true; // Can always attempt homicide
+            case "reset":
+                return true; // Can always attempt reset
+            default:
+                return false;
+        }
+    }
 
+    /** @param {NS} ns **/
+    function isTaskComplete(ns, task) {
+        switch (task.type) {
+            case "graft":
+                return ns.singularity.getOwnedAugmentations(false).includes(task.target);
+            case "faction":
+                if (!ns.getPlayer().factions.includes(task.target)) return false;
                 let goalReputation = task.goal;
                 if (task.goal === "favor") {
                     const currentFavor = ns.singularity.getFactionFavor(task.target);
@@ -98,50 +125,76 @@ export async function main(ns) {
                         ns.formulas.reputation.calculateFavorToRep(150) -
                         ns.formulas.reputation.calculateFavorToRep(currentFavor);
                 }
+                return ns.singularity.getFactionRep(task.target) >= goalReputation;
+            case "homicide":
+                return ns.heart.break() <= -54000;
+            case "reset":
+                return false; // Always execute reset when reached
+        }
+    }
 
-                if (ns.singularity.getFactionRep(task.target) < goalReputation) {
-                    if (!currentWork || currentWork.type !== "FACTION" || currentWork.factionName !== task.target) {
-                        ns.singularity.workForFaction(task.target, "hacking", true);
-                        ns.print(
-                            `${new Date().toLocaleTimeString()} Starting work for ${task.target}, goal: ${ns.formatNumber(goalReputation)}`,
-                        );
-                        hasMessaged = false;
-                    }
-                    if (!hasMessaged) {
-                        ns.print(
-                            `${new Date().toLocaleTimeString()} Waiting for ${task.target} work, goal: ${ns.formatNumber(goalReputation)}`,
-                        );
-                        hasMessaged = true;
-                    }
-                    await ns.sleep(10000);
+    /** @param {NS} ns **/
+    async function executeTask(ns, task, isFirstTime = false) {
+        const currentWork = ns.singularity.getCurrentWork();
+
+        switch (task.type) {
+            case "graft":
+                if (ns.getPlayer().city !== "New Tokyo") {
+                    ns.singularity.travelToCity("New Tokyo");
+                }
+                const success = ns.grafting.graftAugmentation(task.target);
+                if (success) {
+                    await waitForOngoingGraft(ns);
+                    return true;
                 } else {
-                    // Completed faction goal
-                    ns.print(
-                        `${new Date().toLocaleTimeString()} Completed faction goal ${ns.formatNumber(goalReputation)} rep for ${task.target}`,
-                    );
-                    taskQueue.shift();
+                    ns.print(`ERROR: ${new Date().toLocaleTimeString()} Failed to graft ${task.target}`);
+                    return false;
                 }
 
-                break;
-            case "homicide":
-                if (ns.heart.break() > -54000) {
-                    if (!currentWork || currentWork.type !== "CRIME" || currentWork.crimeType !== "Homicide") {
-                        ns.singularity.commitCrime("homicide", true);
-                        ns.print(`${new Date().toLocaleTimeString()} Starting homicide`);
-                        hasMessaged = false;
+            case "faction":
+                let goalReputation = task.goal;
+                const currentReputation = ns.singularity.getFactionRep(task.target);
+                if (task.goal === "favor") {
+                    const currentFavor = ns.singularity.getFactionFavor(task.target);
+                    goalReputation =
+                        ns.formulas.reputation.calculateFavorToRep(150) -
+                        ns.formulas.reputation.calculateFavorToRep(currentFavor);
+                }
 
+                if (!currentWork || currentWork.type !== "FACTION" || currentWork.factionName !== task.target) {
+                    const success = ns.singularity.workForFaction(task.target, "hacking", true);
+                    if (success && isFirstTime) {
+                        ns.print(
+                            `${new Date().toLocaleTimeString()} Starting work for ${task.target}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)}`,
+                        );
+                    }
+                    if (!success) {
+                        ns.print(`ERROR: ${new Date().toLocaleTimeString()} Failed to work for ${task.target}`);
+                        return false;
+                    }
+                } else if (isFirstTime) {
+                    ns.print(
+                        `${new Date().toLocaleTimeString()} Currently working for ${task.target}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)}`,
+                    );
+                }
+                return true;
+
+            case "homicide":
+                if (!currentWork || currentWork.type !== "CRIME" || currentWork.crimeType !== "Homicide") {
+                    const success = ns.singularity.commitCrime("homicide", true);
+                    if (success && isFirstTime) {
+                        ns.print(`${new Date().toLocaleTimeString()} Starting homicide`);
                         ns.run("scripts/karma.js");
                     }
-                    if (!hasMessaged) {
-                        ns.print(`${new Date().toLocaleTimeString()} Waiting for gang unlock`);
-                        hasMessaged = true;
+                    if (!success) {
+                        ns.print(`ERROR: ${new Date().toLocaleTimeString()} Failed to commit homicide`);
+                        return false;
                     }
-                    await ns.sleep(10000);
-                } else {
-                    ns.print(`${new Date().toLocaleTimeString()} Gang is unlocked`);
-                    taskQueue.shift();
+                } else if (isFirstTime) {
+                    ns.print(`${new Date().toLocaleTimeString()} Currently doing homicide`);
                 }
-                break;
+                return true;
+
             case "reset":
                 ns.run("scripts/get-augments.js", 1, "--hacking", "--rep", "--hacknet", "--buy", "--force-buy");
                 ns.run("scripts/get-augments.js", 1, "--buy", "--force-buy");
@@ -150,16 +203,7 @@ export async function main(ns) {
                     ns.singularity.upgradeHomeRam();
                 }
                 ns.singularity.installAugmentations("scripts/after-install.js");
-        }
-    }
-    /** @param {NS} ns **/
-    async function waitForOngoingGraft(ns) {
-        let currentWork = ns.singularity.getCurrentWork();
-
-        if (currentWork && currentWork.type === "GRAFTING") {
-            ns.print("Waiting for graft...");
-            await ns.grafting.waitForOngoingGrafting();
-            ns.print(`${new Date().toLocaleTimeString()} Graft complete`);
+                return true;
         }
     }
 }
