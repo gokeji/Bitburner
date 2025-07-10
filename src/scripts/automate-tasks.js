@@ -30,12 +30,12 @@ export async function main(ns) {
         // { type: "faction", target: "Netburners", goal: "7500" },
         // { type: "faction", target: "Netburners", goal: "12500" },
         // { type: "faction", target: "NiteSec", goal: "45000" },
-        { type: "faction", target: "Tian Di Hui", goal: "75000" },
+        // { type: "faction", target: "Tian Di Hui", goal: "75000" },
         // { type: "faction", target: "NiteSec", goal: "favor" },
-        // { type: "reset" },
+        { type: "reset" },
 
-        { type: "faction", target: "BitRunners", goal: "100000" },
-        { type: "faction", target: "Chongqing", goal: "37500" },
+        // { type: "faction", target: "BitRunners", goal: "100000" },
+        // { type: "faction", target: "Chongqing", goal: "37500" },
         { type: "faction", target: "BitRunners", goal: "favor" },
         { type: "faction", target: "The Black Hand", goal: "favor" },
     ];
@@ -58,8 +58,9 @@ export async function main(ns) {
             if (isTaskComplete(ns, task)) {
                 if (!completedTasks.includes(taskId)) {
                     completedTasks.push(taskId);
+                    const completedDesc = currentTaskId === taskId ? "Completed" : "Ready";
                     ns.print(
-                        `${new Date().toLocaleTimeString()} Already completed: ${task.type} ${task.target || ""} ${task.goal || ""}`,
+                        `${new Date().toLocaleTimeString()} ${completedDesc}: ${task.type} ${task.target || ""} ${task.goal || ""}`,
                     );
                 }
                 continue;
@@ -88,7 +89,7 @@ export async function main(ns) {
 async function waitForOngoingGraft(ns) {
     let currentWork = ns.singularity.getCurrentWork();
     if (currentWork && currentWork.type === "GRAFTING") {
-        ns.print("Waiting for graft...");
+        ns.print(`Waiting for graft: ${currentWork.augmentation}...`);
         await ns.grafting.waitForOngoingGrafting();
         ns.print(`${new Date().toLocaleTimeString()} Graft complete`);
     }

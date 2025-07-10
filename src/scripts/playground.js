@@ -2,7 +2,7 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    await ns.stanek.chargeFragment(0, 0);
+    ns.print(ns.singularity.getCurrentWork());
     // while (true) {
     //     const daedalusFavor =
     //         ns.singularity.getFactionFavor("Daedalus") + ns.singularity.getFactionFavorGain("Daedalus");

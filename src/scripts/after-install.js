@@ -7,7 +7,9 @@ import { NS } from "@ns";
 export async function main(ns) {
     ns.disableLog("ALL");
 
-    const isLateGame = ns.getPlayer().mults.hacking > 5 || ns.getServerMaxRam("home") > 2 ** 20;
+    const isLateGame =
+        ns.getPlayer().mults.hacking * ns.getBitNodeMultipliers().HackingLevelMultiplier > 5 ||
+        ns.getServerMaxRam("home") > 2 ** 20;
     //  ||
     // (ns.gang.inGang() && ns.gang.getGangInformation().territory > 0.4);
 

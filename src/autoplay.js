@@ -73,6 +73,7 @@ export async function main(ns) {
 
     let startedStockTrader = false;
     let sharedRam = false;
+    let ranStanekCharge = false;
 
     ns.tprint("INFO Autoplay check complete - all required scripts are now running");
     ns.tprint("INFO Waiting for stock trader and share ram to start");
@@ -110,9 +111,11 @@ export async function main(ns) {
     }
     startDistributedHackIfNotRunning(ns);
 
-    startStanekChargeIfNotRunning(ns);
-
-    while (!startedStockTrader || (!sharedRam && SERVER_TO_START_SHARING_RAM_ON)) {
+    while (
+        !startedStockTrader ||
+        (!sharedRam && SERVER_TO_START_SHARING_RAM_ON) ||
+        (!ranStanekCharge && SERVER_TO_STANEK)
+    ) {
         if (
             !sharedRam &&
             shouldShare &&
@@ -121,6 +124,11 @@ export async function main(ns) {
         ) {
             startShareAllRamIfNotRunning(ns);
             sharedRam = true;
+        }
+
+        if (!ranStanekCharge && SERVER_TO_STANEK && ns.serverExists(SERVER_TO_STANEK)) {
+            startStanekChargeIfNotRunning(ns);
+            ranStanekCharge = true;
         }
 
         const totalServerValue = ns

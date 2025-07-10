@@ -698,6 +698,7 @@ export async function main(ns) {
 
     const player = ns.getPlayer();
     const factions = player.factions;
+    const playerGang = ns.gang.inGang ? ns.gang.getGangInformation().faction : null;
     let allAugmentations = new Set();
 
     for (const faction of factions) {
@@ -767,6 +768,12 @@ export async function main(ns) {
     let unaffordableAugmentations = [];
     const affordableButFilteredOut = [];
 
+    // For affordability, if allow-donation is true and faction has 150+ favor, consider it affordable
+    let specialFactions = ["Church of the Machine God"];
+    if (playerGang) {
+        specialFactions.push(playerGang);
+    }
+
     for (const augmentation of availableAugmentations) {
         const price = ns.singularity.getAugmentationPrice(augmentation);
         const repReq = ns.singularity.getAugmentationRepReq(augmentation);
@@ -787,7 +794,7 @@ export async function main(ns) {
         for (const faction of augFactions) {
             if (player.factions.includes(faction)) {
                 // Skip gang faction if no-gang flag is set
-                if (noGang && ns.gang.getGangInformation().faction === faction) continue;
+                if (noGang && playerGang === faction) continue;
 
                 const factionRep = ns.singularity.getFactionRep(faction);
 
@@ -797,8 +804,6 @@ export async function main(ns) {
                 const charismaBoost = hasCharismaBoost(stats);
                 const hacknetBoost = hasHacknetBoost(stats);
 
-                // For affordability, if allow-donation is true and faction has 150+ favor, consider it affordable
-                const specialFactions = ["Church of the Machine God"];
                 const favor = ns.singularity.getFactionFavor(faction);
                 const canAffordRep =
                     factionRep >= repReq || (allowDonation && favor >= 150 && !specialFactions.includes(faction));
@@ -940,6 +945,10 @@ export async function main(ns) {
         for (const [faction, maxRepNeeded] of factionMaxRep) {
             const currentRep = ns.singularity.getFactionRep(faction);
             const repShortfall = maxRepNeeded - currentRep;
+
+            if (specialFactions.includes(faction)) {
+                continue;
+            }
 
             if (repShortfall > 0) {
                 const donationCost = ns.formulas.reputation.donationForRep(repShortfall, ns.getPlayer());
