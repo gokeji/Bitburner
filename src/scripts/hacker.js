@@ -20,7 +20,7 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let hackPercentage = 0.3;
+    let hackPercentage = 0.5;
     let MAX_WEAKEN_TIME = 5 * 60 * 1000; // ms max weaken time (Max 10 minutes)
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0.4;
@@ -323,10 +323,14 @@ export async function main(ns) {
                     const prepStats = getServerPrepStats(ns, currentServer);
                     const newWeakenTime = prepStats.weakenTime;
 
-                    if (prepTiming.startTime + prepTiming.weakenTime > Date.now() + newWeakenTime) {
+                    const currentFinishTime = prepTiming.startTime + prepTiming.weakenTime;
+                    const newFinishTime = Date.now() + newWeakenTime;
+
+                    if (currentFinishTime > newFinishTime) {
                         // Hack levels improved so much that we should re-prep since it'll be faster
                         killAllScriptsForTarget(ns, currentServer, ["grow", "weaken"]);
                         isPrep = false;
+                        isTargeted = false; // Update isTargeted so server can be prepped again
                     } else {
                         continue;
                     }

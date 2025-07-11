@@ -23,7 +23,16 @@ export async function main(ns) {
     const continuousMode = flags["continuous"]; // If true, continue upgrading as long as spending < 1% of player money
     const HACKNET_SPEND_PERCENTAGE = 0.01;
 
-    const hacknetMaxSpend = Math.max(2e9, ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE); // 2 billion or 1% of player money
+    const bitnodeTotalEarnings =
+        ns.getMoneySources().sinceInstall.total -
+        ns.getMoneySources().sinceInstall.gang_expenses -
+        ns.getMoneySources().sinceInstall.servers -
+        ns.getMoneySources().sinceInstall.hacknet_expenses;
+    const hacknetMaxSpend = Math.max(
+        2e9,
+        ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE,
+        bitnodeTotalEarnings * HACKNET_SPEND_PERCENTAGE,
+    ); // 2 billion or 1% of player money
 
     ns.ui.openTail();
 
@@ -244,7 +253,7 @@ export async function main(ns) {
         let hacknetServers = [];
 
         const bitnodeHacknetSpend = Math.abs(ns.getMoneySources().sinceInstall.hacknet_expenses);
-        const continuousSpendLimit = ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE;
+        const continuousSpendLimit = hacknetMaxSpend;
         if (
             !(bitnodeHacknetSpend < hacknetMaxSpend || (continuousMode && bitnodeHacknetSpend < continuousSpendLimit))
         ) {
@@ -335,7 +344,7 @@ export async function main(ns) {
         let bestUpgrade = currentNodeUpgrades[0];
 
         // Buy a new node if we have the money and are in continuous mode
-        if (continuousMode && nodePurchaseUpgrade.cost < (ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE) / 2) {
+        if (continuousMode && nodePurchaseUpgrade.cost < hacknetMaxSpend / 2) {
             bestUpgrade = nodePurchaseUpgrade;
 
             // Purchase the node first, then upgrade it
@@ -363,8 +372,7 @@ export async function main(ns) {
 
                     if (
                         hacknetWithLowestCache &&
-                        ns.hacknet.getCacheUpgradeCost(lowestCacheServerIndex) <
-                            ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE
+                        ns.hacknet.getCacheUpgradeCost(lowestCacheServerIndex) < hacknetMaxSpend
                     ) {
                         ns.hacknet.upgradeCache(lowestCacheServerIndex);
                         ns.print(`Upgraded cache on node ${lowestCacheServerIndex}`);

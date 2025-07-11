@@ -23,21 +23,21 @@ export async function main(ns) {
         },
         { type: "faction", target: "Daedalus", goal: "100000" },
         { type: "faction", target: "Daedalus", goal: "favor" },
-        { type: "faction", target: "Netburners", goal: "7500" },
-        { type: "faction", target: "CyberSec", goal: "2000" },
-        { type: "faction", target: "Tian Di Hui", goal: "6250" },
-        { type: "faction", target: "Netburners", goal: "12500" },
+        // { type: "faction", target: "CyberSec", goal: "2000" },
+        // { type: "faction", target: "Tian Di Hui", goal: "6250" },
+        // { type: "faction", target: "Netburners", goal: "7500" },
+        { type: "faction", target: "NiteSec", goal: "45000" },
+        // { type: "faction", target: "Netburners", goal: "12500" },
         { type: "homicide" },
 
-        { type: "faction", target: "NiteSec", goal: "45000" },
+        { type: "faction", target: "BitRunners", goal: "100000" },
         { type: "faction", target: "Tian Di Hui", goal: "75000" },
-        { type: "faction", target: "NiteSec", goal: "favor" },
+        // { type: "faction", target: "NiteSec", goal: "favor" },
         // { type: "reset" },
 
-        { type: "faction", target: "BitRunners", goal: "100000" },
+        { type: "faction", target: "The Black Hand", goal: "100000" },
         { type: "faction", target: "Chongqing", goal: "37500" },
         { type: "faction", target: "BitRunners", goal: "favor" },
-        { type: "faction", target: "The Black Hand", goal: "favor" },
     ];
 
     ns.print("\n\n\n\n\n\n");
