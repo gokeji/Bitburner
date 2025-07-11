@@ -21,8 +21,13 @@ export async function main(ns) {
             type: "graft",
             target: "ADR-V2 Pheromone Gene",
         },
+        {
+            type: "graft",
+            target: "BitRunners Neurolink",
+        },
         { type: "faction", target: "Daedalus", goal: "100000" },
         { type: "faction", target: "Daedalus", goal: "favor" },
+        { type: "faction", target: "BitRunners", goal: "100000" },
         // { type: "faction", target: "CyberSec", goal: "2000" },
         // { type: "faction", target: "Tian Di Hui", goal: "6250" },
         // { type: "faction", target: "Netburners", goal: "7500" },
@@ -30,7 +35,6 @@ export async function main(ns) {
         // { type: "faction", target: "Netburners", goal: "12500" },
         { type: "homicide" },
 
-        { type: "faction", target: "BitRunners", goal: "100000" },
         { type: "faction", target: "Tian Di Hui", goal: "75000" },
         // { type: "faction", target: "NiteSec", goal: "favor" },
         // { type: "reset" },
@@ -146,6 +150,7 @@ async function executeTask(ns, task, isFirstTime = false) {
             }
             const success = ns.grafting.graftAugmentation(task.target);
             if (success) {
+                ns.print(`${new Date().toLocaleTimeString()} Grafting ${task.target}`);
                 await waitForOngoingGraft(ns);
                 return true;
             } else {

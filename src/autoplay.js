@@ -73,6 +73,7 @@ export async function main(ns) {
 
     let startedStockTrader = false;
     let sharedRam = false;
+    let ranInitialStanek = false;
     let ranStanekCharge = false;
 
     ns.tprint("INFO Autoplay check complete - all required scripts are now running");
@@ -97,10 +98,10 @@ export async function main(ns) {
         }
     }
 
-    while (!ranStanekCharge || ns.scriptRunning("stanek.js", HOST_NAME)) {
-        if (!ranStanekCharge) {
+    while (!ranInitialStanek || ns.scriptRunning("stanek.js", HOST_NAME)) {
+        if (!ranInitialStanek) {
             startStanekIfNotRunning(ns);
-            ranStanekCharge = true;
+            ranInitialStanek = true;
         }
         await ns.sleep(100);
     }
