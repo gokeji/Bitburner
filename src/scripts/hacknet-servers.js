@@ -23,17 +23,6 @@ export async function main(ns) {
     const continuousMode = flags["continuous"]; // If true, continue upgrading as long as spending < 1% of player money
     const HACKNET_SPEND_PERCENTAGE = 0.01;
 
-    const bitnodeTotalEarnings =
-        ns.getMoneySources().sinceInstall.total -
-        ns.getMoneySources().sinceInstall.gang_expenses -
-        ns.getMoneySources().sinceInstall.servers -
-        ns.getMoneySources().sinceInstall.hacknet_expenses;
-    const hacknetMaxSpend = Math.max(
-        2e9,
-        ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE,
-        bitnodeTotalEarnings * HACKNET_SPEND_PERCENTAGE,
-    ); // 2 billion or 1% of player money
-
     ns.ui.openTail();
 
     const currentBitnode = ns.getResetInfo().currentNode;
@@ -253,16 +242,23 @@ export async function main(ns) {
         let hacknetServers = [];
 
         const bitnodeHacknetSpend = Math.abs(ns.getMoneySources().sinceInstall.hacknet_expenses);
-        const continuousSpendLimit = hacknetMaxSpend;
-        if (
-            !(bitnodeHacknetSpend < hacknetMaxSpend || (continuousMode && bitnodeHacknetSpend < continuousSpendLimit))
-        ) {
+
+        const bitnodeTotalEarnings =
+            ns.getMoneySources().sinceInstall.total -
+            ns.getMoneySources().sinceInstall.gang_expenses -
+            ns.getMoneySources().sinceInstall.servers -
+            ns.getMoneySources().sinceInstall.hacknet_expenses;
+        const hacknetMaxSpend = Math.max(
+            2e9,
+            ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE,
+            bitnodeTotalEarnings * HACKNET_SPEND_PERCENTAGE,
+        ); // 2 billion or 1% of player money
+
+        if (!(bitnodeHacknetSpend < hacknetMaxSpend || (continuousMode && bitnodeHacknetSpend < hacknetMaxSpend))) {
             if (continuousMode) {
                 if (!hasPrintedWaitingMessage) {
                     printUpgradeSummary(); // Print summary before waiting
-                    ns.print(
-                        `Exceeded max spend of ${ns.formatNumber(continuousSpendLimit)}. Waiting for more money...`,
-                    );
+                    ns.print(`Exceeded max spend of ${ns.formatNumber(hacknetMaxSpend)}. Waiting for more money...`);
                     hasPrintedWaitingMessage = true;
                 }
                 await ns.sleep(10000); // Wait 10 seconds before checking again
