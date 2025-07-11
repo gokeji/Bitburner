@@ -21,7 +21,7 @@ let awakeningRep = 1e6,
 const argsSchema = [
     ["reserved-ram", 100], // Don't use this RAM
     ["reserved-ram-ideal", 100], // Leave this amount of RAM free if it represents less than 5% of available RAM
-    ["max-charges", 40], // Stop charging when all fragments have this many charges (diminishing returns - num charges is ^0.07 )
+    ["max-charges", 10], // Stop charging when all fragments have this many charges (diminishing returns - num charges is ^0.07 )
     // By default, starting an augmentation with stanek.js will still spawn daemon.js, but will instruct it not to schedule any hack cycles against home by 'reserving' all its RAM
     // TODO: Set these defaults in some way that the user can explicitly specify that they want to run **no** startup script and **no** completion script
     ["on-startup-script", null], // Spawn this script when stanek is launched
@@ -30,7 +30,7 @@ const argsSchema = [
     ["on-completion-script", null], // Spawn this script when max-charges is reached
     ["on-completion-script-args", []], // Optional args to pass to the script when launched
     ["no-tail", false], // By default, keeps a tail window open, because it's pretty important to know when this script is running (can't use home for anything else)
-    ["reputation-threshold", 0.2], // By default, if we are this close to the rep needed for an unowned stanek upgrade (e.g. "Stanek's Gift - Serenity"), we will keep charging despite the 'max-charges' setting
+    ["reputation-threshold", 0.8], // By default, if we are this close to the rep needed for an unowned stanek upgrade (e.g. "Stanek's Gift - Serenity"), we will keep charging despite the 'max-charges' setting
 ];
 
 export function autocomplete(data, args) {

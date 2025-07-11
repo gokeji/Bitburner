@@ -344,7 +344,11 @@ export async function main(ns) {
         let bestUpgrade = currentNodeUpgrades[0];
 
         // Buy a new node if we have the money and are in continuous mode
-        if (continuousMode && nodePurchaseUpgrade.cost < hacknetMaxSpend / 2) {
+        if (
+            continuousMode &&
+            nodePurchaseUpgrade.cost < hacknetMaxSpend / 2 &&
+            nodePurchaseUpgrade.cost < ns.getPlayer().money
+        ) {
             bestUpgrade = nodePurchaseUpgrade;
 
             // Purchase the node first, then upgrade it
@@ -372,7 +376,8 @@ export async function main(ns) {
 
                     if (
                         hacknetWithLowestCache &&
-                        ns.hacknet.getCacheUpgradeCost(lowestCacheServerIndex) < hacknetMaxSpend
+                        ns.hacknet.getCacheUpgradeCost(lowestCacheServerIndex) < hacknetMaxSpend &&
+                        ns.hacknet.getCacheUpgradeCost(lowestCacheServerIndex) < ns.getPlayer().money
                     ) {
                         ns.hacknet.upgradeCache(lowestCacheServerIndex);
                         ns.print(`Upgraded cache on node ${lowestCacheServerIndex}`);

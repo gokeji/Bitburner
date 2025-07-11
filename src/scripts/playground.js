@@ -2,7 +2,6 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    ns.print(ns.singularity.getCurrentWork());
     // while (true) {
     //     const daedalusFavor =
     //         ns.singularity.getFactionFavor("Daedalus") + ns.singularity.getFactionFavorGain("Daedalus");
@@ -12,11 +11,9 @@ export async function main(ns) {
     //     await ns.sleep(10000);
     // }
     // ns.print(ns.getServerMaxMoney("ecorp"));
-    // const toPrint = ns.getPlayer().mults.hacking_money * ns.getBitNodeMultipliers().ScriptHackMoney;
-    // ns.print(toPrint);
-    // ns.print(favorToRep(34));
-    // ns.print(repToFavor(300000));
-    // ns.print(calculateFavorAfterResetting(34, 300000));
+    const newlyPurchasedAugmentations = ns.singularity.getOwnedAugmentations(true);
+    ns.print(JSON.stringify(newlyPurchasedAugmentations, null, 2));
+    ns.print(JSON.stringify(ns.singularity.getAugmentationStats("NeuroFlux Governor"), null, 2));
 }
 
 export const MaxFavor = 35331;

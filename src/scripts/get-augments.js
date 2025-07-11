@@ -126,7 +126,7 @@ export function autocomplete(data, args) {
     return [];
 }
 
-function getCurrentNeuroFluxPurchaseLevel(ns) {
+export function getCurrentNeuroFluxPurchaseLevel(ns) {
     const currentlyPurchasedAugments =
         ns.singularity.getOwnedAugmentations(true).length - ns.singularity.getOwnedAugmentations(false).length;
     const priceMultiplier = 1.9 ** currentlyPurchasedAugments;

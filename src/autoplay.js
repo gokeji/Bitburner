@@ -1,12 +1,12 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = 640 * 10 ** 9; // 12 B max server value
+const MAX_SERVER_VALUE = -1; //640 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
-const SERVER_TO_STANEK = "b-00";
+const SERVER_TO_STANEK = "b-01";
 
-const IPVGO_OPPONENTS = [
+let IPVGO_OPPONENTS = [
     "Netburners", // increased hacknet production
     // "Slum Snakes", // crime success rate
     "The Black Hand", // hacking money
@@ -69,8 +69,6 @@ export async function main(ns) {
         printAllFactionServerPaths(ns);
     }
 
-    launchStatsMonitoring(ns);
-
     let startedStockTrader = false;
     let sharedRam = false;
     let ranInitialStanek = false;
@@ -98,12 +96,11 @@ export async function main(ns) {
         }
     }
 
-    while (!ranInitialStanek || ns.scriptRunning("stanek.js", HOST_NAME)) {
-        if (!ranInitialStanek) {
-            startStanekIfNotRunning(ns);
-            ranInitialStanek = true;
-        }
-        await ns.sleep(100);
+    // Start stanek charging without blocking
+    if (!ranInitialStanek) {
+        startStanekIfNotRunning(ns);
+        ranInitialStanek = true;
+        ns.tprint("INFO Stanek started - hacker will avoid home RAM while it's running");
     }
 
     // Study Algorithms until we have 1350 exp to bootstrap early game hacking levels
@@ -119,6 +116,9 @@ export async function main(ns) {
         await ns.sleep(5000);
     }
 
+    launchStatsMonitoring(ns);
+
+    // Start hacker immediately - it will automatically avoid home RAM when stanek is running
     startDistributedHackIfNotRunning(ns);
 
     while (
@@ -137,7 +137,7 @@ export async function main(ns) {
         }
 
         if (!ranStanekCharge && SERVER_TO_STANEK && ns.serverExists(SERVER_TO_STANEK)) {
-            startStanekChargeIfNotRunning(ns);
+            restartStanekCharge(ns);
             ranStanekCharge = true;
         }
 
@@ -215,9 +215,9 @@ function startDistributedHackIfNotRunning(ns) {
     if (SERVER_TO_START_SHARING_RAM_ON) {
         ignoreServers.push(SERVER_TO_START_SHARING_RAM_ON);
     }
-    // if (SERVER_TO_STANEK) {
-    //     ignoreServers.push(SERVER_TO_STANEK);
-    // }
+    if (SERVER_TO_STANEK) {
+        ignoreServers.push(SERVER_TO_STANEK);
+    }
 
     if (ignoreServers.length > 0) {
         startScriptIfNotRunning(ns, "scripts/hacker.js", HOST_NAME, 1, ...ignoreServers);
@@ -238,7 +238,7 @@ function restartIpvgo(ns) {
     const hasRedPill = ns.singularity.getOwnedAugmentations().includes("The Red Pill");
 
     if (hasRedPill) {
-        IPVGO_OPPONENTS.push("????????????");
+        IPVGO_OPPONENTS = ["????????????"]; // Only use ipvgo for hacking levels
     }
 
     startScriptIfNotRunning(ns, "ipvgo-smart.js", HOST_NAME, 1, ...IPVGO_OPPONENTS);
@@ -352,7 +352,11 @@ function startProgramManagerIfNotRunning(ns) {
     startScriptIfNotRunning(ns, "scripts/program-manager.js", HOST_NAME, 1, "-c");
 }
 
-function startStanekChargeIfNotRunning(ns) {
+function restartStanekCharge(ns) {
+    if (ns.scriptRunning("scripts/stanek-charge.js", HOST_NAME)) {
+        ns.scriptKill("scripts/stanek-charge.js", HOST_NAME);
+    }
+
     if (SERVER_TO_STANEK && ns.serverExists(SERVER_TO_STANEK)) {
         startScriptIfNotRunning(ns, "scripts/stanek-charge.js", HOST_NAME, 1, "--server", SERVER_TO_STANEK);
     }

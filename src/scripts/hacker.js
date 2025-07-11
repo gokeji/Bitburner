@@ -20,9 +20,9 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let hackPercentage = 0.5;
-    let MAX_WEAKEN_TIME = 5 * 60 * 1000; // ms max weaken time (Max 10 minutes)
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
+    let hackPercentage = 0.8;
+    let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.4; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0.4;
     let ALLOW_HASH_UPGRADES = true;
 
@@ -583,6 +583,7 @@ export async function main(ns) {
     /**
      * Gets the total available RAM across all executable servers.
      * Updates the global server RAM cache on every call.
+     * If stanek is running, excludes home server RAM entirely.
      * @param {NS} ns - The Netscript API.
      * @returns {number} - Total available RAM in GB.
      */
@@ -591,13 +592,25 @@ export async function main(ns) {
         let totalRam = 0;
         serverRamCache.clear();
 
+        const stanekIsRunning = ns.scriptRunning("stanek.js", "home");
+        if (stanekIsRunning && tickCounter % 10 === 0) {
+            ns.print("INFO: Stanek is running - excluding home server RAM from hacking operations");
+        }
+
         // Initialize available RAM for each server
         for (const server of executableServers) {
             const serverInfo = ns.getServer(server);
             let availableRam = serverInfo.maxRam - serverInfo.ramUsed;
+
             if (server === "home") {
-                availableRam = Math.max(availableRam - HOME_SERVER_RESERVED_RAM, 0);
+                if (stanekIsRunning) {
+                    // If stanek is running, don't use any home RAM for hacking
+                    availableRam = 0;
+                } else {
+                    availableRam = Math.max(availableRam - HOME_SERVER_RESERVED_RAM, 0);
+                }
             }
+
             if (availableRam > MINIMUM_SCRIPT_RAM_USAGE) {
                 serverRamCache.set(server, availableRam);
                 totalRam += availableRam;
