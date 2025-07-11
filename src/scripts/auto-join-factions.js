@@ -88,6 +88,7 @@ export async function main(ns) {
         ) {
             ns.singularity.travelToCity("Chongqing");
             await ns.sleep(1000);
+            ns.stanek.acceptGift();
         }
         if (ns.getPlayer().money > 30e6) {
             if (!playerFactions.includes("New Tokyo") && !invitations.includes("New Tokyo")) {

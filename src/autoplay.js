@@ -6,7 +6,7 @@ const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
 const SERVER_TO_STANEK = "b-01";
 
-let IPVGO_OPPONENTS = [
+var IPVGO_OPPONENTS = [
     "Netburners", // increased hacknet production
     // "Slum Snakes", // crime success rate
     "The Black Hand", // hacking money
@@ -62,6 +62,7 @@ export async function main(ns) {
         startProgramManagerIfNotRunning(ns);
 
         startAutoJoinFactionsIfNotRunning(ns);
+        await ns.sleep(1000);
         // startHacknetSpendIfNeeded(ns);
     }
 

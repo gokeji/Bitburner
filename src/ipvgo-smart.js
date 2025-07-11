@@ -261,11 +261,8 @@ export async function main(ns) {
             return await ns.go.passTurn(playAsWhite);
         } catch (error) {
             // If the error indicates the game is over, simulate a gameOver result
-            if (error.message && error.message.includes("The game is over")) {
-                checkNewGame({ type: "gameOver" }, false);
-                return { type: "gameOver" };
-            }
-            throw error; // Re-throw if it's a different error
+            checkNewGame({ type: "gameOver" }, false);
+            return { type: "gameOver" };
         }
     }
 
