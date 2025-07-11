@@ -97,6 +97,14 @@ export async function main(ns) {
         }
     }
 
+    while (!ranStanekCharge || ns.scriptRunning("stanek.js", HOST_NAME)) {
+        if (!ranStanekCharge) {
+            startStanekIfNotRunning(ns);
+            ranStanekCharge = true;
+        }
+        await ns.sleep(100);
+    }
+
     // Study Algorithms until we have 1350 exp to bootstrap early game hacking levels
     while (ns.getPlayer().exp.hacking < 1350) {
         if (ns.getPlayer().city !== "Volhaven") {
@@ -109,6 +117,7 @@ export async function main(ns) {
         }
         await ns.sleep(5000);
     }
+
     startDistributedHackIfNotRunning(ns);
 
     while (
@@ -205,9 +214,9 @@ function startDistributedHackIfNotRunning(ns) {
     if (SERVER_TO_START_SHARING_RAM_ON) {
         ignoreServers.push(SERVER_TO_START_SHARING_RAM_ON);
     }
-    if (SERVER_TO_STANEK) {
-        ignoreServers.push(SERVER_TO_STANEK);
-    }
+    // if (SERVER_TO_STANEK) {
+    //     ignoreServers.push(SERVER_TO_STANEK);
+    // }
 
     if (ignoreServers.length > 0) {
         startScriptIfNotRunning(ns, "scripts/hacker.js", HOST_NAME, 1, ...ignoreServers);
@@ -346,4 +355,8 @@ function startStanekChargeIfNotRunning(ns) {
     if (SERVER_TO_STANEK && ns.serverExists(SERVER_TO_STANEK)) {
         startScriptIfNotRunning(ns, "scripts/stanek-charge.js", HOST_NAME, 1, "--server", SERVER_TO_STANEK);
     }
+}
+
+function startStanekIfNotRunning(ns) {
+    startScriptIfNotRunning(ns, "stanek.js", HOST_NAME, 1);
 }
