@@ -24,9 +24,17 @@ const argsSchema = [
  * @param {number} currentNeuroFluxGovernorLevel - Current NeuroFlux level
  * @param {number} neurofluxCount - Number of NeuroFlux to purchase
  * @param {boolean} allowDonation - Whether donations are allowed
+ * @param {Array} specialFactions - Array of factions that cannot receive donations
  * @returns {Object} Validation result with canPurchase, error, bestFaction, and maxRepReq
  */
-function validateNeuroFluxReputation(ns, player, currentNeuroFluxGovernorLevel, neurofluxCount, allowDonation = false) {
+function validateNeuroFluxReputation(
+    ns,
+    player,
+    currentNeuroFluxGovernorLevel,
+    neurofluxCount,
+    allowDonation = false,
+    specialFactions = [],
+) {
     if (neurofluxCount <= 0) {
         return { canPurchase: true, error: "", bestFaction: null, maxRepReq: 0 };
     }
@@ -48,8 +56,8 @@ function validateNeuroFluxReputation(ns, player, currentNeuroFluxGovernorLevel, 
                 bestNeuroFluxFaction = faction;
             }
 
-            // Check if we can donate to this faction
-            if (allowDonation && factionRep < maxNeuroFluxRepReq) {
+            // Check if we can donate to this faction (exclude special factions)
+            if (allowDonation && factionRep < maxNeuroFluxRepReq && !specialFactions.includes(faction)) {
                 const favor = ns.singularity.getFactionFavor(faction);
                 if (favor >= 150) {
                     canAffordWithDonation = true;
@@ -1032,13 +1040,19 @@ export async function main(ns) {
             currentNeuroFluxPurchaseLevel,
             result.neurofluxCount,
             allowDonation,
+            specialFactions,
         );
 
         if (neuroFluxValidation.canAffordWithDonation && neuroFluxValidation.bestFaction) {
             const currentRep = ns.singularity.getFactionRep(neuroFluxValidation.bestFaction);
             const favor = ns.singularity.getFactionFavor(neuroFluxValidation.bestFaction);
 
-            if (currentRep < neuroFluxValidation.maxRepReq && favor >= 150) {
+            // Check if we can donate to this faction (exclude special factions)
+            if (
+                currentRep < neuroFluxValidation.maxRepReq &&
+                favor >= 150 &&
+                !specialFactions.includes(neuroFluxValidation.bestFaction)
+            ) {
                 const repShortfall = neuroFluxValidation.maxRepReq - currentRep;
                 const neuroFluxDonationCost = ns.formulas.reputation.donationForRep(repShortfall, ns.getPlayer());
 
@@ -1184,6 +1198,7 @@ export async function main(ns) {
         currentNeuroFluxPurchaseLevel,
         result.neurofluxCount,
         allowDonation,
+        specialFactions,
     );
     displayNeuroFluxStatus(ns, neuroFluxValidation, shouldPurchase, forceBuy);
 

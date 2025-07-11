@@ -11,6 +11,14 @@ export async function main(ns) {
     const windowSize = ns.ui.windowSize();
     ns.ui.moveTail(windowSize[0] - 400, 40);
 
+    const existingKarmaScript = ns.getRunningScript("karma.js");
+    if (existingKarmaScript) {
+        ns.ui.openTail(existingKarmaScript.pid);
+        ns.ui.resizeTail(180, 120);
+        ns.ui.moveTail(windowSize[0] - 400, 40);
+        return;
+    }
+
     var karmaHistory = [];
 
     while (true) {

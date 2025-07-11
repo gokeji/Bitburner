@@ -23,19 +23,19 @@ export async function main(ns) {
         },
         { type: "faction", target: "Daedalus", goal: "100000" },
         { type: "faction", target: "Daedalus", goal: "favor" },
+        { type: "faction", target: "Netburners", goal: "7500" },
+        { type: "faction", target: "CyberSec", goal: "2000" },
+        { type: "faction", target: "Tian Di Hui", goal: "6250" },
+        { type: "faction", target: "Netburners", goal: "12500" },
         { type: "homicide" },
-        // { type: "faction", target: "CyberSec", goal: "2000" },
-        // { type: "faction", target: "Tian Di Hui", goal: "6250" },
 
-        // { type: "faction", target: "Netburners", goal: "7500" },
-        // { type: "faction", target: "Netburners", goal: "12500" },
-        // { type: "faction", target: "NiteSec", goal: "45000" },
-        // { type: "faction", target: "Tian Di Hui", goal: "75000" },
-        // { type: "faction", target: "NiteSec", goal: "favor" },
-        { type: "reset" },
+        { type: "faction", target: "NiteSec", goal: "45000" },
+        { type: "faction", target: "Tian Di Hui", goal: "75000" },
+        { type: "faction", target: "NiteSec", goal: "favor" },
+        // { type: "reset" },
 
-        // { type: "faction", target: "BitRunners", goal: "100000" },
-        // { type: "faction", target: "Chongqing", goal: "37500" },
+        { type: "faction", target: "BitRunners", goal: "100000" },
+        { type: "faction", target: "Chongqing", goal: "37500" },
         { type: "faction", target: "BitRunners", goal: "favor" },
         { type: "faction", target: "The Black Hand", goal: "favor" },
     ];
@@ -198,13 +198,7 @@ async function executeTask(ns, task, isFirstTime = false) {
             return true;
 
         case "reset":
-            ns.run("scripts/get-augments.js", 1, "--hacking", "--rep", "--hacknet", "--buy", "--force-buy");
-            ns.run("scripts/get-augments.js", 1, "--buy", "--force-buy");
-            await ns.sleep(10000);
-            while (ns.getPlayer().money > ns.singularity.getUpgradeHomeRamCost()) {
-                ns.singularity.upgradeHomeRam();
-            }
-            ns.singularity.installAugmentations("scripts/after-install.js");
+            ns.run("scripts/reset.js");
             return true;
     }
 }

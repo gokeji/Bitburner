@@ -16,6 +16,7 @@ export async function main(ns) {
         "New Tokyo",
         "Ishima",
         "Chongqing",
+        "Church of the Machine God",
     ];
 
     // Function to process faction invitations
@@ -76,12 +77,51 @@ export async function main(ns) {
         }
     }
 
+    /** @param {NS} ns */
+    async function travelToJoinFactions() {
+        const playerFactions = ns.getPlayer().factions;
+        const invitations = ns.singularity.checkFactionInvitations();
+
+        if (
+            !playerFactions.includes("Church of the Machine God") &&
+            !invitations.includes("Church of the Machine God")
+        ) {
+            ns.singularity.travelToCity("Chongqing");
+            await ns.sleep(1000);
+        }
+        if (ns.getPlayer().money > 30e6) {
+            if (!playerFactions.includes("New Tokyo") && !invitations.includes("New Tokyo")) {
+                ns.singularity.travelToCity("New Tokyo");
+                await ns.sleep(1000);
+            }
+
+            if (!playerFactions.includes("Ishima") && !invitations.includes("Ishima")) {
+                ns.singularity.travelToCity("Ishima");
+                await ns.sleep(1000);
+            }
+
+            if (!playerFactions.includes("Chongqing") && !invitations.includes("Chongqing")) {
+                ns.singularity.travelToCity("Chongqing");
+                await ns.sleep(2000);
+            }
+        }
+        if (
+            ns.getPlayer().skills.hacking > 50 &&
+            !playerFactions.includes("Tian Di Hui") &&
+            !invitations.includes("Tian Di Hui")
+        ) {
+            ns.singularity.travelToCity("New Tokyo");
+            await ns.sleep(1000);
+        }
+    }
+
     // Main loop
     ns.print("Starting auto faction joining script...");
     ns.print("Checking for faction invitations every 10 seconds...\n");
 
     while (true) {
         try {
+            await travelToJoinFactions();
             await processFactionInvitations();
             await ns.sleep(5000); // Sleep for 5 seconds
         } catch (error) {
