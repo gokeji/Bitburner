@@ -23,10 +23,13 @@ export async function main(ns) {
     let hackPercentage = 0.5;
     let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const PRIORITY_SERVER_CORRECTIVE_MULTIPLIER = 1.6; // Higher correction for priority server receiving min security upgrades
+    const PRIORITY_SERVER_HACK_PERCENTAGE = 0.95; // Higher hack percentage for priority server
     let PARTIAL_PREP_THRESHOLD = 0.4;
     let ALLOW_HASH_UPGRADES = true;
 
     let minMoneyProtectionThreshold = 1 - hackPercentage - 0.25;
+    let priorityServerMinMoneyProtectionThreshold = 1 - PRIORITY_SERVER_HACK_PERCENTAGE - 0.25;
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TICK_DELAY = 800; // ms delay between ticks
@@ -52,6 +55,9 @@ export async function main(ns) {
 
     // Weaken drift protection - servers on hold due to excessive timing drift
     let serversOnHold = new Map(); // Map<string, number> - server name to resume timestamp
+
+    // Track the priority server that receives min security upgrades
+    let priorityServer = null;
 
     // automatically backdoor these servers. Requires singularity functions.
     let backdoorServers = new Set([
@@ -161,6 +167,12 @@ export async function main(ns) {
         const highestPriorityServer = serversByThroughput.find((server) => {
             return ns.getServerMaxMoney(server) < 10e12 || ns.getServerMinSecurityLevel(server) > 10;
         });
+
+        // Mark the highest priority server as priority server if it's not already marked
+        if (highestPriorityServer && priorityServer !== highestPriorityServer) {
+            priorityServer = highestPriorityServer;
+            ns.print(`INFO: ${highestPriorityServer} marked as priority server for enhanced corrections`);
+        }
         const highestPriorityServerScriptInfo = runningScriptInfo.get(highestPriorityServer);
         if (
             highestPriorityServer &&
@@ -171,7 +183,7 @@ export async function main(ns) {
             ALLOW_HASH_UPGRADES
         ) {
             const highestPriorityServerInfo = ns.getServer(highestPriorityServer);
-            if (highestPriorityServerInfo.moneyMax < 10e12 && CORRECTIVE_GROW_WEAK_MULTIPLIER > 1.1) {
+            if (highestPriorityServerInfo.moneyMax < 10e12 && PRIORITY_SERVER_CORRECTIVE_MULTIPLIER > 1.1) {
                 const startingMoney = ns.getServerMaxMoney(highestPriorityServer);
                 const { cost, success, level } = spendHashesOnUpgrade(
                     ns,
@@ -285,9 +297,14 @@ export async function main(ns) {
                     serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
                 );
 
+                const moneyProtectionThreshold =
+                    priorityServer === currentServer
+                        ? priorityServerMinMoneyProtectionThreshold
+                        : minMoneyProtectionThreshold;
+
                 if (
                     serverInfo.hackDifficulty > securityThreshold ||
-                    serverInfo.moneyAvailable < serverInfo.moneyMax * minMoneyProtectionThreshold
+                    serverInfo.moneyAvailable < serverInfo.moneyMax * moneyProtectionThreshold
                 ) {
                     let message = "";
                     if (serverInfo.hackDifficulty > securityThreshold) {
@@ -298,7 +315,7 @@ export async function main(ns) {
                     } else {
                         message = `WARN: ${new Date().toLocaleTimeString()} Money on ${currentServer} ($${ns.formatNumber(
                             serverInfo.moneyAvailable,
-                        )}) below ${ns.formatPercent(minMoneyProtectionThreshold)} of max money. Recovering.`;
+                        )}) below ${ns.formatPercent(moneyProtectionThreshold)} of max money. Recovering.`;
                     }
                     ns.print(message);
                     ns.tprint(message);
@@ -530,10 +547,16 @@ export async function main(ns) {
             growthFactor = ns.getServerGrowth(server);
         }
 
+        // Use different hack percentage for priority server
+        const effectiveHackPercentage = server === priorityServer ? PRIORITY_SERVER_HACK_PERCENTAGE : hackPercentage;
         const hackThreads =
-            hackPercentageFromOneThread === 0 ? 0 : Math.ceil(hackPercentage / hackPercentageFromOneThread);
+            hackPercentageFromOneThread === 0 ? 0 : Math.ceil(effectiveHackPercentage / hackPercentageFromOneThread);
         const actualHackPercentage = hackThreads * hackPercentageFromOneThread; // Actual amount we'll hack
         const hackSecurityChange = hackThreads * 0.002; // Use known constant instead of ns.hackAnalyzeSecurity
+
+        // Use different corrective multiplier for priority server
+        const effectiveCorrectiveMultiplier =
+            server === priorityServer ? PRIORITY_SERVER_CORRECTIVE_MULTIPLIER : CORRECTIVE_GROW_WEAK_MULTIPLIER;
 
         let growthThreads;
         if (useFormulas) {
@@ -542,7 +565,7 @@ export async function main(ns) {
             const currentMoneyAfterHack = maxMoney * (1 - actualHackPercentage); // Use actual hack amount
             const currentSecurityAfterHack = minSecurityLevel + hackSecurityChange;
             growthThreads = Math.ceil(
-                CORRECTIVE_GROW_WEAK_MULTIPLIER *
+                effectiveCorrectiveMultiplier *
                     ns.formulas.hacking.growThreads(
                         {
                             ...calcServer,
@@ -557,14 +580,16 @@ export async function main(ns) {
         } else {
             // Use actual hack amount for grow calculation
             const growthMultiplier = 1 / Math.max(1 - actualHackPercentage, 1);
-            growthThreads = Math.ceil(ns.growthAnalyze(server, growthMultiplier, cpuCores));
+            growthThreads = Math.ceil(
+                effectiveCorrectiveMultiplier * ns.growthAnalyze(server, growthMultiplier, cpuCores),
+            );
         }
 
         // Calculate grow security change based on the number of threads
         const growthSecurityChange = growthThreads * 0.004;
 
         const weakenTarget = hackSecurityChange + growthSecurityChange;
-        const weakenThreadsNeeded = Math.ceil((CORRECTIVE_GROW_WEAK_MULTIPLIER * weakenTarget) / weakenAmount);
+        const weakenThreadsNeeded = Math.ceil((effectiveCorrectiveMultiplier * weakenTarget) / weakenAmount);
 
         return {
             securityLevel,
@@ -698,13 +723,19 @@ export async function main(ns) {
         const needsInitialWeaken = securityLevel > minSecurityLevel;
         const needsGrow = currentMoney < maxMoney;
 
+        // Use different corrective multiplier for priority server
+        const effectiveCorrectiveMultiplier =
+            target === priorityServer ? PRIORITY_SERVER_CORRECTIVE_MULTIPLIER : CORRECTIVE_GROW_WEAK_MULTIPLIER;
+
         // Calculate thread requirements
         const initialWeakenThreads = Math.ceil((securityLevel - minSecurityLevel) / weakenAmount);
 
         const growthAmount = maxMoney / Math.max(currentMoney, 1);
-        const growthThreads = Math.ceil(ns.growthAnalyze(target, growthAmount, cpuCores));
+        const growthThreads = Math.ceil(
+            effectiveCorrectiveMultiplier * ns.growthAnalyze(target, growthAmount, cpuCores),
+        );
         const growthSecurityChange = growthThreads * 0.004;
-        const finalWeakenThreads = Math.ceil(growthSecurityChange / weakenAmount);
+        const finalWeakenThreads = Math.ceil((effectiveCorrectiveMultiplier * growthSecurityChange) / weakenAmount);
 
         // Calculate RAM requirements for prep operations
         const initialWeakenRam = initialWeakenThreads * WEAKEN_SCRIPT_RAM_USAGE;
@@ -1093,7 +1124,8 @@ export async function main(ns) {
 
         // Only print success message if we actually used RAM for prep operations
         if (totalRamUsed > 0) {
-            ns.print(`SUCCESS ${serverIndex}. ${target}: PREP ${ns.formatRam(totalRamUsed)}`);
+            const priorityIndicator = target === priorityServer ? " [PRIORITY]" : "";
+            ns.print(`SUCCESS ${serverIndex}. ${target}${priorityIndicator}: PREP ${ns.formatRam(totalRamUsed)}`);
         }
 
         return totalRamUsed;
@@ -1132,8 +1164,9 @@ export async function main(ns) {
 
         // Display batch scheduling results
         if (successfulBatches > 0) {
+            const priorityIndicator = target === priorityServer ? " [PRIORITY]" : "";
             ns.print(
-                `SUCCESS ${serverIndex}. ${target}: HGW ${successfulBatches}/${totalBatches} batches, ${ns.formatRam(totalRamUsed)} (${serverStats.hackThreads}H ${serverStats.growthThreads}G ${serverStats.weakenThreadsNeeded}W per batch)`,
+                `SUCCESS ${serverIndex}. ${target}${priorityIndicator}: HGW ${successfulBatches}/${totalBatches} batches, ${ns.formatRam(totalRamUsed)} (${serverStats.hackThreads}H ${serverStats.growthThreads}G ${serverStats.weakenThreadsNeeded}W per batch)`,
             );
         }
 
