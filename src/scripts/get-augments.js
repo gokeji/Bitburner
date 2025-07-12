@@ -15,6 +15,7 @@ const argsSchema = [
     ["no-nfg", false], // Set to true to exclude NeuroFlux Governors
     ["no-gang", false], // Set to true to exclude augments from the gang faction
     ["allow-donation", true], // Set to true to consider donations for reputation (requires 150+ favor)
+    ["prefer-no-gang", false], // Set to true to prefer augments that are not from the gang faction
 ];
 
 /**
@@ -596,16 +597,18 @@ function displayStatIncreases(ns, statIncrease) {
  * @param {NS} ns - NetScript object
  * @param {Array} augmentsForOptimizer - Available augmentations
  * @param {number} totalBudget - Total available budget
+ * @param {string} playerGang - The player's gang faction
  * @param {Object} flags - Object containing individual stat flags {hacking, rep, combat, charisma}
  * @returns {Object} Best optimization result with additional stat information
  */
-function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, flags) {
+function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, playerGang, flags) {
     // Get all unique prices and sort them descending
     const allPrices = [...new Set(augmentsForOptimizer.map((aug) => aug.cost))].sort((a, b) => b - a);
 
     let bestResult = null;
     let bestTotalStats = 0;
     let bestMaxPrice = null;
+    let bestNumNoGangAugments = 0;
 
     // Use the shared optimization scoring function
 
@@ -638,8 +641,23 @@ function optimizeWithPriceFiltering(ns, augmentsForOptimizer, totalBudget, flags
             `Max price: $${ns.formatNumber(maxPrice * 1000000)} | Augments: ${result.purchaseOrder.length} | Hacking: ${statIncrease.relativeHackingLevelBoost.toFixed(2)}X | Rep: ${statIncrease.relativeRepBoost.toFixed(2)}X | Combat: ${statIncrease.relativeCombatBoost.toFixed(2)}X | Hacknet: ${statIncrease.relativeHacknetBoost.toFixed(2)}X | Score: ${totalStatScore.toFixed(3)}X`,
         );
 
-        // Update best result if this is better
-        if (totalStatScore > bestTotalStats) {
+        let shouldUpdate = false;
+
+        if (flags.preferNoGang && playerGang) {
+            const numNoGangAugments = result.purchaseOrder.filter((aug) => aug.faction !== playerGang).length;
+
+            shouldUpdate =
+                numNoGangAugments > bestNumNoGangAugments ||
+                (numNoGangAugments === bestNumNoGangAugments && totalStatScore > bestTotalStats);
+
+            if (shouldUpdate) {
+                bestNumNoGangAugments = numNoGangAugments;
+            }
+        } else {
+            shouldUpdate = totalStatScore > bestTotalStats;
+        }
+
+        if (shouldUpdate) {
             bestTotalStats = totalStatScore;
             bestResult = result;
             bestMaxPrice = maxPrice;
@@ -698,6 +716,7 @@ export async function main(ns) {
     const noNFG = flags["no-nfg"];
     const noGang = flags["no-gang"];
     const allowDonation = flags["allow-donation"];
+    const preferNoGang = flags["prefer-no-gang"];
 
     ns.ui.openTail(); // Open tail because there's a lot of good output
     ns.ui.resizeTail(1200, 800);
@@ -706,11 +725,11 @@ export async function main(ns) {
 
     const player = ns.getPlayer();
     const factions = player.factions;
-    const playerGang = ns.gang.inGang ? ns.gang.getGangInformation().faction : null;
+    const playerGang = ns.gang.inGang() ? ns.gang.getGangInformation().faction : null;
     let allAugmentations = new Set();
 
     for (const faction of factions) {
-        if (noGang && ns.gang.getGangInformation().faction === faction) continue;
+        if (noGang && playerGang === faction) continue;
 
         const factionAugmentations = ns.singularity.getAugmentationsFromFaction(faction);
 
@@ -1001,7 +1020,7 @@ export async function main(ns) {
     let result = optimizeAugmentPurchases(augmentsForOptimizer, adjustedBudget);
 
     // Create flags object for optimization scoring
-    const optimizationFlags = { hacking, rep, combat, charisma, hacknetServer };
+    const optimizationFlags = { hacking, rep, combat, charisma, hacknetServer, preferNoGang };
 
     // Calculate total stat increases for the current result
     if (result.purchaseOrder.length > 0) {
@@ -1013,7 +1032,13 @@ export async function main(ns) {
     if (result.unpurchasedAugments && result.unpurchasedAugments.length > 0) {
         ns.print("🔍 Cannot afford all augments with current filter. Trying price filtering optimization...");
 
-        const optimizedResult = optimizeWithPriceFiltering(ns, augmentsForOptimizer, adjustedBudget, optimizationFlags);
+        const optimizedResult = optimizeWithPriceFiltering(
+            ns,
+            augmentsForOptimizer,
+            adjustedBudget,
+            playerGang,
+            optimizationFlags,
+        );
         if (optimizedResult) {
             const optimizedTotalStats = optimizedResult.totalStatScore;
 

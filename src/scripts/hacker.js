@@ -327,6 +327,9 @@ export async function main(ns) {
                     const newFinishTime = Date.now() + newWeakenTime;
 
                     if (currentFinishTime > newFinishTime) {
+                        ns.print(
+                            `INFO: ${currentServer} hack levels improved so much that we should re-prep since it'll be faster`,
+                        );
                         // Hack levels improved so much that we should re-prep since it'll be faster
                         killAllScriptsForTarget(ns, currentServer, ["grow", "weaken"]);
                         isPrep = false;
@@ -363,8 +366,10 @@ export async function main(ns) {
                     totalRamUsed += prepRamUsed;
                     successfullyProcessedServers.push(currentServer);
                     ramToDistribute -= prepRamUsed;
+                    // Store the actual weaken time at current server conditions when prep started
+                    const currentPrepStats = getServerPrepStats(ns, currentServer);
                     serverPrepTimings.set(currentServer, {
-                        weakenTime: serverStats.weakenTime,
+                        weakenTime: currentPrepStats.weakenTime,
                         startTime: Date.now(),
                     });
                 }

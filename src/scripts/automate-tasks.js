@@ -8,14 +8,9 @@ export async function main(ns) {
     ns.disableLog("singularity.commitCrime");
 
     let taskQueue = [
-        // { type: "faction", target: "Daedalus", goal: "100000" },
+        { type: "faction", target: "Daedalus", goal: "100000" },
         { type: "faction", target: "Daedalus", goal: "favor" },
-        { type: "reset" },
-        { type: "graft", target: "QLink" },
-        {
-            type: "graft",
-            target: "Xanipher",
-        },
+        // { type: "reset" },
         {
             type: "graft",
             target: "OmniTek InfoLoad",
@@ -24,23 +19,28 @@ export async function main(ns) {
             type: "graft",
             target: "ADR-V2 Pheromone Gene",
         },
+        // { type: "faction", target: "CyberSec", goal: "2000" },
+        // { type: "faction", target: "Tian Di Hui", goal: "6250" },
+        // { type: "faction", target: "Netburners", goal: "7500" },
+        { type: "homicide" },
+        // { type: "faction", target: "NiteSec", goal: "45000" },
+        // { type: "faction", target: "Netburners", goal: "12500" },
+        { type: "graft", target: "QLink" },
+        {
+            type: "graft",
+            target: "Xanipher",
+        },
         {
             type: "graft",
             target: "BitRunners Neurolink",
         },
-        { type: "faction", target: "BitRunners", goal: "100000" },
-        // { type: "faction", target: "CyberSec", goal: "2000" },
-        // { type: "faction", target: "Tian Di Hui", goal: "6250" },
-        // { type: "faction", target: "Netburners", goal: "7500" },
-        { type: "faction", target: "NiteSec", goal: "45000" },
-        // { type: "faction", target: "Netburners", goal: "12500" },
-        { type: "homicide" },
 
+        { type: "faction", target: "Chongqing", goal: "37500" },
         { type: "faction", target: "Tian Di Hui", goal: "75000" },
+        { type: "faction", target: "BitRunners", goal: "100000" },
         // { type: "faction", target: "NiteSec", goal: "favor" },
 
         { type: "faction", target: "The Black Hand", goal: "100000" },
-        { type: "faction", target: "Chongqing", goal: "37500" },
         { type: "faction", target: "BitRunners", goal: "250000" },
         { type: "faction", target: "BitRunners", goal: "favor" },
     ];
@@ -192,7 +192,9 @@ async function executeTask(ns, task, isFirstTime = false) {
                 const success = ns.singularity.commitCrime("homicide", true);
                 if (success && isFirstTime) {
                     ns.print(`${new Date().toLocaleTimeString()} Starting homicide`);
-                    ns.run("scripts/karma.js");
+                    if (!ns.scriptRunning("scripts/karma.js", "home")) {
+                        ns.run("scripts/karma.js");
+                    }
                 }
                 if (!success) {
                     ns.print(`ERROR: ${new Date().toLocaleTimeString()} Failed to commit homicide`);

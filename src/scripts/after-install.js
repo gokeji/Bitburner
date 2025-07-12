@@ -13,10 +13,23 @@ export async function main(ns) {
     //  ||
     // (ns.gang.inGang() && ns.gang.getGangInformation().territory > 0.4);
 
+    // Start stanek early so it can run during crime and casino phases
+    if (!ns.scriptRunning("stanek.js", "home")) {
+        const stanekPid = ns.run("stanek.js");
+        if (stanekPid) {
+            ns.print("SUCCESS Started stanek.js early - it will run during crime and casino phases");
+        } else {
+            ns.print("WARNING Failed to start stanek.js early");
+        }
+    }
+
     if (!isLateGame) {
         // Do crime until we hit 230K money
         while (ns.getPlayer().money < 230000) {
-            ns.singularity.commitCrime("Shoplift");
+            const currentWork = ns.singularity.getCurrentWork();
+            if (currentWork && (currentWork.type !== "CRIME" || currentWork.crimeType !== "Shoplift")) {
+                ns.singularity.commitCrime("Shoplift");
+            }
             ns.print(`Doing Shoplift until we have 230K money`);
             await ns.sleep(5000);
         }
