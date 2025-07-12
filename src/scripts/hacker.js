@@ -504,7 +504,13 @@ export async function main(ns) {
      * @param {boolean} useFormulas - If true, use formulas API with optimal server conditions (min security, max money)
      * @returns {Object} - Object containing hack stats
      */
-    function getServerHackStats(ns, server, useFormulas = false) {
+    function getServerHackStats(
+        ns,
+        server,
+        useFormulas = false,
+        effectiveHackPercentage,
+        effectiveCorrectiveMultiplier,
+    ) {
         const cpuCores = 1;
 
         const serverInfo = ns.getServer(server);
@@ -547,16 +553,10 @@ export async function main(ns) {
             growthFactor = ns.getServerGrowth(server);
         }
 
-        // Use different hack percentage for priority server
-        const effectiveHackPercentage = server === priorityServer ? PRIORITY_SERVER_HACK_PERCENTAGE : hackPercentage;
         const hackThreads =
             hackPercentageFromOneThread === 0 ? 0 : Math.ceil(effectiveHackPercentage / hackPercentageFromOneThread);
         const actualHackPercentage = hackThreads * hackPercentageFromOneThread; // Actual amount we'll hack
         const hackSecurityChange = hackThreads * 0.002; // Use known constant instead of ns.hackAnalyzeSecurity
-
-        // Use different corrective multiplier for priority server
-        const effectiveCorrectiveMultiplier =
-            server === priorityServer ? PRIORITY_SERVER_CORRECTIVE_MULTIPLIER : CORRECTIVE_GROW_WEAK_MULTIPLIER;
 
         let growthThreads;
         if (useFormulas) {
@@ -591,6 +591,26 @@ export async function main(ns) {
         const weakenTarget = hackSecurityChange + growthSecurityChange;
         const weakenThreadsNeeded = Math.ceil((effectiveCorrectiveMultiplier * weakenTarget) / weakenAmount);
 
+        const timePerBatch = BASE_SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES;
+        const theoreticalBatchLimit = weakenTime / timePerBatch;
+
+        const ramNeededPerBatch =
+            hackThreads * HACK_SCRIPT_RAM_USAGE +
+            growthThreads * GROW_SCRIPT_RAM_USAGE +
+            weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
+        const availableBatchLimit = maxRamAvailable / ramNeededPerBatch;
+
+        const batchLimitForSustainedThroughput = Math.min(availableBatchLimit, theoreticalBatchLimit);
+
+        // Calculate actual throughput (money per second) using ACTUAL hack percentage
+        const moneyPerBatch =
+            actualHackPercentage *
+            maxMoney *
+            hackChance *
+            ns.getPlayer().mults.hacking_money *
+            ns.getBitNodeMultipliers().ScriptHackMoney;
+        const throughput = (theoreticalBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
+
         return {
             securityLevel,
             minSecurityLevel,
@@ -607,6 +627,11 @@ export async function main(ns) {
             growthFactor,
             growthTime,
             totalSecurityIncrease: weakenTarget,
+            theoreticalBatchLimit,
+            timePerBatch,
+            batchLimitForSustainedThroughput,
+            throughput,
+            ramNeededPerBatch,
         };
     }
 
@@ -783,22 +808,29 @@ export async function main(ns) {
                 growthTime,
                 actualHackPercentage,
                 totalSecurityIncrease,
+                theoreticalBatchLimit,
+                timePerBatch,
+                batchLimitForSustainedThroughput,
+                throughput,
+                ramNeededPerBatch,
             } = getServerHackStats(
                 ns,
                 server,
                 true, // Set to true to use formulas API with optimal conditions
+                server === priorityServer ? PRIORITY_SERVER_HACK_PERCENTAGE : hackPercentage,
+                server === priorityServer ? PRIORITY_SERVER_CORRECTIVE_MULTIPLIER : CORRECTIVE_GROW_WEAK_MULTIPLIER,
             );
 
-            const timePerBatch = BASE_SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES;
-            const theoreticalBatchLimit = weakenTime / timePerBatch;
+            let ramForMaxThroughput = batchLimitForSustainedThroughput * ramNeededPerBatch;
 
-            const ramNeededPerBatch =
-                hackThreads * HACK_SCRIPT_RAM_USAGE +
-                growthThreads * GROW_SCRIPT_RAM_USAGE +
-                weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
-            const availableBatchLimit = maxRamAvailable / ramNeededPerBatch;
-
-            let ramForMaxThroughput = theoreticalBatchLimit * ramNeededPerBatch;
+            const { throughput: normalizedThroughput, ramNeededPerBatch: normalizedRamNeededPerBatch } =
+                getServerHackStats(
+                    ns,
+                    server,
+                    true, // Set to true to use formulas API with optimal conditions
+                    hackPercentage,
+                    CORRECTIVE_GROW_WEAK_MULTIPLIER,
+                );
 
             // const percentageGap = (availableBatchLimit - theoreticalBatchLimit) / theoreticalBatchLimit;
             // const hackPercentageAdjustment = hackPercentage * Math.abs(percentageGap);
@@ -814,17 +846,6 @@ export async function main(ns) {
             //     ns.print(`WARN: Min money protection threshold: ${ns.formatPercent(minMoneyProtectionThreshold)}`);
             // }
 
-            const batchLimitForSustainedThroughput = Math.min(availableBatchLimit, theoreticalBatchLimit);
-
-            // Calculate actual throughput (money per second) using ACTUAL hack percentage
-            const moneyPerBatch =
-                actualHackPercentage *
-                maxMoney *
-                hackChance *
-                ns.getPlayer().mults.hacking_money *
-                ns.getBitNodeMultipliers().ScriptHackMoney;
-            const throughput = (theoreticalBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
-
             // if (server === "ecorp") {
             //     ns.print(`INFO: ${server} ${serverInfo.hackDifficulty} > ${serverBaselineSecurityLevels.get(server)}`);
             // }
@@ -834,7 +855,7 @@ export async function main(ns) {
             }
 
             prioritiesMap.set(server, {
-                priority: throughput / ramNeededPerBatch / (weakenTime / 50000),
+                priority: normalizedThroughput / normalizedRamNeededPerBatch / (weakenTime / 50000),
                 ramNeededPerBatch: ramNeededPerBatch,
                 throughput: throughput,
                 weakenTime: weakenTime,

@@ -51,7 +51,7 @@ export async function main(ns) {
                         }
                         if (faction === "Daedalus") {
                             const currentWork = ns.singularity.getCurrentWork();
-                            if (currentWork.type === "GRAFTING") {
+                            if (currentWork && currentWork.type === "GRAFTING") {
                                 await ns.grafting.waitForOngoingGrafting();
                             }
                             const success = ns.singularity.workForFaction(faction, "hacking");

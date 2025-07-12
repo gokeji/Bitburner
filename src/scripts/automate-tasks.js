@@ -10,7 +10,7 @@ export async function main(ns) {
     let taskQueue = [
         { type: "faction", target: "Daedalus", goal: "100000" },
         { type: "faction", target: "Daedalus", goal: "favor" },
-        // { type: "reset" },
+        { type: "reset" },
         {
             type: "graft",
             target: "OmniTek InfoLoad",
@@ -25,7 +25,7 @@ export async function main(ns) {
         { type: "homicide" },
         // { type: "faction", target: "NiteSec", goal: "45000" },
         // { type: "faction", target: "Netburners", goal: "12500" },
-        { type: "graft", target: "QLink" },
+        // { type: "graft", target: "QLink" },
         {
             type: "graft",
             target: "Xanipher",
@@ -38,11 +38,13 @@ export async function main(ns) {
         { type: "faction", target: "Chongqing", goal: "37500" },
         { type: "faction", target: "Tian Di Hui", goal: "75000" },
         { type: "faction", target: "BitRunners", goal: "100000" },
+
         // { type: "faction", target: "NiteSec", goal: "favor" },
 
         { type: "faction", target: "The Black Hand", goal: "100000" },
         { type: "faction", target: "BitRunners", goal: "250000" },
         { type: "faction", target: "BitRunners", goal: "favor" },
+        // { type: "reset" },
     ];
 
     ns.print("\n\n\n\n\n\n");

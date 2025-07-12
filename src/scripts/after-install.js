@@ -23,6 +23,14 @@ export async function main(ns) {
         }
     }
 
+    // Run gangs.js to start making some money
+    if (!ns.scriptRunning("gangs.js", "home")) {
+        const gangsPid = ns.run("gangs.js");
+        if (gangsPid) {
+            ns.print("SUCCESS Started gangs.js early - it will run during crime and casino phases");
+        }
+    }
+
     if (!isLateGame) {
         // Do crime until we hit 230K money
         while (ns.getPlayer().money < 230000) {

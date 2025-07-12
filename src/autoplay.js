@@ -107,6 +107,10 @@ export async function main(ns) {
     // Study Algorithms until we have 1350 exp to bootstrap early game hacking levels
     while (ns.getPlayer().exp.hacking < 1350) {
         if (ns.getPlayer().city !== "Volhaven") {
+            while (ns.getPlayer().money < 200000) {
+                ns.singularity.commitCrime("Shoplift");
+                await ns.sleep(5000);
+            }
             ns.singularity.travelToCity("Volhaven");
         }
         let success = ns.singularity.universityCourse("ZB Institute of Technology", "Algorithms");
