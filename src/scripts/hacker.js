@@ -1125,16 +1125,23 @@ export async function main(ns) {
 
         if (shouldGrow && finalAllocation.grow && finalAllocation.final_weaken) {
             // Execute grow on single server (as enforced by the allocation function)
+            const growWeakenDiff = weakenTime - growthTime;
             const growDelay = needsInitialWeaken
-                ? weakenTime - growthTime + BASE_SCRIPT_DELAY
-                : weakenTime - growthTime - BASE_SCRIPT_DELAY;
+                ? growWeakenDiff + BASE_SCRIPT_DELAY
+                : Math.max(0, growWeakenDiff - BASE_SCRIPT_DELAY);
+            if (growDelay < 0) {
+                ns.tprint(`ERROR: Negative grow delay detected for PREP ${target} - growDelay=${growDelay}`);
+                return false;
+            }
             for (const [server, threads] of finalAllocation.grow) {
                 executeGrow(ns, server, target, threads, growDelay, false, true, growthTime);
             }
             totalRamUsed += finalAllocation.scalingFactor * growRam;
 
             // Execute final weaken on potentially multiple servers
-            const finalWeakenDelay = needsInitialWeaken ? 2 * BASE_SCRIPT_DELAY : 0;
+            const finalWeakenDelay = needsInitialWeaken
+                ? 2 * BASE_SCRIPT_DELAY
+                : Math.max(0, BASE_SCRIPT_DELAY - growWeakenDiff);
             for (const [server, threads] of finalAllocation.final_weaken) {
                 executeWeaken(ns, server, target, threads, finalWeakenDelay, true, weakenTime);
             }
@@ -1233,8 +1240,8 @@ export async function main(ns) {
 
         // Validate delays are not negative (which would cause timing issues)
         if (hackDelay < 0 || growDelay < 0 || weakenDelay < 0) {
-            ns.print(`ERROR: Negative delays detected! H=${hackDelay}, G=${growDelay}, W=${weakenDelay}`);
-            ns.print(
+            ns.tprint(`ERROR: Negative delays detected! H=${hackDelay}, G=${growDelay}, W=${weakenDelay}`);
+            ns.tprint(
                 `Times: hackTime=${hackTime}, growthTime=${growthTime}, weakenTime=${weakenTime}, extraDelay=${extraDelay}`,
             );
             return { success: false, ramUsed: 0 };
