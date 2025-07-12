@@ -4,7 +4,7 @@ const HOST_NAME = "home";
 const MAX_SERVER_VALUE = 120 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
-const SERVER_TO_STANEK = "b-01";
+const SERVER_TO_STANEK = null; //"b-01";
 
 var IPVGO_OPPONENTS = [
     "Netburners", // increased hacknet production
@@ -17,14 +17,13 @@ var IPVGO_OPPONENTS = [
 ];
 
 export function autocomplete(data, args) {
-    return ["--share", "--faction", "--low-ram", "--go"];
+    return ["--faction", "--low-ram", "--go"];
 }
 
 /** @param {NS} ns */
 export async function main(ns) {
-    const shouldShare = ns.args.includes("--share");
+    const shouldShare = true;
     const showFactionServerPaths = ns.args.includes("--faction") || ns.args.includes("-f");
-    const lowRamMode = ns.args.includes("--low-ram");
     const goMode = ns.args.includes("--go");
 
     if (goMode) {
@@ -56,15 +55,12 @@ export async function main(ns) {
 
     startUpgradeHomeRamIfNeeded(ns);
 
-    if (!lowRamMode) {
-        // Start TOR and program managers
-        startTorManagerIfNotRunning(ns);
-        startProgramManagerIfNotRunning(ns);
+    // Start TOR and program managers
+    startTorManagerIfNotRunning(ns);
+    startProgramManagerIfNotRunning(ns);
 
-        startAutoJoinFactionsIfNotRunning(ns);
-        await ns.sleep(1000);
-        // startHacknetSpendIfNeeded(ns);
-    }
+    startAutoJoinFactionsIfNotRunning(ns);
+    await ns.sleep(1000);
 
     if (showFactionServerPaths) {
         printAllFactionServerPaths(ns);
@@ -95,6 +91,11 @@ export async function main(ns) {
         } else {
             ns.tprint("scripts/share-all-free-ram.js is already running on home");
         }
+    }
+
+    // Wait for Church of the Machine God to be unlocked
+    while (!ns.getPlayer().factions.includes("Church of the Machine God")) {
+        await ns.sleep(1000);
     }
 
     // Start stanek charging without blocking
@@ -252,16 +253,16 @@ function restartIpvgo(ns) {
 
 function startSleeveIfNeeded(ns) {
     const result = startScriptIfNotRunning(ns, "sleeve.js", HOST_NAME, 1);
-    if (result.success) {
-        ns.ui.openTail(result.pid, HOST_NAME);
-    }
+    // if (result.success) {
+    //     ns.ui.openTail(result.pid, HOST_NAME);
+    // }
 }
 
 function startGangIfNeeded(ns) {
     const result = startScriptIfNotRunning(ns, "gangs.js", HOST_NAME, 1);
-    if (result.success) {
-        ns.ui.openTail(result.pid, HOST_NAME);
-    }
+    // if (result.success) {
+    //     ns.ui.openTail(result.pid, HOST_NAME);
+    // }
 }
 
 function startHacknetSpendIfNeeded(ns) {

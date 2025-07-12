@@ -62,8 +62,8 @@ export async function main(ns) {
         }
     }
 
-    // Upgrade home ram to at least 512GB
-    while (ns.getServer("home").maxRam < 512) {
+    // Upgrade home ram to at least 1024GB
+    while (ns.getServer("home").maxRam < 1024) {
         if (ns.getPlayer().money < ns.singularity.getUpgradeHomeRamCost()) {
             ns.print(`Not enough money to upgrade home ram, waiting...`);
             await ns.sleep(5000);

@@ -10,7 +10,7 @@ export async function main(ns) {
     let taskQueue = [
         { type: "faction", target: "Daedalus", goal: "100000" },
         { type: "faction", target: "Daedalus", goal: "favor" },
-        { type: "reset" },
+        // { type: "reset" },
         {
             type: "graft",
             target: "OmniTek InfoLoad",
@@ -19,12 +19,12 @@ export async function main(ns) {
             type: "graft",
             target: "ADR-V2 Pheromone Gene",
         },
-        // { type: "faction", target: "CyberSec", goal: "2000" },
-        // { type: "faction", target: "Tian Di Hui", goal: "6250" },
-        // { type: "faction", target: "Netburners", goal: "7500" },
+        { type: "faction", target: "CyberSec", goal: "2000" },
+        { type: "faction", target: "Tian Di Hui", goal: "6250" },
+        { type: "faction", target: "Netburners", goal: "7500" },
         { type: "homicide" },
-        // { type: "faction", target: "NiteSec", goal: "45000" },
-        // { type: "faction", target: "Netburners", goal: "12500" },
+        { type: "faction", target: "NiteSec", goal: "45000" },
+        { type: "faction", target: "Netburners", goal: "12500" },
         // { type: "graft", target: "QLink" },
         {
             type: "graft",

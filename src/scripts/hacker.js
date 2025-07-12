@@ -20,11 +20,11 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let hackPercentage = 0.5;
+    let hackPercentage = 0.1;
     let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
-    const PRIORITY_SERVER_CORRECTIVE_MULTIPLIER = 1.6; // Higher correction for priority server receiving min security upgrades
-    const PRIORITY_SERVER_HACK_PERCENTAGE = 0.95; // Higher hack percentage for priority server
+    const PRIORITY_SERVER_CORRECTIVE_MULTIPLIER = 1.2; // Higher correction for priority server receiving min security upgrades
+    const PRIORITY_SERVER_HACK_PERCENTAGE = 0.2; // Higher hack percentage for priority server
     let PARTIAL_PREP_THRESHOLD = 0.4;
     let ALLOW_HASH_UPGRADES = true;
 
