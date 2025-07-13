@@ -33,7 +33,7 @@ const argsSchema = [
     ["training-reserve", null], // Defaults to global reserve.txt. Can be set to a negative number to allow debt. Sleeves will not train if money is below this amount.
     ["training-cap-seconds", 55 * 60 * 60 /* 15 hours */], // Time since the start of the bitnode after which we will no longer attempt to train sleeves to their target "train-to" settings
     ["disable-spending-hashes-for-gym-upgrades", false], // Set to true to disable spending hashes on gym upgrades when training up sleeves.
-    ["disable-spending-hashes-for-study-upgrades", true], // Set to true to disable spending hashes on study upgrades when smarting up sleeves.
+    ["disable-spending-hashes-for-study-upgrades", false], // Set to true to disable spending hashes on study upgrades when smarting up sleeves.
     ["enable-bladeburner-team-building", false], // Set to true to have one sleeve support the main sleeve, and another do recruitment. Otherwise, they will just do more "Infiltrate Synthoids"
     ["disable-bladeburner", false], // Set to true to disable having sleeves workout at the gym (costs money)
     ["failed-bladeburner-contract-cooldown", 30 * 60 * 1000], // Default 30 minutes: time to wait after failing a bladeburner contract before we try again
@@ -509,7 +509,7 @@ async function pickSleeveTask(ns, playerInfo, playerWorkInfo, i, sleeve, canTrai
         ];
     }
     // If there's nothing more productive to do (above) and there's still shock, prioritize recovery
-    if (sleeve.shock > 25) return shockRecoveryTask(sleeve, i, `there appears to be nothing better to do`);
+    if (sleeve.shock > 0) return shockRecoveryTask(sleeve, i, `there appears to be nothing better to do`);
 
     // If shock recovery is complete and combat farming is enabled, train combat stats in rotation
     if (options["combat-farm"]) {

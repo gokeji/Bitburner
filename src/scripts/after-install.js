@@ -9,7 +9,7 @@ export async function main(ns) {
 
     const isLateGame =
         ns.getPlayer().mults.hacking * ns.getBitNodeMultipliers().HackingLevelMultiplier > 5 ||
-        ns.getServerMaxRam("home") > 2 ** 20;
+        ns.getServerMaxRam("home") >= 2 ** 20;
     //  ||
     // (ns.gang.inGang() && ns.gang.getGangInformation().territory > 0.4);
 

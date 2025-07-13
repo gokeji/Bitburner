@@ -254,25 +254,14 @@ export async function main(ns) {
             bitnodeTotalEarnings * HACKNET_SPEND_PERCENTAGE,
         ); // 2 billion or 1% of player money
 
-        if (!(bitnodeHacknetSpend < hacknetMaxSpend || (continuousMode && bitnodeHacknetSpend < hacknetMaxSpend))) {
-            if (continuousMode) {
-                if (!hasPrintedWaitingMessage) {
-                    printUpgradeSummary(); // Print summary before waiting
-                    ns.print(`Exceeded max spend of ${ns.formatNumber(hacknetMaxSpend)}. Waiting for more money...`);
-                    hasPrintedWaitingMessage = true;
-                }
-                await ns.sleep(10000); // Wait 10 seconds before checking again
-                continue;
-            } else {
-                printUpgradeSummary(); // Print summary before stopping
-                ns.print(
-                    `Bitnode hacknet spend exceeds max spend of ${ns.formatNumber(hacknetMaxSpend)}. Stopping upgrades.`,
-                );
-                ns.tprint(
-                    `Bitnode hacknet spend exceeds max spend of ${ns.formatNumber(hacknetMaxSpend)}. Stopping upgrades.`,
-                );
-                break;
+        if (continuousMode && bitnodeHacknetSpend < hacknetMaxSpend) {
+            if (!hasPrintedWaitingMessage) {
+                printUpgradeSummary(); // Print summary before waiting
+                ns.print(`Exceeded max spend of ${ns.formatNumber(hacknetMaxSpend)}. Waiting for more money...`);
+                hasPrintedWaitingMessage = true;
             }
+            await ns.sleep(10000); // Wait 10 seconds before checking again
+            continue;
         }
         hasPrintedWaitingMessage = false;
 
@@ -350,7 +339,7 @@ export async function main(ns) {
 
             // Purchase the node first, then upgrade it
             const newNodeIndex = performUpgrade(bestUpgrade);
-            await upgradeNewServerToPaybackTime(newNodeIndex, continuousMode ? 4 : maxPaybackHours);
+            await upgradeNewServerToPaybackTime(newNodeIndex, 4);
             continue; // Skip the normal upgrade flow since we already handled this upgrade
         }
 

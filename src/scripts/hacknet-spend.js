@@ -91,7 +91,7 @@ export async function main(ns) {
         if (corporationFunds) {
             const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.corporationFunds, null, limit);
 
-            if (cost > limit) {
+            if (limit && cost > limit) {
                 stillNeedCorporationFunds = false;
             }
 
@@ -103,7 +103,7 @@ export async function main(ns) {
         if (corporationResearch) {
             const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.corporationResearch, null, limit);
 
-            if (cost > limit) {
+            if (limit && cost > limit) {
                 stillNeedCorporationResearch = false;
             }
 
@@ -115,7 +115,7 @@ export async function main(ns) {
         if (codingContract) {
             const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.codingContract, null, limit);
 
-            if (cost > limit) {
+            if (limit && cost > limit) {
                 stillNeedCodingContract = false;
             }
 

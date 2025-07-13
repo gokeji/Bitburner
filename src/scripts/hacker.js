@@ -20,11 +20,12 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let hackPercentage = 0.99;
     let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.5; // Use extra grow and weak threads to correct for out of sync HGW batches
-    const PRIORITY_SERVER_HACK_PERCENTAGE = 0.99; // Higher hack percentage for priority server
-    const PRIORITY_SERVER_CORRECTIVE_MULTIPLIER = 1.5; // Higher correction for priority server receiving min security upgrades
+
+    let hackPercentage = 0.1;
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.0; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const PRIORITY_SERVER_HACK_PERCENTAGE = 0.1; // Higher hack percentage for priority server
+    const PRIORITY_SERVER_CORRECTIVE_MULTIPLIER = 1.0; // Higher correction for priority server receiving min security upgrades
     let PARTIAL_PREP_THRESHOLD = 0.4;
     let ALLOW_HASH_UPGRADES = true;
 
@@ -35,7 +36,7 @@ export async function main(ns) {
     const TIME_PER_BATCH = BASE_SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES;
     const TICK_DELAY = 800; // ms delay between ticks
 
-    const HOME_SERVER_RESERVED_RAM = 1100; // GB reserved for home server
+    const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
     const ALWAYS_XP_FARM = true;
     const ALLOW_PARTIAL_PREP = true;
 
@@ -71,7 +72,7 @@ export async function main(ns) {
         "omnitek",
         "fulcrumtech",
         "fulcrumassets",
-        // "w0r1d_d43m0n",
+        "w0r1d_d43m0n",
     ]);
 
     /**
@@ -1080,18 +1081,39 @@ export async function main(ns) {
             operations.push({ type: "weaken", threads: finalWeakenThreads, id: "final_weaken" });
         }
 
+        ns.print(
+            `INFO: ${target} PREP ${operations.map((op) => `${op.threads}${op.type.substring(0, 1).toUpperCase()}`).join("-")} (${ns.formatRam(initialWeakenRam + growRam + finalWeakenRam)})`,
+        );
+
         // Find servers for prep operations with proper RAM accounting
         const allocation = allocateServersForOperations(ns, operations);
 
         let finalAllocation = allocation;
         if (!allocation.success && allowPartial) {
-            // Try again with only weaken operations
-            const weakenOnlyOperations = [{ type: "weaken", threads: initialWeakenThreads, id: "initial_weaken" }];
-            const weakenOnlyAllocation = allocateServersForOperations(ns, weakenOnlyOperations);
+            if (needsInitialWeaken) {
+                // Try again with only weaken operations
+                const weakenOnlyOperations = [{ type: "weaken", threads: initialWeakenThreads, id: "initial_weaken" }];
+                const weakenOnlyAllocation = allocateServersForOperations(ns, weakenOnlyOperations);
 
-            if (weakenOnlyAllocation.success) {
-                finalAllocation = weakenOnlyAllocation;
-                shouldGrow = false;
+                if (weakenOnlyAllocation.success) {
+                    finalAllocation = weakenOnlyAllocation;
+                    shouldGrow = false;
+                }
+            } else if (shouldGrow) {
+                // Try again with only grow operations
+                const scaledGrowWeakenOperations = [
+                    { type: "grow", threads: growthThreads },
+                    { type: "weaken", threads: finalWeakenThreads, id: "final_weaken" },
+                ];
+                const scaledGrowWeakenAllocation = allocateServersForOperations(
+                    ns,
+                    scaledGrowWeakenOperations,
+                    allowPartial,
+                );
+
+                if (scaledGrowWeakenAllocation.success) {
+                    finalAllocation = scaledGrowWeakenAllocation;
+                }
             }
         }
 

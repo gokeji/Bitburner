@@ -127,6 +127,11 @@ export async function main(ns) {
     // Start hacker immediately - it will automatically avoid home RAM when stanek is running
     startDistributedHackIfNotRunning(ns);
 
+    // if (ns.corporation.hasCorporation()) {
+    //     startScriptIfNotRunning(ns, "cat/corporation.js", HOST_NAME, 1, "--improveAllDivisions");
+    //     startScriptIfNotRunning(ns, "cat/daemon.js", HOST_NAME, 1, "--maintainCorporation");
+    // }
+
     while (
         !startedStockTrader ||
         (!sharedRam && shouldShare && SERVER_TO_START_SHARING_RAM_ON) ||
