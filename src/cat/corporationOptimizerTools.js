@@ -1,4 +1,4 @@
-import * as comlink from "./libs/comlink";
+import * as comlink from "libs/comlink";
 import {
     BenchmarkType,
     CorporationOptimizer,

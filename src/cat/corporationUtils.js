@@ -1,3 +1,5 @@
+import { NS } from "@ns";
+
 import { getRecordEntries, getRecordKeys } from "./libs/Record";
 import { parseNumber } from "./libs/utils";
 import { Ceres } from "./libs/Ceres";
@@ -542,6 +544,7 @@ function getDivisionResearches(ns, divisionName) {
     }
     return divisionResearches;
 }
+/** @param {NS} ns */
 async function createDivision(ns, divisionName, officeSize, warehouseLevel) {
     if (!hasDivision(ns, divisionName)) {
         let industryType;
@@ -1165,7 +1168,15 @@ function validateProductMarkupMap(ns) {
         const productKeyInfo = productKey.split("|");
         const divisionName = productKeyInfo[0];
         const productName = productKeyInfo[2];
-        if (!ns.corporation.getDivision(divisionName).products.includes(productName)) {
+
+        // Check if division exists before trying to access it
+        if (!hasDivision(ns, divisionName)) {
+            productMarkupData.delete(productKey);
+            continue;
+        }
+
+        const division = ns.corporation.getDivision(divisionName);
+        if (!division.products.includes(productName)) {
             productMarkupData.delete(productKey);
         }
     }

@@ -62,7 +62,7 @@ import {
 } from "./corporationOptimizer";
 import * as testingTools from "./corporationTestingTools";
 import { corporationEventLogger } from "./corporationEventLogger";
-import { exposeGameInternalObjects } from "exploits";
+// import { exposeGameInternalObjects } from "exploits";
 function autocomplete(data, flags) {
     return parseAutoCompleteDataFromDefaultConfig(data, defaultConfig);
 }
