@@ -343,7 +343,8 @@ export async function main(ns) {
         if (
             continuousMode &&
             nodePurchaseUpgrade.cost < hacknetMaxSpend / 2 &&
-            nodePurchaseUpgrade.cost < ns.getPlayer().money
+            nodePurchaseUpgrade.cost < ns.getPlayer().money &&
+            hacknetServers.length < ns.hacknet.maxNumNodes()
         ) {
             bestUpgrade = nodePurchaseUpgrade;
 
@@ -356,49 +357,31 @@ export async function main(ns) {
         // Upgrade cache if one of the improvements is about to exceed it
         if (continuousMode) {
             const allHashUpgrades = ns.hacknet.getHashUpgrades();
-            for (let upgrade of allHashUpgrades) {
-                const upgradeCost = ns.hacknet.hashCost(upgrade);
-                if (upgradeCost > ns.hacknet.hashCapacity()) {
-                    let hacknetWithLowestCache = null;
-                    let lowestCacheServerIndex = null;
+            const highestUpgradeCost = allHashUpgrades.reduce(
+                (max, upgrade) => Math.max(max, ns.hacknet.hashCost(upgrade)),
+                0,
+            );
+            if (highestUpgradeCost > ns.hacknet.hashCapacity()) {
+                let hacknetWithLowestCache = null;
+                let lowestCacheServerIndex = null;
 
-                    for (let i = 0; i < ns.hacknet.numNodes(); i++) {
-                        const node = ns.hacknet.getNodeStats(i);
-                        if (hacknetWithLowestCache === null || node.cache < hacknetWithLowestCache.cache) {
-                            hacknetWithLowestCache = node;
-                            lowestCacheServerIndex = i;
-                        }
+                for (let i = 0; i < ns.hacknet.numNodes(); i++) {
+                    const node = ns.hacknet.getNodeStats(i);
+                    if (hacknetWithLowestCache === null || node.cache < hacknetWithLowestCache.cache) {
+                        hacknetWithLowestCache = node;
+                        lowestCacheServerIndex = i;
                     }
+                }
 
-                    if (
-                        hacknetWithLowestCache &&
-                        ns.hacknet.getCacheUpgradeCost(lowestCacheServerIndex) < hacknetMaxSpend &&
-                        ns.hacknet.getCacheUpgradeCost(lowestCacheServerIndex) < ns.getPlayer().money
-                    ) {
-                        ns.hacknet.upgradeCache(lowestCacheServerIndex);
-                        ns.print(`Upgraded cache on node ${lowestCacheServerIndex}`);
-                    }
+                if (
+                    hacknetWithLowestCache &&
+                    ns.hacknet.getCacheUpgradeCost(lowestCacheServerIndex) < ns.getPlayer().money
+                ) {
+                    ns.hacknet.upgradeCache(lowestCacheServerIndex);
+                    ns.print(`Upgraded cache on node ${lowestCacheServerIndex}`);
                 }
             }
         }
-
-        // Debug all of the upgrade types before returning
-        // for (let upgrade of currentNodeUpgrades) {
-        //     ns.print(
-        //         `Node ${upgrade.index} ${upgrade.type.padEnd(5)}: production: ${ns.formatNumber(upgrade.value, 5).padStart(8)}, cost: ${ns.formatNumber(upgrade.cost).padStart(6)}, moneyValue: ${ns.formatNumber(upgrade.valueMoney).padStart(6)}, ratio: ${upgrade.ratio.toFixed(6).padStart(10)}, payback: ${(upgrade.paybackTime / 3600).toFixed(2).padStart(6)}h`,
-        //     );
-        // }
-
-        // Log the best upgrade with payback time info
-        let nodeInfo = bestUpgrade.type === "node" ? "" : ` on node ${bestUpgrade.index}`;
-        let productionInfo =
-            bestUpgrade.type === "node"
-                ? `Production: $${ns.formatNumber(bestUpgrade.value)}/sec`
-                : `Additional $/sec: ${ns.formatNumber(bestUpgrade.value)}`;
-
-        // ns.print(
-        //     `Best upgrade: ${bestUpgrade.type.toUpperCase()}${nodeInfo} | Cost: $${ns.formatNumber(bestUpgrade.cost, 2)} | ${productionInfo} | Payback: ${ns.tFormat(bestUpgrade.paybackTime * 1000)}`,
-        // );
 
         // Check if payback time is too long
         if (bestUpgrade.paybackHours > maxPaybackHours && !continuousMode) {
@@ -412,12 +395,17 @@ export async function main(ns) {
             break;
         }
 
-        while (ns.getServerMoneyAvailable("home") < bestUpgrade.cost) {
-            await ns.sleep(10000);
-        }
+        if (bestUpgrade.cost != Infinity) {
+            while (ns.getServerMoneyAvailable("home") < bestUpgrade.cost) {
+                await ns.sleep(10000);
+            }
 
-        // Perform the upgrade and tally it
-        performUpgrade(bestUpgrade);
+            // Perform the upgrade and tally it
+            performUpgrade(bestUpgrade);
+        } else {
+            // All hacknet servers are maxed out, wait for cache upgrades.
+            await ns.sleep(1000);
+        }
 
         // await ns.sleep(100);
     }

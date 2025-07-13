@@ -49,7 +49,7 @@ export async function main(ns) {
 
     // Track RAM upgrades
     let ramUpgrades = 0;
-    while (ns.getPlayer().money > ns.singularity.getUpgradeHomeRamCost()) {
+    while (ns.getPlayer().money > ns.singularity.getUpgradeHomeRamCost() && ns.getServer("home").maxRam < 2 ** 30) {
         ns.singularity.upgradeHomeRam();
         ramUpgrades++;
         const ramMessage = `Upgraded home ram to ${ns.formatRam(ns.getServerMaxRam("home"))}`;
@@ -59,7 +59,7 @@ export async function main(ns) {
 
     // Track core upgrades
     let coreUpgrades = 0;
-    while (ns.getPlayer().money > ns.singularity.getUpgradeHomeCoresCost()) {
+    while (ns.getPlayer().money > ns.singularity.getUpgradeHomeCoresCost() && ns.getServer("home").cpuCores < 8) {
         ns.singularity.upgradeHomeCores();
         coreUpgrades++;
         const coreMessage = `Upgraded home cores to ${ns.getServer("home").cpuCores}`;

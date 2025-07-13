@@ -122,6 +122,60 @@ function displayNeuroFluxStatus(ns, validation, isPurchasing, forceBuy) {
     }
 }
 
+/**
+ * Estimates NeuroFlux Governor donation costs for budget planning
+ * This is called before optimization to ensure donation costs are included in budget
+ * @param {NS} ns - NetScript object
+ * @param {Object} player - Player object
+ * @param {number} currentNeuroFluxLevel - Current NeuroFlux level
+ * @param {number} estimatedNeuroFluxCount - Estimated number of NeuroFlux to purchase
+ * @param {boolean} allowDonation - Whether donations are allowed
+ * @param {Array} specialFactions - Array of factions that cannot receive donations
+ * @returns {Object} Object with estimatedDonationCost and bestFaction
+ */
+function estimateNeuroFluxDonationCosts(
+    ns,
+    player,
+    currentNeuroFluxLevel,
+    estimatedNeuroFluxCount,
+    allowDonation = false,
+    specialFactions = [],
+) {
+    if (!allowDonation || estimatedNeuroFluxCount <= 0) {
+        return { estimatedDonationCost: 0, bestFaction: null };
+    }
+
+    const baseNeuroFluxRepReq = ns.singularity.getAugmentationRepReq("NeuroFlux Governor");
+    const finalNeuroFluxLevel = currentNeuroFluxLevel + estimatedNeuroFluxCount - 1;
+    const maxNeuroFluxRepReq = baseNeuroFluxRepReq * 1.14 ** (finalNeuroFluxLevel - currentNeuroFluxLevel);
+
+    const neuroFluxFactions = ns.singularity.getAugmentationFactions("NeuroFlux Governor");
+    let maxFactionRep = 0;
+    let bestNeuroFluxFaction = null;
+
+    for (const faction of neuroFluxFactions) {
+        if (player.factions.includes(faction)) {
+            const factionRep = ns.singularity.getFactionRep(faction);
+            if (factionRep > maxFactionRep) {
+                maxFactionRep = factionRep;
+                bestNeuroFluxFaction = faction;
+            }
+        }
+    }
+
+    // Check if we need to donate and can donate
+    if (bestNeuroFluxFaction && maxFactionRep < maxNeuroFluxRepReq) {
+        const favor = ns.singularity.getFactionFavor(bestNeuroFluxFaction);
+        if (favor >= 150 && !specialFactions.includes(bestNeuroFluxFaction)) {
+            const repShortfall = maxNeuroFluxRepReq - maxFactionRep;
+            const donationCost = ns.formulas.reputation.donationForRep(repShortfall, player);
+            return { estimatedDonationCost: donationCost, bestFaction: bestNeuroFluxFaction };
+        }
+    }
+
+    return { estimatedDonationCost: 0, bestFaction: bestNeuroFluxFaction };
+}
+
 export function autocomplete(data, args) {
     data.flags(argsSchema);
     return [];
@@ -983,6 +1037,60 @@ export async function main(ns) {
                 totalDonationCosts += donationCost;
             }
         }
+
+        // Estimate NeuroFlux donation costs if NeuroFlux is included
+        if (!noNFG && deduplicatedAugmentations.some((aug) => aug.name === "NeuroFlux Governor")) {
+            // Make a rough estimate of how many NeuroFlux we might buy
+            // Use a conservative estimate based on remaining budget after regular augments
+            const regularAugmentsCost = deduplicatedAugmentations
+                .filter((aug) => aug.name !== "NeuroFlux Governor")
+                .reduce((sum, aug) => sum + aug.cost, 0);
+
+            const budgetAfterRegularAugments = (totalBudget - totalDonationCosts) / 1000000 - regularAugmentsCost;
+
+            // Estimate NeuroFlux count based on available budget
+            // NeuroFlux cost increases by 1.14x per level, and each purchase increases cost by 1.9x
+            // This is a rough estimate - we'll refine it during optimization
+            const neuroFluxBasePrice = ns.singularity.getAugmentationBasePrice("NeuroFlux Governor") / 1000000;
+            let estimatedNeuroFluxCount = 0;
+            let remainingBudget = budgetAfterRegularAugments;
+            let currentNeuroFluxPrice = neuroFluxBasePrice * 1.14 ** (currentNeuroFluxPurchaseLevel - 1);
+
+            // Estimate how many NeuroFlux we can afford (conservative estimate)
+            while (remainingBudget > currentNeuroFluxPrice && estimatedNeuroFluxCount < 50) {
+                remainingBudget -= currentNeuroFluxPrice;
+                estimatedNeuroFluxCount++;
+                currentNeuroFluxPrice *= 1.9; // Cost multiplier per purchase
+                currentNeuroFluxPrice *= 1.14; // Level multiplier
+            }
+
+            if (estimatedNeuroFluxCount > 0) {
+                const neuroFluxDonationEstimate = estimateNeuroFluxDonationCosts(
+                    ns,
+                    player,
+                    currentNeuroFluxPurchaseLevel,
+                    estimatedNeuroFluxCount,
+                    allowDonation,
+                    specialFactions,
+                );
+
+                if (neuroFluxDonationEstimate.estimatedDonationCost > 0) {
+                    const existingDonation = factionDonationCosts.get(neuroFluxDonationEstimate.bestFaction) || 0;
+                    if (neuroFluxDonationEstimate.estimatedDonationCost > existingDonation) {
+                        const additionalCost = neuroFluxDonationEstimate.estimatedDonationCost - existingDonation;
+                        factionDonationCosts.set(
+                            neuroFluxDonationEstimate.bestFaction,
+                            neuroFluxDonationEstimate.estimatedDonationCost,
+                        );
+                        totalDonationCosts += additionalCost;
+
+                        ns.print(
+                            `\n💡 Estimated NeuroFlux donation: $${ns.formatNumber(neuroFluxDonationEstimate.estimatedDonationCost)} to ${neuroFluxDonationEstimate.bestFaction} (for ~${estimatedNeuroFluxCount} levels)`,
+                        );
+                    }
+                }
+            }
+        }
     }
 
     // Calculate effective budget after accounting for donation costs
@@ -1057,7 +1165,7 @@ export async function main(ns) {
         }
     }
 
-    // Now that we have the final result, check if we need to add NeuroFlux donation costs
+    // Recalculate actual NeuroFlux donation costs based on final optimization result
     if (allowDonation && result.neurofluxCount > 0) {
         const neuroFluxValidation = validateNeuroFluxReputation(
             ns,
@@ -1079,14 +1187,26 @@ export async function main(ns) {
                 !specialFactions.includes(neuroFluxValidation.bestFaction)
             ) {
                 const repShortfall = neuroFluxValidation.maxRepReq - currentRep;
-                const neuroFluxDonationCost = ns.formulas.reputation.donationForRep(repShortfall, ns.getPlayer());
+                const actualNeuroFluxDonationCost = ns.formulas.reputation.donationForRep(repShortfall, ns.getPlayer());
 
-                // Update the faction donation costs if this faction needs more than we already calculated
+                // Update the faction donation costs with the actual amount needed
                 const existingDonation = factionDonationCosts.get(neuroFluxValidation.bestFaction) || 0;
-                if (neuroFluxDonationCost > existingDonation) {
-                    const additionalCost = neuroFluxDonationCost - existingDonation;
-                    factionDonationCosts.set(neuroFluxValidation.bestFaction, neuroFluxDonationCost);
+                if (actualNeuroFluxDonationCost > existingDonation) {
+                    const additionalCost = actualNeuroFluxDonationCost - existingDonation;
+                    factionDonationCosts.set(neuroFluxValidation.bestFaction, actualNeuroFluxDonationCost);
                     totalDonationCosts += additionalCost;
+
+                    ns.print(
+                        `\n🔄 Adjusted NeuroFlux donation: $${ns.formatNumber(actualNeuroFluxDonationCost)} to ${neuroFluxValidation.bestFaction} (for ${result.neurofluxCount} levels)`,
+                    );
+                } else if (actualNeuroFluxDonationCost < existingDonation) {
+                    const savedCost = existingDonation - actualNeuroFluxDonationCost;
+                    factionDonationCosts.set(neuroFluxValidation.bestFaction, actualNeuroFluxDonationCost);
+                    totalDonationCosts -= savedCost;
+
+                    ns.print(
+                        `\n💰 Reduced NeuroFlux donation: $${ns.formatNumber(actualNeuroFluxDonationCost)} to ${neuroFluxValidation.bestFaction} (saved $${ns.formatNumber(savedCost)})`,
+                    );
                 }
             }
         }

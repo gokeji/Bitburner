@@ -35,13 +35,13 @@ export function autocomplete(data, args) {
     return [];
 }
 
+const MIN_HACK_DIFFICULTY = 10;
+const MAX_MONEY = 10e12;
+
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.disableLog("ALL");
     const flags = ns.flags(argsSchema);
-
-    const MIN_HACK_DIFFICULTY = 10;
-    const MAX_MONEY = 10e12;
 
     const money = flags["money"];
     const minSecurity = flags["minSecurity"];
@@ -71,11 +71,11 @@ export async function main(ns) {
         targetServer = manualTarget || getMaxMoneyServer(ns, targetServer);
 
         if (studying) {
-            const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.studying);
+            const { cost, success, level, count } = spendHashesOnUpgrade(ns, hashUpgrades.studying, null, null, true);
             const studyingBonus = level * 20;
 
             if (success) {
-                logUpgradeSuccess(ns, hashUpgrades.studying, `${ns.formatNumber(studyingBonus)}%`, cost);
+                logUpgradeSuccess(ns, hashUpgrades.studying, `${ns.formatNumber(studyingBonus)}%`, cost, count);
             }
         }
 
@@ -172,7 +172,7 @@ export async function main(ns) {
             (minSecurity && stillNeedMinSecurity) ||
             (maxMoney && stillNeedMaxMoney)
         ) {
-            await ns.sleep(5000);
+            await ns.sleep(20);
             continue;
         } else {
             ns.print(`No more upgrades needed, targeting ${targetServer}`);
@@ -188,11 +188,18 @@ export async function main(ns) {
  * @param {string} [target] - Optional target for upgrades that require one
  * @returns {{cost: number, success: boolean, level: number}} Upgrade information
  */
-export function spendHashesOnUpgrade(ns, upgradeName, target = null, limit = null) {
-    const cost = ns.hacknet.hashCost(upgradeName);
+export function spendHashesOnUpgrade(ns, upgradeName, target = null, limit = null, asManyAsPossible = false) {
+    let count = 1;
+    if (asManyAsPossible) {
+        while (ns.hacknet.hashCost(upgradeName, count + 1) < ns.hacknet.numHashes()) {
+            count++;
+        }
+    }
+
+    const cost = ns.hacknet.hashCost(upgradeName, count);
 
     if (limit && cost > limit) {
-        return { cost: 0, success: false, level: 0 };
+        return { cost: 0, success: false, level: 0, count: 0 };
     }
 
     if (cost > ns.hacknet.hashCapacity()) {
@@ -213,10 +220,13 @@ export function spendHashesOnUpgrade(ns, upgradeName, target = null, limit = nul
     }
 
     // TODO: Buy more cache if needed
-    const success = target !== null ? ns.hacknet.spendHashes(upgradeName, target) : ns.hacknet.spendHashes(upgradeName);
+    const success =
+        target !== null
+            ? ns.hacknet.spendHashes(upgradeName, target, count)
+            : ns.hacknet.spendHashes(upgradeName, "", count);
     const level = ns.hacknet.getHashUpgradeLevel(upgradeName);
 
-    return { cost, success, level };
+    return { cost, success, level, count };
 }
 
 /**
@@ -226,14 +236,14 @@ export function spendHashesOnUpgrade(ns, upgradeName, target = null, limit = nul
  * @param {string} effectString - Description of the upgrade effect
  * @param {number} cost - Cost of the upgrade
  */
-export function logUpgradeSuccess(ns, upgradeName, effectString, cost) {
+export function logUpgradeSuccess(ns, upgradeName, effectString, cost, count) {
     const timestamp = new Date().toLocaleTimeString();
-    const message = `SUCCESS: ${timestamp} ${upgradeName} | ${effectString} | ${cost}h`;
-    const toastMessage = `${upgradeName} | ${effectString} | ${cost}h`;
+    const message = `SUCCESS: ${timestamp} ${upgradeName} | ${effectString} | ${cost}h | ${count}x`;
+    const toastMessage = `${upgradeName} | ${effectString} | ${cost}h | ${count}x`;
 
     ns.print(message);
-    ns.toast(toastMessage);
-    ns.tprint(message);
+    // ns.toast(toastMessage);
+    // ns.tprint(message);
 }
 
 /**
