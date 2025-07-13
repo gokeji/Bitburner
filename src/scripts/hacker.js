@@ -20,11 +20,11 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let hackPercentage = 0.1;
+    let hackPercentage = 0.99;
     let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.2; // Use extra grow and weak threads to correct for out of sync HGW batches
-    const PRIORITY_SERVER_CORRECTIVE_MULTIPLIER = 1.2; // Higher correction for priority server receiving min security upgrades
-    const PRIORITY_SERVER_HACK_PERCENTAGE = 0.2; // Higher hack percentage for priority server
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.5; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const PRIORITY_SERVER_HACK_PERCENTAGE = 0.99; // Higher hack percentage for priority server
+    const PRIORITY_SERVER_CORRECTIVE_MULTIPLIER = 1.5; // Higher correction for priority server receiving min security upgrades
     let PARTIAL_PREP_THRESHOLD = 0.4;
     let ALLOW_HASH_UPGRADES = true;
 
@@ -32,6 +32,7 @@ export async function main(ns) {
     let priorityServerMinMoneyProtectionThreshold = 1 - PRIORITY_SERVER_HACK_PERCENTAGE - 0.25;
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
+    const TIME_PER_BATCH = BASE_SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES;
     const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 1100; // GB reserved for home server
@@ -70,7 +71,7 @@ export async function main(ns) {
         "omnitek",
         "fulcrumtech",
         "fulcrumassets",
-        "w0r1d_d43m0n",
+        // "w0r1d_d43m0n",
     ]);
 
     /**
@@ -406,18 +407,20 @@ export async function main(ns) {
             const remainingRamForSustainedThroughput = Math.max(0, ramToAllocate - ramUsedByServer);
 
             // Calculate maximum batches we can afford with available RAM
-            const { timePerBatch, batchLimitForSustainedThroughput, ramNeededPerBatch } = serverStats;
+            const { batchLimitForSustainedThroughput, ramNeededPerBatch } = serverStats;
             const targetBatchesForSustainedThroughput = Math.floor(
                 remainingRamForSustainedThroughput / ramNeededPerBatch,
             );
-            const maxBatchesThisTick = Math.floor(TICK_DELAY / timePerBatch);
+            const maxBatchesThisTick = Math.floor(TICK_DELAY / TIME_PER_BATCH);
 
-            const batchesToSchedule = Math.min(
+            let batchesToSchedule = Math.min(
                 batchLimitForSustainedThroughput,
                 maxBatchesThisTick,
                 targetBatchesForSustainedThroughput,
             );
-
+            if (serverStats.weakenTime < TIME_PER_BATCH) {
+                batchesToSchedule = maxBatchesThisTick;
+            }
             if (batchesToSchedule > 0) {
                 let timeDriftDelay = 0;
                 if (serverBatchTimings.has(currentServer)) {
@@ -591,8 +594,7 @@ export async function main(ns) {
         const weakenTarget = hackSecurityChange + growthSecurityChange;
         const weakenThreadsNeeded = Math.ceil((effectiveCorrectiveMultiplier * weakenTarget) / weakenAmount);
 
-        const timePerBatch = BASE_SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES;
-        const theoreticalBatchLimit = weakenTime / timePerBatch;
+        const theoreticalBatchLimit = weakenTime / TIME_PER_BATCH;
 
         const ramNeededPerBatch =
             hackThreads * HACK_SCRIPT_RAM_USAGE +
@@ -628,7 +630,6 @@ export async function main(ns) {
             growthTime,
             totalSecurityIncrease: weakenTarget,
             theoreticalBatchLimit,
-            timePerBatch,
             batchLimitForSustainedThroughput,
             throughput,
             ramNeededPerBatch,
@@ -809,7 +810,6 @@ export async function main(ns) {
                 actualHackPercentage,
                 totalSecurityIncrease,
                 theoreticalBatchLimit,
-                timePerBatch,
                 batchLimitForSustainedThroughput,
                 throughput,
                 ramNeededPerBatch,
@@ -867,7 +867,6 @@ export async function main(ns) {
                 hackChance: hackChance,
                 batchLimitForSustainedThroughput: batchLimitForSustainedThroughput,
                 maxSecurityIncreasePerBatch: totalSecurityIncrease,
-                timePerBatch: timePerBatch,
                 ramForMaxThroughput: ramForMaxThroughput,
             });
         }
@@ -1174,15 +1173,14 @@ export async function main(ns) {
 
         // Ensure we only attempt whole batches to avoid floating point precision issues
         const totalBatches = Math.floor(batches);
-        const { timePerBatch } = serverStats;
 
         const weakenTimeCompletionTarget = 0 * BASE_SCRIPT_DELAY; // Target the midpoint of the 400ms H-G-W window
-        const weakenTimeFinishOffset = (timeDriftDelay + serverStats.weakenTime) % timePerBatch;
+        const weakenTimeFinishOffset = (timeDriftDelay + serverStats.weakenTime) % TIME_PER_BATCH;
         const weakenTimeSyncDelay =
-            (timePerBatch + (weakenTimeCompletionTarget - weakenTimeFinishOffset)) % timePerBatch;
+            (TIME_PER_BATCH + (weakenTimeCompletionTarget - weakenTimeFinishOffset)) % TIME_PER_BATCH;
 
         for (let i = 0; i < totalBatches; i++) {
-            const batchResult = runBatchHack(ns, target, timePerBatch * i + weakenTimeSyncDelay, serverStats);
+            const batchResult = runBatchHack(ns, target, TIME_PER_BATCH * i + weakenTimeSyncDelay, serverStats);
             if (!batchResult.success) {
                 break;
             }
@@ -1234,9 +1232,9 @@ export async function main(ns) {
         }
 
         // Calculate delays
-        const hackDelay = weakenTime + extraDelay - 2 * BASE_SCRIPT_DELAY - hackTime;
-        const growDelay = weakenTime + extraDelay - BASE_SCRIPT_DELAY - growthTime;
-        const weakenDelay = extraDelay;
+        const hackDelay = Math.max(weakenTime, TIME_PER_BATCH) + extraDelay - 2 * BASE_SCRIPT_DELAY - hackTime;
+        const growDelay = Math.max(weakenTime, TIME_PER_BATCH) + extraDelay - BASE_SCRIPT_DELAY - growthTime;
+        const weakenDelay = Math.max(0, TIME_PER_BATCH - weakenTime) + extraDelay;
 
         // Validate delays are not negative (which would cause timing issues)
         if (hackDelay < 0 || growDelay < 0 || weakenDelay < 0) {

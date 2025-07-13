@@ -509,7 +509,7 @@ async function pickSleeveTask(ns, playerInfo, playerWorkInfo, i, sleeve, canTrai
         ];
     }
     // If there's nothing more productive to do (above) and there's still shock, prioritize recovery
-    if (sleeve.shock > 75) return shockRecoveryTask(sleeve, i, `there appears to be nothing better to do`);
+    if (sleeve.shock > 25) return shockRecoveryTask(sleeve, i, `there appears to be nothing better to do`);
 
     // If shock recovery is complete and combat farming is enabled, train combat stats in rotation
     if (options["combat-farm"]) {

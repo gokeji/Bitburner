@@ -172,7 +172,7 @@ export async function main(ns) {
             (minSecurity && stillNeedMinSecurity) ||
             (maxMoney && stillNeedMaxMoney)
         ) {
-            await ns.sleep(20);
+            await ns.sleep(100);
             continue;
         } else {
             ns.print(`No more upgrades needed, targeting ${targetServer}`);
@@ -236,7 +236,7 @@ export function spendHashesOnUpgrade(ns, upgradeName, target = null, limit = nul
  * @param {string} effectString - Description of the upgrade effect
  * @param {number} cost - Cost of the upgrade
  */
-export function logUpgradeSuccess(ns, upgradeName, effectString, cost, count) {
+export function logUpgradeSuccess(ns, upgradeName, effectString, cost, count = 1) {
     const timestamp = new Date().toLocaleTimeString();
     const message = `SUCCESS: ${timestamp} ${upgradeName} | ${effectString} | ${cost}h | ${count}x`;
     const toastMessage = `${upgradeName} | ${effectString} | ${cost}h | ${count}x`;
