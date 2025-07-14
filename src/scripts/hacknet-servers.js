@@ -247,14 +247,44 @@ export async function main(ns) {
             ns.getMoneySources().sinceInstall.total -
             ns.getMoneySources().sinceInstall.gang_expenses -
             ns.getMoneySources().sinceInstall.servers -
-            ns.getMoneySources().sinceInstall.hacknet_expenses;
+            ns.getMoneySources().sinceInstall.hacknet_expenses -
+            ns.getMoneySources().sinceInstall.augmentations;
         const hacknetMaxSpend = Math.max(
             2e9,
             ns.getPlayer().money * HACKNET_SPEND_PERCENTAGE,
             bitnodeTotalEarnings * HACKNET_SPEND_PERCENTAGE,
         ); // 2 billion or 1% of player money
 
-        if (continuousMode && bitnodeHacknetSpend < hacknetMaxSpend) {
+        // Upgrade cache if one of the improvements is about to exceed it
+        if (continuousMode) {
+            const allHashUpgrades = ns.hacknet.getHashUpgrades();
+            const highestUpgradeCost = allHashUpgrades.reduce(
+                (max, upgrade) => Math.max(max, ns.hacknet.hashCost(upgrade)),
+                0,
+            );
+            if (highestUpgradeCost > ns.hacknet.hashCapacity()) {
+                let hacknetWithLowestCache = null;
+                let lowestCacheServerIndex = null;
+
+                for (let i = 0; i < ns.hacknet.numNodes(); i++) {
+                    const node = ns.hacknet.getNodeStats(i);
+                    if (hacknetWithLowestCache === null || node.cache < hacknetWithLowestCache.cache) {
+                        hacknetWithLowestCache = node;
+                        lowestCacheServerIndex = i;
+                    }
+                }
+
+                if (
+                    hacknetWithLowestCache &&
+                    ns.hacknet.getCacheUpgradeCost(lowestCacheServerIndex) < ns.getPlayer().money / 10
+                ) {
+                    ns.hacknet.upgradeCache(lowestCacheServerIndex);
+                    ns.print(`Upgraded cache on node ${lowestCacheServerIndex}`);
+                }
+            }
+        }
+
+        if (continuousMode && bitnodeHacknetSpend > hacknetMaxSpend) {
             if (!hasPrintedWaitingMessage) {
                 printUpgradeSummary(); // Print summary before waiting
                 ns.print(`Exceeded max spend of ${ns.formatNumber(hacknetMaxSpend)}. Waiting for more money...`);
@@ -343,35 +373,6 @@ export async function main(ns) {
             continue; // Skip the normal upgrade flow since we already handled this upgrade
         }
 
-        // Upgrade cache if one of the improvements is about to exceed it
-        if (continuousMode) {
-            const allHashUpgrades = ns.hacknet.getHashUpgrades();
-            const highestUpgradeCost = allHashUpgrades.reduce(
-                (max, upgrade) => Math.max(max, ns.hacknet.hashCost(upgrade)),
-                0,
-            );
-            if (highestUpgradeCost > ns.hacknet.hashCapacity()) {
-                let hacknetWithLowestCache = null;
-                let lowestCacheServerIndex = null;
-
-                for (let i = 0; i < ns.hacknet.numNodes(); i++) {
-                    const node = ns.hacknet.getNodeStats(i);
-                    if (hacknetWithLowestCache === null || node.cache < hacknetWithLowestCache.cache) {
-                        hacknetWithLowestCache = node;
-                        lowestCacheServerIndex = i;
-                    }
-                }
-
-                if (
-                    hacknetWithLowestCache &&
-                    ns.hacknet.getCacheUpgradeCost(lowestCacheServerIndex) < ns.getPlayer().money
-                ) {
-                    ns.hacknet.upgradeCache(lowestCacheServerIndex);
-                    ns.print(`Upgraded cache on node ${lowestCacheServerIndex}`);
-                }
-            }
-        }
-
         // Check if payback time is too long
         if (bestUpgrade.paybackHours > maxPaybackHours && !continuousMode) {
             let upgradeType = bestUpgrade.type === "node" ? "New hacknet node" : `Hacknet ${bestUpgrade.type} upgrade`;
@@ -386,6 +387,9 @@ export async function main(ns) {
 
         if (bestUpgrade.cost != Infinity) {
             while (ns.getServerMoneyAvailable("home") < bestUpgrade.cost) {
+                ns.print(
+                    `Waiting for ${ns.formatNumber(bestUpgrade.cost)} to upgrade ${bestUpgrade.type} on node ${bestUpgrade.index}...`,
+                );
                 await ns.sleep(10000);
             }
 

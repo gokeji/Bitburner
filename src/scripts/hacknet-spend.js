@@ -242,8 +242,8 @@ export function logUpgradeSuccess(ns, upgradeName, effectString, cost, count = 1
     const toastMessage = `${upgradeName} | ${effectString} | ${cost}h | ${count}x`;
 
     ns.print(message);
-    // ns.toast(toastMessage);
-    // ns.tprint(message);
+    ns.toast(toastMessage);
+    ns.tprint(message);
 }
 
 /**

@@ -2,7 +2,7 @@ import { NS } from "@ns";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const upgradeRamThreshold = ns.getResetInfo().currentNode === 9 ? 0.5 : 0.2;
+    const upgradeRamThreshold = ns.getResetInfo().currentNode === 9 ? 1 : 0.2;
     while (true) {
         if (ns.getPlayer().money * upgradeRamThreshold > ns.singularity.getUpgradeHomeRamCost()) {
             const success = ns.singularity.upgradeHomeRam();

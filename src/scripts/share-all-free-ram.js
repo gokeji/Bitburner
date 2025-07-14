@@ -11,18 +11,19 @@ export async function main(ns) {
 
     let reserverRam = 0;
     if (server === "home") {
-        reserverRam = 185;
+        reserverRam = 100;
     }
 
     while (true) {
         const maxRam = ns.getServerMaxRam(server);
         const usedRam = ns.getServerUsedRam(server);
-        let freeRam = maxRam - usedRam;
-        if (ramToShare) {
-            freeRam = Math.min(freeRam, ramToShare);
-        }
+        const freeRam = maxRam - usedRam;
         const shareScriptRam = 4;
-        const maxThreads = Math.floor((freeRam - reserverRam) / shareScriptRam);
+        let maxThreads = Math.floor((freeRam - reserverRam) / shareScriptRam);
+
+        if (ramToShare) {
+            maxThreads = Math.min(maxThreads, Math.floor(ramToShare / shareScriptRam));
+        }
 
         if (maxThreads <= 0) {
             await ns.sleep(1000);
@@ -31,7 +32,10 @@ export async function main(ns) {
 
         ns.print(`${server} has ${freeRam} free RAM, kicking off ${maxThreads} threads of share.js`);
         ns.scp("kamu/share.js", server);
-        ns.exec("kamu/share.js", server, maxThreads);
+        const success = ns.exec("kamu/share.js", server, maxThreads);
+        if (!success) {
+            ns.print(`Failed to execute share.js on ${server}`);
+        }
         await ns.sleep(10025); // Sleep 25ms extra to make sure share is done running
     }
 }
