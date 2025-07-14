@@ -2,7 +2,7 @@ import { NS } from "@ns";
 
 const argsSchema = [
     ["server", "home"],
-    ["threads", 1],
+    ["threads", null],
 ];
 
 export function autocomplete(data, args) {
@@ -46,7 +46,7 @@ export async function main(ns) {
             continue;
         }
 
-        const threadsToUse = targetServer === "home" ? threads : maxThreads;
+        const threadsToUse = targetServer === "home" ? (threads ?? maxThreads) : maxThreads;
 
         if (targetServer !== "home") {
             ns.scp("./charge.js", targetServer);
@@ -76,6 +76,10 @@ export async function main(ns) {
                 return current.numCharge < lowest.numCharge ? current : lowest;
             }
         });
+
+        ns.print(
+            `Charging fragment [${lowestChargeFragment.x}, ${lowestChargeFragment.y}] for ${threadsToUse} threads`,
+        );
 
         let success = false;
         success = ns.exec(`./charge.js`, targetServer, threadsToUse, lowestChargeFragment.x, lowestChargeFragment.y);

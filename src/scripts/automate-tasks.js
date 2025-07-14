@@ -23,8 +23,8 @@ export async function main(ns) {
         // { type: "faction", target: "Tian Di Hui", goal: "6250" },
         // { type: "faction", target: "Netburners", goal: "7500" },
         { type: "homicide" },
-        { type: "faction", target: "Netburners", goal: "12500" },
-        { type: "faction", target: "Netburners", goal: "37500" },
+        // { type: "faction", target: "Netburners", goal: "12500" },
+        // { type: "faction", target: "Netburners", goal: "37500" },
         { type: "faction", target: "NiteSec", goal: "45000" },
         // { type: "graft", target: "QLink" },
         {

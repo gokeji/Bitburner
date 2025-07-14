@@ -22,12 +22,14 @@ export async function main(ns) {
     // === Hacker Settings ===
     let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
-    let hackPercentage = 0.1;
+    let hackPercentage = 0.01;
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.0; // Use extra grow and weak threads to correct for out of sync HGW batches
-    const PRIORITY_SERVER_HACK_PERCENTAGE = 0.1; // Higher hack percentage for priority server
-    const PRIORITY_SERVER_CORRECTIVE_MULTIPLIER = 1.0; // Higher correction for priority server receiving min security upgrades
+    const PRIORITY_SERVER_HACK_PERCENTAGE = 0.01; // Higher hack percentage for priority server
+    const PRIORITY_SERVER_CORRECTIVE_MULTIPLIER = 1.12; // Higher correction for priority server receiving min security upgrades
     let PARTIAL_PREP_THRESHOLD = 0.4;
-    let ALLOW_HASH_UPGRADES = true;
+    let ALLOW_HASH_UPGRADES = false;
+
+    let serversToHack = ["phantasy"];
 
     let minMoneyProtectionThreshold = 1 - hackPercentage - 0.25;
     let priorityServerMinMoneyProtectionThreshold = 1 - PRIORITY_SERVER_HACK_PERCENTAGE - 0.25;
@@ -37,7 +39,7 @@ export async function main(ns) {
     const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
-    const ALWAYS_XP_FARM = true;
+    const ALWAYS_XP_FARM = false;
     const ALLOW_PARTIAL_PREP = true;
 
     let PREP_MONEY_THRESHOLD = 0.95; // Prep servers until it's at least this much money
@@ -122,7 +124,6 @@ export async function main(ns) {
         // Get all servers
         executableServers = getServers(ns, "executableOnly");
         hackableServers = getServers(ns, "hackableOnly").filter((server) => {
-            // return server === "sigma-cosmetics";
             return true;
         });
 
@@ -232,6 +233,10 @@ export async function main(ns) {
         while (ramToDistribute > 0 && serverIndex < serversByThroughput.length) {
             const currentServer = serversByThroughput[serverIndex];
             serverIndex++; // Increment server index
+
+            if (!serversToHack.includes(currentServer)) {
+                continue;
+            }
 
             // Skip servers that are on hold due to weaken drift
             if (serversOnHold.has(currentServer)) {
@@ -612,7 +617,7 @@ export async function main(ns) {
             hackChance *
             ns.getPlayer().mults.hacking_money *
             ns.getBitNodeMultipliers().ScriptHackMoney;
-        const throughput = (theoreticalBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
+        const throughput = (availableBatchLimit * moneyPerBatch) / (weakenTime / 1000); // money per second
 
         return {
             securityLevel,
@@ -634,6 +639,7 @@ export async function main(ns) {
             batchLimitForSustainedThroughput,
             throughput,
             ramNeededPerBatch,
+            availableBatchLimit,
         };
     }
 
@@ -814,6 +820,7 @@ export async function main(ns) {
                 batchLimitForSustainedThroughput,
                 throughput,
                 ramNeededPerBatch,
+                availableBatchLimit,
             } = getServerHackStats(
                 ns,
                 server,
@@ -833,19 +840,21 @@ export async function main(ns) {
                     CORRECTIVE_GROW_WEAK_MULTIPLIER,
                 );
 
-            // const percentageGap = (availableBatchLimit - theoreticalBatchLimit) / theoreticalBatchLimit;
-            // const hackPercentageAdjustment = hackPercentage * Math.abs(percentageGap);
-            // if (percentageGap < -0.4 && hackPercentage > 0.01) {
-            //     hackPercentage = Math.max(hackPercentage - hackPercentageAdjustment / 5, 0.01);
-            //     ns.print(`WARN: Reduced hack percentage to ${ns.formatPercent(hackPercentage)}`);
-            //     minMoneyProtectionThreshold = (1 - hackPercentage) / 2 - 0.1;
-            //     ns.print(`WARN: Min money protection threshold: ${ns.formatPercent(minMoneyProtectionThreshold)}`);
-            // } else if (percentageGap > -0.3 && hackPercentage < 1) {
-            //     hackPercentage = Math.min(hackPercentage + hackPercentageAdjustment * 1.2, 1);
-            //     ns.print(`WARN: Increased hack percentage to ${ns.formatPercent(hackPercentage)}`);
-            //     minMoneyProtectionThreshold = (1 - hackPercentage) / 2 - 0.1;
-            //     ns.print(`WARN: Min money protection threshold: ${ns.formatPercent(minMoneyProtectionThreshold)}`);
-            // }
+            if (serversToHack.includes(server)) {
+                const percentageGap = (availableBatchLimit - theoreticalBatchLimit) / theoreticalBatchLimit;
+                const hackPercentageAdjustment = hackPercentage * Math.abs(percentageGap);
+                if (percentageGap < -0.4 && hackPercentage > 0.01) {
+                    hackPercentage = Math.max(hackPercentage - hackPercentageAdjustment / 5, 0.01);
+                    ns.print(`WARN: Reduced hack percentage to ${ns.formatPercent(hackPercentage)}`);
+                    minMoneyProtectionThreshold = (1 - hackPercentage) / 2 - 0.25;
+                    ns.print(`WARN: Min money protection threshold: ${ns.formatPercent(minMoneyProtectionThreshold)}`);
+                } else if (percentageGap > -0.3 && hackPercentage < 1) {
+                    hackPercentage = Math.min(hackPercentage + hackPercentageAdjustment * 1.2, 1);
+                    ns.print(`WARN: Increased hack percentage to ${ns.formatPercent(hackPercentage)}`);
+                    minMoneyProtectionThreshold = (1 - hackPercentage) / 2 - 0.25;
+                    ns.print(`WARN: Min money protection threshold: ${ns.formatPercent(minMoneyProtectionThreshold)}`);
+                }
+            }
 
             // if (server === "ecorp") {
             //     ns.print(`INFO: ${server} ${serverInfo.hackDifficulty} > ${serverBaselineSecurityLevels.get(server)}`);
