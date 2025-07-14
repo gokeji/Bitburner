@@ -113,31 +113,45 @@ export async function main(ns) {
         EXCLUDED: "EXCLUDED", // For servers that don't meet basic criteria
     };
 
+    // Action Types
+    const ActionType = {
+        UPGRADE_HASH_MAX_MONEY: "UPGRADE_HASH_MAX_MONEY",
+        UPGRADE_HASH_MIN_SECURITY: "UPGRADE_HASH_MIN_SECURITY",
+        PREP_SERVER: "PREP_SERVER",
+        SCHEDULE_BATCHES: "SCHEDULE_BATCHES",
+        KILL_SCRIPTS: "KILL_SCRIPTS",
+        CLEAR_TIMINGS: "CLEAR_TIMINGS",
+        UPDATE_BASELINE: "UPDATE_BASELINE",
+        STORE_TIMINGS: "STORE_TIMINGS",
+        XP_FARM: "XP_FARM",
+        LOG_MESSAGE: "LOG_MESSAGE",
+    };
+
     // === Main State Machine Loop ===
     while (true) {
         tickCounter++;
         ns.print(`\n=== Tick ${tickCounter} ===`);
 
         // === INFRASTRUCTURE PHASE ===
-        await performInfrastructureSetup(ns);
+        await setupServers(ns);
 
-        // === PRIORITY CALCULATION PHASE ===
-        calculateGlobalPriorities(ns);
+        // === DATA GATHERING PHASE ===
+        const gameState = gatherGameState(ns);
 
-        // === HASH UPGRADES PHASE ===
-        performHashUpgrades(ns);
+        // === STATE MACHINE PHASE (Pure Reducer) ===
+        const actions = calculateActions(gameState);
 
-        // === SERVER PROCESSING PHASE ===
-        const processingResults = await processAllServers(ns);
+        // === ACTION EXECUTION PHASE ===
+        const executionResults = await executeActions(ns, actions);
 
         // === CLEANUP PHASE ===
-        performEndOfTickOperations(ns, processingResults);
+        performEndOfTickOperations(ns, executionResults);
 
         await ns.sleep(TICK_DELAY);
     }
 
     // === INFRASTRUCTURE SETUP ===
-    async function performInfrastructureSetup(ns) {
+    async function setupServers(ns) {
         // Cleanup server caches every 30 seconds to prevent memory leaks
         if (tickCounter % Math.floor(30000 / TICK_DELAY) === 0) {
             cleanupServerCaches();
@@ -166,8 +180,8 @@ export async function main(ns) {
         }
     }
 
-    // === PRIORITY CALCULATION ===
-    function calculateGlobalPriorities(ns) {
+    // === DATA GATHERING PHASE ===
+    function gatherGameState(ns) {
         // Calculate global priorities map once per tick (without excluding any servers)
         globalPrioritiesMap = calculateTargetServerPriorities(ns);
 
@@ -180,130 +194,169 @@ export async function main(ns) {
         for (let [server, stats] of globalPrioritiesMap.entries()) {
             throughputPortHandle.write(JSON.stringify({ server: server, profit: stats.priority }));
         }
-    }
 
-    // === HASH UPGRADES ===
-    function performHashUpgrades(ns) {
+        // Gather all required data for decision making
         const runningScriptInfo = getRunningScriptInfo(ns);
         const serversByThroughput = Array.from(globalPrioritiesMap.entries())
             .sort((a, b) => b[1].priority - a[1].priority)
             .map(([server]) => server);
-
-        // Spend hashes on the highest priority server to upgrade max money
-        const highestPriorityServer = serversByThroughput.find((server) => {
-            return ns.getServerMaxMoney(server) < 10e12 || ns.getServerMinSecurityLevel(server) > 10;
-        });
-
-        // Mark the highest priority server as priority server if it's not already marked
-        if (highestPriorityServer && priorityServer !== highestPriorityServer) {
-            priorityServer = highestPriorityServer;
-            ns.print(`INFO: ${highestPriorityServer} marked as priority server for enhanced corrections`);
-        }
-
-        const highestPriorityServerScriptInfo = runningScriptInfo.get(highestPriorityServer);
-        if (
-            highestPriorityServer &&
-            highestPriorityServerScriptInfo &&
-            highestPriorityServerScriptInfo.hasHack &&
-            highestPriorityServerScriptInfo.hasGrow &&
-            highestPriorityServerScriptInfo.hasWeaken &&
-            ALLOW_HASH_UPGRADES
-        ) {
-            const highestPriorityServerInfo = ns.getServer(highestPriorityServer);
-            if (highestPriorityServerInfo.moneyMax < 10e12 && PRIORITY_SERVER_CORRECTIVE_MULTIPLIER > 1.1) {
-                const startingMoney = ns.getServerMaxMoney(highestPriorityServer);
-                const { cost, success, level } = spendHashesOnUpgrade(
-                    ns,
-                    "Increase Maximum Money",
-                    highestPriorityServer,
-                );
-
-                if (success) {
-                    const endingMoney = ns.getServerMaxMoney(highestPriorityServer);
-                    logUpgradeSuccess(
-                        ns,
-                        "Max Money",
-                        `${highestPriorityServer} | ${ns.formatNumber(startingMoney)} -> ${ns.formatNumber(endingMoney)}`,
-                        cost,
-                    );
-                }
-            }
-            if (
-                highestPriorityServerInfo.hackDifficulty > 10 &&
-                highestPriorityServerInfo.hackDifficulty === highestPriorityServerInfo.minDifficulty
-            ) {
-                const startingSecurity = ns.getServerMinSecurityLevel(highestPriorityServer);
-                const { cost, success, level } = spendHashesOnUpgrade(
-                    ns,
-                    "Reduce Minimum Security",
-                    highestPriorityServer,
-                );
-
-                if (success) {
-                    const endingSecurity = ns.getServerMinSecurityLevel(highestPriorityServer);
-                    logUpgradeSuccess(
-                        ns,
-                        "Min Security",
-                        `${highestPriorityServer} | ${ns.formatNumber(startingSecurity)} -> ${ns.formatNumber(endingSecurity)}`,
-                        cost,
-                    );
-                }
-            }
-        }
-    }
-
-    // === SERVER PROCESSING STATE MACHINE ===
-    async function processAllServers(ns) {
-        const runningScriptInfo = getRunningScriptInfo(ns);
-        const serversByThroughput = Array.from(globalPrioritiesMap.entries())
-            .sort((a, b) => b[1].priority - a[1].priority)
-            .map(([server]) => server);
-
-        let totalRamUsed = 0;
-        let successfullyProcessedServers = [];
-        let ramToDistribute = maxRamAvailable;
-
-        // Reset counters
-        totalServersAttempted = 0;
-        totalServersNotDiscarded = 0;
-
-        for (let serverIndex = 0; serverIndex < serversByThroughput.length && ramToDistribute > 0; serverIndex++) {
-            const currentServer = serversByThroughput[serverIndex];
-
-            // Determine server state
-            const serverState = determineServerState(ns, currentServer, runningScriptInfo);
-
-            // Process server based on state
-            const result = await processServerByState(
-                ns,
-                currentServer,
-                serverState,
-                successfullyProcessedServers.length + 1,
-                ramToDistribute,
-            );
-
-            if (result.ramUsed > 0) {
-                totalRamUsed += result.ramUsed;
-                ramToDistribute -= result.ramUsed;
-                successfullyProcessedServers.push(currentServer);
-            }
-        }
 
         return {
-            totalRamUsed,
-            successfullyProcessedServers,
-            ramToDistribute,
+            runningScriptInfo,
+            serversByThroughput,
+            globalPrioritiesMap,
+            maxRamAvailable,
+            totalFreeRam,
+            priorityServer,
+            serversOnHold: new Map(serversOnHold), // Copy for immutability
+            serverBatchTimings: new Map(serverBatchTimings),
+            serverBaselineSecurityLevels: new Map(serverBaselineSecurityLevels),
+            tickCounter,
         };
     }
 
+    // === PURE REDUCER - STATE MACHINE ===
+    function calculateActions(gameState) {
+        const actions = [];
+        let ramToDistribute = gameState.maxRamAvailable;
+        let totalRamUsed = 0;
+        let successfullyProcessedServers = [];
+        let serversAttempted = 0;
+        let serversNotDiscarded = 0;
+
+        // 1. Hash Upgrade Actions
+        const hashActions = calculateHashUpgradeActions(gameState);
+        actions.push(...hashActions);
+
+        // 2. Server Processing Actions
+        for (
+            let serverIndex = 0;
+            serverIndex < gameState.serversByThroughput.length && ramToDistribute > 0;
+            serverIndex++
+        ) {
+            const server = gameState.serversByThroughput[serverIndex];
+
+            const serverState = determineServerState(server, gameState);
+            const serverActions = calculateServerActions(
+                server,
+                serverState,
+                serverIndex + 1,
+                ramToDistribute,
+                gameState,
+            );
+
+            actions.push(...serverActions);
+
+            // Track server processing statistics
+            const hasScheduleBatchesAction = serverActions.some(
+                (action) => action.type === ActionType.SCHEDULE_BATCHES,
+            );
+            const hasPrepAction = serverActions.some((action) => action.type === ActionType.PREP_SERVER);
+
+            // serversAttempted: Count servers we tried to prep or batch
+            if (hasScheduleBatchesAction || hasPrepAction) {
+                serversAttempted++;
+            }
+
+            // serversNotDiscarded: Only count servers that were eligible for batching but skipped due to not being at min security
+            // This is specifically for servers that should be batching but got ramForMaxThroughput = 0 due to security drift
+            if (hasScheduleBatchesAction) {
+                const serverStats = gameState.globalPrioritiesMap.get(server);
+                if (serverStats && serverStats.ramForMaxThroughput > 0) {
+                    serversNotDiscarded++;
+                }
+            }
+
+            // Update RAM tracking for next server
+            const ramUsed = serverActions
+                .filter(
+                    (action) => action.type === ActionType.PREP_SERVER || action.type === ActionType.SCHEDULE_BATCHES,
+                )
+                .reduce((total, action) => total + (action.ramUsed || 0), 0);
+
+            if (ramUsed > 0) {
+                totalRamUsed += ramUsed;
+                ramToDistribute -= ramUsed;
+                successfullyProcessedServers.push(server);
+            }
+        }
+
+        // 3. XP Farm Action
+        if (ramToDistribute > 0) {
+            actions.push({
+                type: ActionType.XP_FARM,
+                ramAvailable: ramToDistribute,
+                always: ALWAYS_XP_FARM,
+            });
+        }
+
+        return {
+            actions,
+            metadata: {
+                totalRamUsed,
+                successfullyProcessedServers,
+                ramToDistribute,
+                totalServersAttempted: serversAttempted,
+                totalServersNotDiscarded: serversNotDiscarded,
+            },
+        };
+    }
+
+    // === HASH UPGRADE ACTIONS CALCULATOR ===
+    function calculateHashUpgradeActions(gameState) {
+        const actions = [];
+
+        if (!ALLOW_HASH_UPGRADES) return actions;
+
+        // Find highest priority server for hash upgrades
+        const highestPriorityServer = gameState.serversByThroughput.find((server) => {
+            return ns.getServerMaxMoney(server) < 10e12 || ns.getServerMinSecurityLevel(server) > 10;
+        });
+
+        if (!highestPriorityServer) return actions;
+
+        // Mark priority server if changed
+        if (gameState.priorityServer !== highestPriorityServer) {
+            actions.push({
+                type: ActionType.LOG_MESSAGE,
+                message: `INFO: ${highestPriorityServer} marked as priority server for enhanced corrections`,
+                newPriorityServer: highestPriorityServer, // Include the server for executor
+            });
+        }
+
+        const serverScriptInfo = gameState.runningScriptInfo.get(highestPriorityServer);
+        const hasAllScripts = serverScriptInfo?.hasHack && serverScriptInfo?.hasGrow && serverScriptInfo?.hasWeaken;
+
+        if (!hasAllScripts) return actions;
+
+        const serverInfo = ns.getServer(highestPriorityServer);
+
+        // Generate upgrade actions
+        if (serverInfo.moneyMax < 10e12 && PRIORITY_SERVER_CORRECTIVE_MULTIPLIER > 1.1) {
+            actions.push({
+                type: ActionType.UPGRADE_HASH_MAX_MONEY,
+                server: highestPriorityServer,
+            });
+        }
+
+        if (serverInfo.hackDifficulty > 10 && serverInfo.hackDifficulty === serverInfo.minDifficulty) {
+            actions.push({
+                type: ActionType.UPGRADE_HASH_MIN_SECURITY,
+                server: highestPriorityServer,
+            });
+        }
+
+        return actions;
+    }
+
     // === SERVER STATE DETERMINATION ===
-    function determineServerState(ns, server, runningScriptInfo) {
+    function determineServerState(server, gameState) {
         // Basic exclusion checks
         if (!serversToHack.includes(server)) {
             return ServerState.EXCLUDED;
         }
 
-        if (serversOnHold.has(server)) {
+        if (gameState.serversOnHold.has(server)) {
             return ServerState.ON_HOLD;
         }
 
@@ -311,7 +364,7 @@ export async function main(ns) {
             return ServerState.EXCLUDED;
         }
 
-        const serverStats = globalPrioritiesMap.get(server);
+        const serverStats = gameState.globalPrioritiesMap.get(server);
         if (
             !serverStats ||
             serverStats.hackThreads <= 0 ||
@@ -322,7 +375,7 @@ export async function main(ns) {
         }
 
         const serverInfo = ns.getServer(server);
-        const currentServerScripts = runningScriptInfo.get(server) || {
+        const currentServerScripts = gameState.runningScriptInfo.get(server) || {
             ramUsed: 0,
             isPrep: false,
             hasHack: false,
@@ -348,7 +401,7 @@ export async function main(ns) {
 
         // Check for recovery conditions on batching servers
         if (isHgw) {
-            const needsRecovery = checkIfServerNeedsRecovery(ns, server, serverStats, serverInfo);
+            const needsRecovery = checkIfServerNeedsRecovery(server, serverStats, serverInfo, gameState);
             if (needsRecovery) {
                 return ServerState.RECOVERING;
             }
@@ -367,14 +420,16 @@ export async function main(ns) {
     }
 
     // === RECOVERY CONDITION CHECK ===
-    function checkIfServerNeedsRecovery(ns, server, serverStats, serverInfo) {
+    function checkIfServerNeedsRecovery(server, serverStats, serverInfo, gameState) {
         const securityThreshold = Math.max(
             serverInfo.minDifficulty + 15,
             serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
         );
 
         const moneyProtectionThreshold =
-            priorityServer === server ? priorityServerMinMoneyProtectionThreshold : minMoneyProtectionThreshold;
+            gameState.priorityServer === server
+                ? priorityServerMinMoneyProtectionThreshold
+                : minMoneyProtectionThreshold;
 
         return (
             serverInfo.hackDifficulty > securityThreshold ||
@@ -382,50 +437,54 @@ export async function main(ns) {
         );
     }
 
-    // === STATE PROCESSOR ===
-    async function processServerByState(ns, server, state, serverIndex, ramToDistribute) {
-        switch (state) {
+    // === SERVER ACTIONS CALCULATOR ===
+    function calculateServerActions(server, serverState, serverIndex, ramToDistribute, gameState) {
+        const actions = [];
+
+        switch (serverState) {
             case ServerState.NEEDS_PREP:
-                return handleNeedsPrepState(ns, server, serverIndex);
+                return calculatePrepActions(server, serverIndex, gameState);
 
             case ServerState.PREPPING:
-                return handlePreppingState(ns, server);
+                return calculatePreppingActions(server, gameState);
 
             case ServerState.BATCHING:
-                return handleBatchingState(ns, server, serverIndex, ramToDistribute);
+                return calculateBatchingActions(server, serverIndex, ramToDistribute, gameState);
 
             case ServerState.RECOVERING:
-                return handleRecoveringState(ns, server);
+                return calculateRecoveryActions(server, gameState);
 
             case ServerState.ON_HOLD:
-                return handleOnHoldState(ns, server);
+                return calculateOnHoldActions(server, gameState);
 
             case ServerState.EXCLUDED:
-                return { ramUsed: 0 };
+                return [];
 
             default:
-                ns.print(`ERROR: Unknown server state: ${state} for ${server}`);
-                return { ramUsed: 0 };
+                return [
+                    {
+                        type: ActionType.LOG_MESSAGE,
+                        message: `ERROR: Unknown server state: ${serverState} for ${server}`,
+                    },
+                ];
         }
     }
 
-    // === STATE HANDLERS ===
-
-    function handleNeedsPrepState(ns, server, serverIndex) {
-        const prepRamUsed = prepServer(ns, server, serverIndex, ALLOW_PARTIAL_PREP);
-        if (prepRamUsed !== false) {
-            const currentPrepStats = getServerPrepStats(ns, server);
-            serverPrepTimings.set(server, {
-                weakenTime: currentPrepStats.weakenTime,
-                startTime: Date.now(),
-            });
-            return { ramUsed: prepRamUsed };
-        }
-        return { ramUsed: 0 };
+    // === INDIVIDUAL STATE ACTION CALCULATORS ===
+    function calculatePrepActions(server, serverIndex, gameState) {
+        return [
+            {
+                type: ActionType.PREP_SERVER,
+                server,
+                serverIndex,
+                allowPartial: ALLOW_PARTIAL_PREP,
+            },
+        ];
     }
 
-    function handlePreppingState(ns, server) {
-        // Check if prep timing is worse than new prediction, kill threads and restart prep
+    function calculatePreppingActions(server, gameState) {
+        const actions = [];
+
         if (serverPrepTimings.has(server)) {
             const prepTiming = serverPrepTimings.get(server);
             const prepStats = getServerPrepStats(ns, server);
@@ -435,116 +494,39 @@ export async function main(ns) {
             const newFinishTime = Date.now() + newWeakenTime;
 
             if (currentFinishTime > newFinishTime) {
-                ns.print(`INFO: ${server} hack levels improved so much that we should re-prep since it'll be faster`);
-                killAllScriptsForTarget(ns, server, ["grow", "weaken"]);
-                // Server will be re-evaluated next tick as NEEDS_PREP
-            }
-        }
-        return { ramUsed: 0 };
-    }
-
-    function handleBatchingState(ns, server, serverIndex, ramToDistribute) {
-        totalServersAttempted++;
-        const serverStats = globalPrioritiesMap.get(server);
-
-        if (serverStats.ramForMaxThroughput === 0) {
-            ns.print(`WARN: ${server} is not prepped, skipping batch hack`);
-            return { ramUsed: 0 };
-        }
-
-        totalServersNotDiscarded++;
-        return scheduleBatches(ns, server, serverIndex, ramToDistribute, serverStats);
-    }
-
-    function handleRecoveringState(ns, server) {
-        const serverInfo = ns.getServer(server);
-        const isFullyPrepped =
-            serverInfo.moneyAvailable >= serverInfo.moneyMax && serverInfo.hackDifficulty <= serverInfo.minDifficulty;
-
-        if (isFullyPrepped) {
-            // Clean up stale prep scripts
-            const message = `INFO: ${server} is fully prepped with lingering G/W scripts. Clearing them to start HGW.`;
-            ns.print(message);
-            killAllScriptsForTarget(ns, server, ["grow", "weaken"]);
-        } else {
-            // Handle drift recovery
-            const serverStats = globalPrioritiesMap.get(server);
-            const securityThreshold = Math.max(
-                serverInfo.minDifficulty + 15,
-                serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
-            );
-            const moneyProtectionThreshold =
-                priorityServer === server ? priorityServerMinMoneyProtectionThreshold : minMoneyProtectionThreshold;
-
-            let message = "";
-            if (serverInfo.hackDifficulty > securityThreshold) {
-                message = `WARN: ${new Date().toLocaleTimeString()} Security on ${server} (${ns.formatNumber(
-                    serverInfo.hackDifficulty,
-                    2,
-                )}) breached threshold (${ns.formatNumber(securityThreshold, 2)}). Recovering.`;
-            } else {
-                message = `WARN: ${new Date().toLocaleTimeString()} Money on ${server} ($${ns.formatNumber(
-                    serverInfo.moneyAvailable,
-                )}) below ${ns.formatPercent(moneyProtectionThreshold)} of max money. Recovering.`;
-            }
-            ns.print(message);
-            ns.tprint(message);
-            killAllScriptsForTarget(ns, server, ["hack"]);
-
-            if (serverBatchTimings.has(server)) {
-                serverBatchTimings.delete(server);
-                ns.print(`INFO: ${server} entering prep. Clearing stored batch timings.`);
-            }
-            if (serverBaselineSecurityLevels.has(server)) {
-                serverBaselineSecurityLevels.delete(server);
-            }
-        }
-
-        return { ramUsed: 0 };
-    }
-
-    function handleOnHoldState(ns, server) {
-        const resumeTime = serversOnHold.get(server);
-        const timeLeft = Math.max(0, resumeTime - Date.now());
-        // Only log occasionally to avoid spam
-        if (tickCounter % 10 === 0) {
-            ns.print(`INFO: ${server} on hold for drift. Resume in ${ns.formatNumber(timeLeft / 1000, 1)}s`);
-        }
-        return { ramUsed: 0 };
-    }
-
-    // === BATCH SCHEDULING FUNCTIONS ===
-
-    function scheduleBatches(ns, server, serverIndex, ramToDistribute, serverStats) {
-        const ramUsedForBatches = calculateAndScheduleBatches(ns, server, serverIndex, ramToDistribute, serverStats);
-
-        if (ramUsedForBatches > 0) {
-            // Store initial batch timing if not already stored
-            if (!serverBatchTimings.has(server)) {
-                const { weakenTime, growthTime, hackTime } = serverStats;
-                serverBatchTimings.set(server, {
-                    originalWeakenTime: weakenTime,
-                    originalGrowthTime: growthTime,
-                    originalHackTime: hackTime,
+                actions.push({
+                    type: ActionType.LOG_MESSAGE,
+                    message: `INFO: ${server} hack levels improved so much that we should re-prep since it'll be faster`,
+                });
+                actions.push({
+                    type: ActionType.KILL_SCRIPTS,
+                    server,
+                    scriptTypes: ["grow", "weaken"],
                 });
             }
-
-            updateBaselineSecurityLevel(ns, server);
         }
 
-        return { ramUsed: ramUsedForBatches };
+        return actions;
     }
 
-    function calculateAndScheduleBatches(ns, server, serverIndex, ramToDistribute, serverStats) {
-        const runningScriptInfo = getRunningScriptInfo(ns);
-        const currentServerScripts = runningScriptInfo.get(server) || { ramUsed: 0 };
+    function calculateBatchingActions(server, serverIndex, ramToDistribute, gameState) {
+        const serverStats = gameState.globalPrioritiesMap.get(server);
 
-        // Calculate available RAM for this server from its allocation
+        if (serverStats.ramForMaxThroughput === 0) {
+            return [
+                {
+                    type: ActionType.LOG_MESSAGE,
+                    message: `WARN: ${server} is not prepped, skipping batch hack`,
+                },
+            ];
+        }
+
+        // Calculate batches needed
+        const currentServerScripts = gameState.runningScriptInfo.get(server) || { ramUsed: 0 };
         const ramUsedByServer = currentServerScripts.ramUsed;
         const ramToAllocate = Math.min(ramToDistribute, serverStats.ramForMaxThroughput);
         const remainingRamForSustainedThroughput = Math.max(0, ramToAllocate - ramUsedByServer);
 
-        // Calculate maximum batches we can afford with available RAM
         const { batchLimitForSustainedThroughput, ramNeededPerBatch } = serverStats;
         const targetBatchesForSustainedThroughput = Math.floor(remainingRamForSustainedThroughput / ramNeededPerBatch);
         const maxBatchesThisTick = Math.floor(TICK_DELAY / TIME_PER_BATCH);
@@ -561,19 +543,252 @@ export async function main(ns) {
 
         if (batchesToSchedule > 0) {
             let timeDriftDelay = 0;
-            if (serverBatchTimings.has(server)) {
-                const originalTimings = serverBatchTimings.get(server);
+            if (gameState.serverBatchTimings.has(server)) {
+                const originalTimings = gameState.serverBatchTimings.get(server);
                 timeDriftDelay = originalTimings.originalWeakenTime - serverStats.weakenTime;
-
                 if (timeDriftDelay < 0) {
                     timeDriftDelay = 0;
                 }
             }
 
-            return scheduleBatchHackCycles(ns, server, batchesToSchedule, serverIndex, serverStats, timeDriftDelay);
+            const actions = [
+                {
+                    type: ActionType.SCHEDULE_BATCHES,
+                    server,
+                    serverIndex,
+                    batchesToSchedule,
+                    serverStats,
+                    timeDriftDelay,
+                    ramUsed: batchesToSchedule * ramNeededPerBatch,
+                },
+            ];
+
+            // Store timings if not already stored
+            if (!gameState.serverBatchTimings.has(server)) {
+                actions.push({
+                    type: ActionType.STORE_TIMINGS,
+                    server,
+                    timings: {
+                        originalWeakenTime: serverStats.weakenTime,
+                        originalGrowthTime: serverStats.growthTime,
+                        originalHackTime: serverStats.hackTime,
+                    },
+                });
+            }
+
+            // Update baseline security
+            actions.push({
+                type: ActionType.UPDATE_BASELINE,
+                server,
+            });
+
+            return actions;
         }
 
+        return [];
+    }
+
+    function calculateRecoveryActions(server, gameState) {
+        const serverInfo = ns.getServer(server);
+        const isFullyPrepped =
+            serverInfo.moneyAvailable >= serverInfo.moneyMax && serverInfo.hackDifficulty <= serverInfo.minDifficulty;
+
+        if (isFullyPrepped) {
+            // Clean up stale prep scripts
+            return [
+                {
+                    type: ActionType.LOG_MESSAGE,
+                    message: `INFO: ${server} is fully prepped with lingering G/W scripts. Clearing them to start HGW.`,
+                },
+                {
+                    type: ActionType.KILL_SCRIPTS,
+                    server,
+                    scriptTypes: ["grow", "weaken"],
+                },
+            ];
+        }
+
+        // Handle drift recovery
+        const serverStats = gameState.globalPrioritiesMap.get(server);
+        const securityThreshold = Math.max(
+            serverInfo.minDifficulty + 15,
+            serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
+        );
+        const moneyProtectionThreshold =
+            gameState.priorityServer === server
+                ? priorityServerMinMoneyProtectionThreshold
+                : minMoneyProtectionThreshold;
+
+        const isSecurityBreach = serverInfo.hackDifficulty > securityThreshold;
+        const message = isSecurityBreach
+            ? `WARN: ${new Date().toLocaleTimeString()} Security on ${server} (${ns.formatNumber(
+                  serverInfo.hackDifficulty,
+                  2,
+              )}) breached threshold (${ns.formatNumber(securityThreshold, 2)}). Recovering.`
+            : `WARN: ${new Date().toLocaleTimeString()} Money on ${server} ($${ns.formatNumber(
+                  serverInfo.moneyAvailable,
+              )}) below ${ns.formatPercent(moneyProtectionThreshold)} of max money. Recovering.`;
+
+        return [
+            { type: ActionType.LOG_MESSAGE, message },
+            { type: ActionType.KILL_SCRIPTS, server, scriptTypes: ["hack"] },
+            { type: ActionType.CLEAR_TIMINGS, server },
+        ];
+    }
+
+    function calculateOnHoldActions(server, gameState) {
+        const resumeTime = gameState.serversOnHold.get(server);
+        const timeLeft = Math.max(0, resumeTime - Date.now());
+
+        // Only log occasionally to avoid spam
+        if (gameState.tickCounter % 10 === 0) {
+            return [
+                {
+                    type: ActionType.LOG_MESSAGE,
+                    message: `INFO: ${server} on hold for drift. Resume in ${ns.formatNumber(timeLeft / 1000, 1)}s`,
+                },
+            ];
+        }
+
+        return [];
+    }
+
+    // === ACTION EXECUTOR ===
+    async function executeActions(ns, actionResults) {
+        const { actions, metadata } = actionResults;
+        let totalRamUsed = 0;
+
+        // Update priority server if needed
+        const priorityServerUpdate = actions.find(
+            (action) => action.type === ActionType.LOG_MESSAGE && action.newPriorityServer,
+        );
+
+        if (priorityServerUpdate) {
+            priorityServer = priorityServerUpdate.newPriorityServer;
+        }
+
+        for (const action of actions) {
+            switch (action.type) {
+                case ActionType.UPGRADE_HASH_MAX_MONEY:
+                    await executeHashUpgradeMaxMoney(ns, action);
+                    break;
+
+                case ActionType.UPGRADE_HASH_MIN_SECURITY:
+                    await executeHashUpgradeMinSecurity(ns, action);
+                    break;
+
+                case ActionType.PREP_SERVER:
+                    const prepRamUsed = await executePrepServer(ns, action);
+                    if (prepRamUsed > 0) {
+                        totalRamUsed += prepRamUsed;
+                    }
+                    break;
+
+                case ActionType.SCHEDULE_BATCHES:
+                    const batchRamUsed = await executeScheduleBatches(ns, action);
+                    if (batchRamUsed > 0) {
+                        totalRamUsed += batchRamUsed;
+                    }
+                    break;
+
+                case ActionType.KILL_SCRIPTS:
+                    killAllScriptsForTarget(ns, action.server, action.scriptTypes);
+                    break;
+
+                case ActionType.CLEAR_TIMINGS:
+                    if (serverBatchTimings.has(action.server)) {
+                        serverBatchTimings.delete(action.server);
+                        ns.print(`INFO: ${action.server} entering prep. Clearing stored batch timings.`);
+                    }
+                    if (serverBaselineSecurityLevels.has(action.server)) {
+                        serverBaselineSecurityLevels.delete(action.server);
+                    }
+                    break;
+
+                case ActionType.UPDATE_BASELINE:
+                    updateBaselineSecurityLevel(ns, action.server);
+                    break;
+
+                case ActionType.STORE_TIMINGS:
+                    serverBatchTimings.set(action.server, action.timings);
+                    break;
+
+                case ActionType.XP_FARM:
+                    xpFarm(ns, action.always);
+                    break;
+
+                case ActionType.LOG_MESSAGE:
+                    ns.print(action.message);
+                    if (action.message.startsWith("WARN:")) {
+                        ns.tprint(action.message);
+                    }
+                    break;
+            }
+        }
+
+        // Update global counters for end-of-tick operations
+        totalServersAttempted = metadata.totalServersAttempted;
+        totalServersNotDiscarded = metadata.totalServersNotDiscarded;
+
+        return {
+            ...metadata,
+            totalRamUsed: metadata.totalRamUsed + totalRamUsed,
+        };
+    }
+
+    // === ACTION EXECUTORS ===
+    async function executeHashUpgradeMaxMoney(ns, action) {
+        const startingValue = ns.getServerMaxMoney(action.server);
+        const { cost, success, level } = spendHashesOnUpgrade(ns, "Increase Maximum Money", action.server);
+
+        if (success) {
+            const endingValue = ns.getServerMaxMoney(action.server);
+            logUpgradeSuccess(
+                ns,
+                "Max Money",
+                `${action.server} | ${ns.formatNumber(startingValue)} -> ${ns.formatNumber(endingValue)}`,
+                cost,
+            );
+        }
+    }
+
+    async function executeHashUpgradeMinSecurity(ns, action) {
+        const startingValue = ns.getServerMinSecurityLevel(action.server);
+        const { cost, success, level } = spendHashesOnUpgrade(ns, "Reduce Minimum Security", action.server);
+
+        if (success) {
+            const endingValue = ns.getServerMinSecurityLevel(action.server);
+            logUpgradeSuccess(
+                ns,
+                "Min Security",
+                `${action.server} | ${ns.formatNumber(startingValue)} -> ${ns.formatNumber(endingValue)}`,
+                cost,
+            );
+        }
+    }
+
+    async function executePrepServer(ns, action) {
+        const prepRamUsed = prepServer(ns, action.server, action.serverIndex, action.allowPartial);
+        if (prepRamUsed !== false && prepRamUsed > 0) {
+            const currentPrepStats = getServerPrepStats(ns, action.server);
+            serverPrepTimings.set(action.server, {
+                weakenTime: currentPrepStats.weakenTime,
+                startTime: Date.now(),
+            });
+            return prepRamUsed;
+        }
         return 0;
+    }
+
+    async function executeScheduleBatches(ns, action) {
+        return scheduleBatchHackCycles(
+            ns,
+            action.server,
+            action.batchesToSchedule,
+            action.serverIndex,
+            action.serverStats,
+            action.timeDriftDelay,
+        );
     }
 
     function updateBaselineSecurityLevel(ns, server) {
@@ -611,8 +826,7 @@ export async function main(ns) {
             `INFO: RAM: ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(freeRamAfterTick)} free | Batch Success: ${ns.formatPercent(serverSuccessRate)} ${ns.formatNumber(totalServersNotDiscarded)}/${ns.formatNumber(totalServersAttempted)} | ${weakenTimeDriftMessage}`,
         );
 
-        // XP farming: Use all remaining RAM for weaken scripts
-        xpFarm(ns, ALWAYS_XP_FARM);
+        // Note: XP farming is now handled by the reducer via XP_FARM actions
     }
 
     /**
