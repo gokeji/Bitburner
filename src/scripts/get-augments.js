@@ -825,7 +825,16 @@ export async function main(ns) {
     }
 
     function hasCombatBoost(stats) {
-        return stats.strength > 1 || stats.defense > 1 || stats.dexterity > 1 || stats.agility > 1;
+        return (
+            stats.strength > 1 ||
+            stats.defense > 1 ||
+            stats.dexterity > 1 ||
+            stats.agility > 1 ||
+            stats.strength_exp > 1 ||
+            stats.defense_exp > 1 ||
+            stats.dexterity_exp > 1 ||
+            stats.agility_exp > 1
+        );
     }
 
     // Helper function to check if an augmentation has charisma boost
@@ -1004,108 +1013,7 @@ export async function main(ns) {
     ns.print(`Before deduplication: ${affordableAugmentations.length} augments`);
     ns.print(`After deduplication: ${deduplicatedAugmentations.length} augments`);
 
-    // Calculate donation costs per faction if allow-donation is enabled
-    let totalDonationCosts = 0;
-    const factionDonationCosts = new Map(); // faction -> donation cost
-
-    if (allowDonation) {
-        // Group augments by faction and find max reputation needed per faction
-        const factionMaxRep = new Map(); // faction -> max rep needed
-
-        for (const aug of deduplicatedAugmentations) {
-            const currentRep = ns.singularity.getFactionRep(aug.faction);
-            const favor = ns.singularity.getFactionFavor(aug.faction);
-
-            if (currentRep < aug.repReq && favor >= 150) {
-                const currentMax = factionMaxRep.get(aug.faction) || 0;
-                factionMaxRep.set(aug.faction, Math.max(currentMax, aug.repReq));
-            }
-        }
-
-        // Calculate donation cost for each faction
-        for (const [faction, maxRepNeeded] of factionMaxRep) {
-            const currentRep = ns.singularity.getFactionRep(faction);
-            const repShortfall = maxRepNeeded - currentRep;
-
-            if (specialFactions.includes(faction)) {
-                continue;
-            }
-
-            if (repShortfall > 0) {
-                const donationCost = ns.formulas.reputation.donationForRep(repShortfall, ns.getPlayer());
-                factionDonationCosts.set(faction, donationCost);
-                totalDonationCosts += donationCost;
-            }
-        }
-
-        // Estimate NeuroFlux donation costs if NeuroFlux is included
-        if (!noNFG && deduplicatedAugmentations.some((aug) => aug.name === "NeuroFlux Governor")) {
-            // Make a rough estimate of how many NeuroFlux we might buy
-            // Use a conservative estimate based on remaining budget after regular augments
-            const regularAugmentsCost = deduplicatedAugmentations
-                .filter((aug) => aug.name !== "NeuroFlux Governor")
-                .reduce((sum, aug) => sum + aug.cost, 0);
-
-            const budgetAfterRegularAugments = (totalBudget - totalDonationCosts) / 1000000 - regularAugmentsCost;
-
-            // Estimate NeuroFlux count based on available budget
-            // NeuroFlux cost increases by 1.14x per level, and each purchase increases cost by 1.9x
-            // This is a rough estimate - we'll refine it during optimization
-            const neuroFluxBasePrice = ns.singularity.getAugmentationBasePrice("NeuroFlux Governor") / 1000000;
-            let estimatedNeuroFluxCount = 0;
-            let remainingBudget = budgetAfterRegularAugments;
-            let currentNeuroFluxPrice = neuroFluxBasePrice * 1.14 ** (currentNeuroFluxPurchaseLevel - 1);
-
-            // Estimate how many NeuroFlux we can afford (conservative estimate)
-            while (remainingBudget > currentNeuroFluxPrice && estimatedNeuroFluxCount < 50) {
-                remainingBudget -= currentNeuroFluxPrice;
-                estimatedNeuroFluxCount++;
-                currentNeuroFluxPrice *= 1.9; // Cost multiplier per purchase
-                currentNeuroFluxPrice *= 1.14; // Level multiplier
-            }
-
-            if (estimatedNeuroFluxCount > 0) {
-                const neuroFluxDonationEstimate = estimateNeuroFluxDonationCosts(
-                    ns,
-                    player,
-                    currentNeuroFluxPurchaseLevel,
-                    estimatedNeuroFluxCount,
-                    allowDonation,
-                    specialFactions,
-                );
-
-                if (neuroFluxDonationEstimate.estimatedDonationCost > 0) {
-                    const existingDonation = factionDonationCosts.get(neuroFluxDonationEstimate.bestFaction) || 0;
-                    if (neuroFluxDonationEstimate.estimatedDonationCost > existingDonation) {
-                        const additionalCost = neuroFluxDonationEstimate.estimatedDonationCost - existingDonation;
-                        factionDonationCosts.set(
-                            neuroFluxDonationEstimate.bestFaction,
-                            neuroFluxDonationEstimate.estimatedDonationCost,
-                        );
-                        totalDonationCosts += additionalCost;
-
-                        ns.print(
-                            `\n💡 Estimated NeuroFlux donation: $${ns.formatNumber(neuroFluxDonationEstimate.estimatedDonationCost)} to ${neuroFluxDonationEstimate.bestFaction} (for ~${estimatedNeuroFluxCount} levels)`,
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    // Calculate effective budget after accounting for donation costs
-    const adjustedBudget = totalBudget - totalDonationCosts;
-
-    if (allowDonation && totalDonationCosts > 0) {
-        ns.print(`\n=== DONATION SUMMARY ===`);
-        ns.print(`Total donation costs: $${ns.formatNumber(totalDonationCosts)}`);
-        ns.print(`Budget after donations: $${ns.formatNumber(adjustedBudget)}`);
-
-        // Show donations per faction
-        for (const [faction, cost] of factionDonationCosts) {
-            ns.print(`  - ${faction}: $${ns.formatNumber(cost)}`);
-        }
-    }
+    // Don't pre-calculate donation costs - we'll calculate them only for purchased augmentations
 
     // Convert to format expected by optimizeAugmentPurchases
     const augmentsForOptimizer = deduplicatedAugmentations.map((aug) => ({
@@ -1116,6 +1024,7 @@ export async function main(ns) {
         cost: aug.cost, // Just the augment cost, donations handled separately
         faction: aug.faction,
         prereqs: aug.prereqs,
+        repReq: aug.repReq, // Include reputation requirement
         hackingBoost: aug.hackingBoost,
         repBoost: aug.repBoost,
         combatBoost: aug.combatBoost,
@@ -1124,8 +1033,8 @@ export async function main(ns) {
         available: true,
     }));
 
-    // Use adjusted budget for optimization (the budget after considering donation costs)
-    let result = optimizeAugmentPurchases(augmentsForOptimizer, adjustedBudget);
+    // Use full budget for optimization (donation costs calculated after optimization)
+    let result = optimizeAugmentPurchases(augmentsForOptimizer, totalBudget);
 
     // Create flags object for optimization scoring
     const optimizationFlags = { hacking, rep, combat, charisma, hacknetServer, preferNoGang };
@@ -1143,7 +1052,7 @@ export async function main(ns) {
         const optimizedResult = optimizeWithPriceFiltering(
             ns,
             augmentsForOptimizer,
-            adjustedBudget,
+            totalBudget,
             playerGang,
             optimizationFlags,
         );
@@ -1162,6 +1071,49 @@ export async function main(ns) {
             );
 
             result = optimizedResult;
+        }
+    }
+
+    // Calculate donation costs only for purchased augmentations
+    let totalDonationCosts = 0;
+    const factionDonationCosts = new Map(); // faction -> donation cost
+
+    if (allowDonation && result.purchaseOrder.length > 0) {
+        // Group purchased augments by faction and find max reputation needed per faction
+        const factionMaxRep = new Map(); // faction -> max rep needed
+
+        for (const aug of result.purchaseOrder) {
+            const currentRep = ns.singularity.getFactionRep(aug.faction);
+            const favor = ns.singularity.getFactionFavor(aug.faction);
+
+            // Get the actual reputation requirement
+            let repReq;
+            if (aug.name.startsWith("NeuroFlux Governor - Level")) {
+                // For NeuroFlux Governor, calculate based on the actual level needed
+                const level = parseInt(aug.name.match(/Level (\d+)/)[1]);
+                const baseRepReq = ns.singularity.getAugmentationRepReq("NeuroFlux Governor");
+                repReq = baseRepReq * 1.14 ** (level - 1);
+            } else {
+                // For other augments, use the stored repReq or get it dynamically
+                repReq = aug.repReq || ns.singularity.getAugmentationRepReq(aug.name);
+            }
+
+            if (currentRep < repReq && favor >= 150 && !specialFactions.includes(aug.faction)) {
+                const currentMax = factionMaxRep.get(aug.faction) || 0;
+                factionMaxRep.set(aug.faction, Math.max(currentMax, repReq));
+            }
+        }
+
+        // Calculate donation cost for each faction
+        for (const [faction, maxRepNeeded] of factionMaxRep) {
+            const currentRep = ns.singularity.getFactionRep(faction);
+            const repShortfall = maxRepNeeded - currentRep;
+
+            if (repShortfall > 0) {
+                const donationCost = ns.formulas.reputation.donationForRep(repShortfall, ns.getPlayer());
+                factionDonationCosts.set(faction, donationCost);
+                totalDonationCosts += donationCost;
+            }
         }
     }
 
@@ -1290,7 +1242,13 @@ export async function main(ns) {
     ns.print(`Total available budget: $${ns.formatNumber(totalBudget)}`);
     if (allowDonation && totalDonationCosts > 0) {
         ns.print(`Total donation costs: $${ns.formatNumber(totalDonationCosts)}`);
-        ns.print(`Budget after donations: $${ns.formatNumber(adjustedBudget)}`);
+        ns.print(`Budget after donations: $${ns.formatNumber(totalBudget - totalDonationCosts)}`);
+
+        // Show donations per faction
+        ns.print("  Donation breakdown:");
+        for (const [faction, cost] of factionDonationCosts) {
+            ns.print(`    - ${faction}: $${ns.formatNumber(cost)}`);
+        }
     }
     ns.print("\n");
     ns.print("=== PURCHASE SUMMARY ===");
@@ -1318,7 +1276,7 @@ export async function main(ns) {
         ns.print(`Augments not purchased due to budget: ${result.unpurchasedAugments.length}`);
     }
     ns.print(`Total cost: $${ns.formatNumber(result.totalCost * 1000000)}`);
-    ns.print(`Remaining budget: $${ns.formatNumber(adjustedBudget - result.totalCost * 1000000)}`);
+    ns.print(`Remaining budget: $${ns.formatNumber(totalBudget - totalDonationCosts - result.totalCost * 1000000)}`);
 
     ns.print("\n");
     ns.print(`Total cost of all augments: $${ns.formatNumber(result.totalCostOfAll * 1000000)}`);
