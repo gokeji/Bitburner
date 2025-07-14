@@ -9,9 +9,8 @@ export async function main(ns) {
 
     const isLateGame =
         ns.getPlayer().mults.hacking * ns.getBitNodeMultipliers().HackingLevelMultiplier > 5 ||
-        ns.getServerMaxRam("home") >= 2 ** 20;
-    //  ||
-    // (ns.gang.inGang() && ns.gang.getGangInformation().territory > 0.4);
+        ns.getServerMaxRam("home") >= 2 ** 20 ||
+        (ns.gang.inGang() && ns.gang.getGangInformation().respect > 200e6);
 
     if (ns.getPlayer().factions.includes("Church of the Machine God")) {
         // Start stanek early so it can run during crime and casino phases
