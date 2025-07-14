@@ -221,8 +221,6 @@ export async function main(ns) {
         let ramToDistribute = gameState.maxRamAvailable;
         let totalRamUsed = 0;
         let successfullyProcessedServers = [];
-        let serversAttempted = 0;
-        let serversNotDiscarded = 0;
 
         // 1. Hash Upgrade Actions
         const hashActions = calculateHashUpgradeActions(gameState);
@@ -247,27 +245,7 @@ export async function main(ns) {
 
             actions.push(...serverActions);
 
-            // Track server processing statistics
-            const hasScheduleBatchesAction = serverActions.some(
-                (action) => action.type === ActionType.SCHEDULE_BATCHES,
-            );
-            const hasPrepAction = serverActions.some((action) => action.type === ActionType.PREP_SERVER);
-
-            // serversAttempted: Count servers we tried to prep or batch
-            if (hasScheduleBatchesAction || hasPrepAction) {
-                serversAttempted++;
-            }
-
-            // serversNotDiscarded: Only count servers that were eligible for batching but skipped due to not being at min security
-            // This is specifically for servers that should be batching but got ramForMaxThroughput = 0 due to security drift
-            if (hasScheduleBatchesAction) {
-                const serverStats = gameState.globalPrioritiesMap.get(server);
-                if (serverStats && serverStats.ramForMaxThroughput > 0) {
-                    serversNotDiscarded++;
-                }
-            }
-
-            // Update RAM tracking for next server
+            // Update RAM tracking for next server - no need to analyze actions here
             const ramUsed = serverActions
                 .filter(
                     (action) => action.type === ActionType.PREP_SERVER || action.type === ActionType.SCHEDULE_BATCHES,
@@ -296,8 +274,6 @@ export async function main(ns) {
                 totalRamUsed,
                 successfullyProcessedServers,
                 ramToDistribute,
-                totalServersAttempted: serversAttempted,
-                totalServersNotDiscarded: serversNotDiscarded,
             },
         };
     }
@@ -512,11 +488,11 @@ export async function main(ns) {
     function calculateBatchingActions(server, serverIndex, ramToDistribute, gameState) {
         const serverStats = gameState.globalPrioritiesMap.get(server);
 
-        if (serverStats.ramForMaxThroughput === 0) {
+        if (serverStats.skippedDueToSecurity) {
             return [
                 {
                     type: ActionType.LOG_MESSAGE,
-                    message: `WARN: ${server} is not prepped, skipping batch hack`,
+                    message: `WARN: ${server} skipped due to security drift, needs prep`,
                 },
             ];
         }
@@ -657,6 +633,8 @@ export async function main(ns) {
     async function executeActions(ns, actionResults) {
         const { actions, metadata } = actionResults;
         let totalRamUsed = 0;
+        let serversAttempted = 0;
+        let serversNotDiscarded = 0;
 
         // Update priority server if needed
         const priorityServerUpdate = actions.find(
@@ -689,6 +667,8 @@ export async function main(ns) {
                     if (batchRamUsed > 0) {
                         totalRamUsed += batchRamUsed;
                     }
+                    serversAttempted++; // Count all batch attempts
+                    serversNotDiscarded++; // If we get here, server was not skipped due to security
                     break;
 
                 case ActionType.KILL_SCRIPTS:
@@ -727,12 +707,14 @@ export async function main(ns) {
         }
 
         // Update global counters for end-of-tick operations
-        totalServersAttempted = metadata.totalServersAttempted;
-        totalServersNotDiscarded = metadata.totalServersNotDiscarded;
+        totalServersAttempted = serversAttempted;
+        totalServersNotDiscarded = serversNotDiscarded;
 
         return {
             ...metadata,
             totalRamUsed: metadata.totalRamUsed + totalRamUsed,
+            totalServersAttempted: serversAttempted,
+            totalServersNotDiscarded: serversNotDiscarded,
         };
     }
 
@@ -1179,10 +1161,9 @@ export async function main(ns) {
                 }
             }
 
-            // if (server === "ecorp") {
-            //     ns.print(`INFO: ${server} ${serverInfo.hackDifficulty} > ${serverBaselineSecurityLevels.get(server)}`);
-            // }
-            if (serverInfo.hackDifficulty > serverBaselineSecurityLevels.get(server)) {
+            // Check if server should be skipped due to security drift
+            const skippedDueToSecurity = serverInfo.hackDifficulty > serverBaselineSecurityLevels.get(server);
+            if (skippedDueToSecurity) {
                 // Server needs prep, set RAM allocation to 0 to prevent wasted allocation
                 ramForMaxThroughput = 0;
             }
@@ -1201,6 +1182,7 @@ export async function main(ns) {
                 batchLimitForSustainedThroughput: batchLimitForSustainedThroughput,
                 maxSecurityIncreasePerBatch: totalSecurityIncrease,
                 ramForMaxThroughput: ramForMaxThroughput,
+                skippedDueToSecurity: skippedDueToSecurity,
             });
         }
 
