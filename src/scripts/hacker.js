@@ -233,15 +233,205 @@ export async function main(ns) {
             serverIndex++
         ) {
             const server = gameState.serversByThroughput[serverIndex];
-
             const serverState = determineServerState(server, gameState);
-            const serverActions = calculateServerActions(
-                server,
-                serverState,
-                serverIndex + 1,
-                ramToDistribute,
-                gameState,
-            );
+
+            // === SERVER ACTIONS CALCULATION ===
+            let serverActions = [];
+
+            switch (serverState) {
+                case ServerState.NEEDS_PREP:
+                    // calculatePrepActions
+                    serverActions = [
+                        {
+                            type: ActionType.PREP_SERVER,
+                            server,
+                            serverIndex: serverIndex + 1,
+                            allowPartial: ALLOW_PARTIAL_PREP,
+                        },
+                    ];
+                    break;
+
+                case ServerState.PREPPING:
+                    // calculatePreppingActions
+                    if (serverPrepTimings.has(server)) {
+                        const prepTiming = serverPrepTimings.get(server);
+                        const prepStats = getServerPrepStats(ns, server);
+                        const newWeakenTime = prepStats.weakenTime;
+
+                        const currentFinishTime = prepTiming.startTime + prepTiming.weakenTime;
+                        const newFinishTime = Date.now() + newWeakenTime;
+
+                        if (currentFinishTime > newFinishTime) {
+                            serverActions.push({
+                                type: ActionType.LOG_MESSAGE,
+                                message: `INFO: ${server} hack levels improved so much that we should re-prep since it'll be faster`,
+                            });
+                            serverActions.push({
+                                type: ActionType.KILL_SCRIPTS,
+                                server,
+                                scriptTypes: ["grow", "weaken"],
+                            });
+                        }
+                    }
+                    break;
+
+                case ServerState.BATCHING:
+                    // calculateBatchingActions
+                    const serverStats = gameState.globalPrioritiesMap.get(server);
+
+                    if (serverStats.skippedDueToSecurity) {
+                        serverActions = [
+                            {
+                                type: ActionType.LOG_MESSAGE,
+                                message: `WARN: ${server} skipped due to security drift, needs prep`,
+                            },
+                        ];
+                    } else {
+                        // Calculate batches needed
+                        const currentServerScripts = gameState.runningScriptInfo.get(server) || { ramUsed: 0 };
+                        const ramUsedByServer = currentServerScripts.ramUsed;
+                        const ramToAllocate = Math.min(ramToDistribute, serverStats.ramForMaxThroughput);
+                        const remainingRamForSustainedThroughput = Math.max(0, ramToAllocate - ramUsedByServer);
+
+                        const { batchLimitForSustainedThroughput, ramNeededPerBatch } = serverStats;
+                        const targetBatchesForSustainedThroughput = Math.floor(
+                            remainingRamForSustainedThroughput / ramNeededPerBatch,
+                        );
+                        const maxBatchesThisTick = Math.floor(TICK_DELAY / TIME_PER_BATCH);
+
+                        let batchesToSchedule = Math.min(
+                            batchLimitForSustainedThroughput,
+                            maxBatchesThisTick,
+                            targetBatchesForSustainedThroughput,
+                        );
+
+                        if (serverStats.weakenTime < TIME_PER_BATCH) {
+                            batchesToSchedule = maxBatchesThisTick;
+                        }
+
+                        if (batchesToSchedule > 0) {
+                            let timeDriftDelay = 0;
+                            if (gameState.serverBatchTimings.has(server)) {
+                                const originalTimings = gameState.serverBatchTimings.get(server);
+                                timeDriftDelay = originalTimings.originalWeakenTime - serverStats.weakenTime;
+                                if (timeDriftDelay < 0) {
+                                    timeDriftDelay = 0;
+                                }
+                            }
+
+                            serverActions = [
+                                {
+                                    type: ActionType.SCHEDULE_BATCHES,
+                                    server,
+                                    serverIndex: serverIndex + 1,
+                                    batchesToSchedule,
+                                    serverStats,
+                                    timeDriftDelay,
+                                    ramUsed: batchesToSchedule * ramNeededPerBatch,
+                                },
+                            ];
+
+                            // Store timings if not already stored
+                            if (!gameState.serverBatchTimings.has(server)) {
+                                serverActions.push({
+                                    type: ActionType.STORE_TIMINGS,
+                                    server,
+                                    timings: {
+                                        originalWeakenTime: serverStats.weakenTime,
+                                        originalGrowthTime: serverStats.growthTime,
+                                        originalHackTime: serverStats.hackTime,
+                                    },
+                                });
+                            }
+
+                            // Update baseline security
+                            serverActions.push({
+                                type: ActionType.UPDATE_BASELINE,
+                                server,
+                            });
+                        }
+                    }
+                    break;
+
+                case ServerState.RECOVERING:
+                    // calculateRecoveryActions
+                    const serverInfo = ns.getServer(server);
+                    const isFullyPrepped =
+                        serverInfo.moneyAvailable >= serverInfo.moneyMax &&
+                        serverInfo.hackDifficulty <= serverInfo.minDifficulty;
+
+                    if (isFullyPrepped) {
+                        // Clean up stale prep scripts
+                        serverActions = [
+                            {
+                                type: ActionType.LOG_MESSAGE,
+                                message: `INFO: ${server} is fully prepped with lingering G/W scripts. Clearing them to start HGW.`,
+                            },
+                            {
+                                type: ActionType.KILL_SCRIPTS,
+                                server,
+                                scriptTypes: ["grow", "weaken"],
+                            },
+                        ];
+                    } else {
+                        // Handle drift recovery
+                        const serverStats = gameState.globalPrioritiesMap.get(server);
+                        const securityThreshold = Math.max(
+                            serverInfo.minDifficulty + 15,
+                            serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
+                        );
+                        const moneyProtectionThreshold =
+                            gameState.priorityServer === server
+                                ? priorityServerMinMoneyProtectionThreshold
+                                : minMoneyProtectionThreshold;
+
+                        const isSecurityBreach = serverInfo.hackDifficulty > securityThreshold;
+                        const message = isSecurityBreach
+                            ? `WARN: ${new Date().toLocaleTimeString()} Security on ${server} (${ns.formatNumber(
+                                  serverInfo.hackDifficulty,
+                                  2,
+                              )}) breached threshold (${ns.formatNumber(securityThreshold, 2)}). Recovering.`
+                            : `WARN: ${new Date().toLocaleTimeString()} Money on ${server} ($${ns.formatNumber(
+                                  serverInfo.moneyAvailable,
+                              )}) below ${ns.formatPercent(moneyProtectionThreshold)} of max money. Recovering.`;
+
+                        serverActions = [
+                            { type: ActionType.LOG_MESSAGE, message },
+                            { type: ActionType.KILL_SCRIPTS, server, scriptTypes: ["hack"] },
+                            { type: ActionType.CLEAR_TIMINGS, server },
+                        ];
+                    }
+                    break;
+
+                case ServerState.ON_HOLD:
+                    // calculateOnHoldActions
+                    const resumeTime = gameState.serversOnHold.get(server);
+                    const timeLeft = Math.max(0, resumeTime - Date.now());
+
+                    // Only log occasionally to avoid spam
+                    if (gameState.tickCounter % 10 === 0) {
+                        serverActions = [
+                            {
+                                type: ActionType.LOG_MESSAGE,
+                                message: `INFO: ${server} on hold for drift. Resume in ${ns.formatNumber(timeLeft / 1000, 1)}s`,
+                            },
+                        ];
+                    }
+                    break;
+
+                case ServerState.EXCLUDED:
+                    serverActions = [];
+                    break;
+
+                default:
+                    serverActions = [
+                        {
+                            type: ActionType.LOG_MESSAGE,
+                            message: `ERROR: Unknown server state: ${serverState} for ${server}`,
+                        },
+                    ];
+                    break;
+            }
 
             actions.push(...serverActions);
 
@@ -276,53 +466,6 @@ export async function main(ns) {
                 ramToDistribute,
             },
         };
-    }
-
-    // === HASH UPGRADE ACTIONS CALCULATOR ===
-    function calculateHashUpgradeActions(gameState) {
-        const actions = [];
-
-        if (!ALLOW_HASH_UPGRADES) return actions;
-
-        // Find highest priority server for hash upgrades
-        const highestPriorityServer = gameState.serversByThroughput.find((server) => {
-            return ns.getServerMaxMoney(server) < 10e12 || ns.getServerMinSecurityLevel(server) > 10;
-        });
-
-        if (!highestPriorityServer) return actions;
-
-        // Mark priority server if changed
-        if (gameState.priorityServer !== highestPriorityServer) {
-            actions.push({
-                type: ActionType.LOG_MESSAGE,
-                message: `INFO: ${highestPriorityServer} marked as priority server for enhanced corrections`,
-                newPriorityServer: highestPriorityServer, // Include the server for executor
-            });
-        }
-
-        const serverScriptInfo = gameState.runningScriptInfo.get(highestPriorityServer);
-        const hasAllScripts = serverScriptInfo?.hasHack && serverScriptInfo?.hasGrow && serverScriptInfo?.hasWeaken;
-
-        if (!hasAllScripts) return actions;
-
-        const serverInfo = ns.getServer(highestPriorityServer);
-
-        // Generate upgrade actions
-        if (serverInfo.moneyMax < 10e12 && PRIORITY_SERVER_CORRECTIVE_MULTIPLIER > 1.1) {
-            actions.push({
-                type: ActionType.UPGRADE_HASH_MAX_MONEY,
-                server: highestPriorityServer,
-            });
-        }
-
-        if (serverInfo.hackDifficulty > 10 && serverInfo.hackDifficulty === serverInfo.minDifficulty) {
-            actions.push({
-                type: ActionType.UPGRADE_HASH_MIN_SECURITY,
-                server: highestPriorityServer,
-            });
-        }
-
-        return actions;
     }
 
     // === SERVER STATE DETERMINATION ===
@@ -377,7 +520,21 @@ export async function main(ns) {
 
         // Check for recovery conditions on batching servers
         if (isHgw) {
-            const needsRecovery = checkIfServerNeedsRecovery(server, serverStats, serverInfo, gameState);
+            const serverStats = gameState.globalPrioritiesMap.get(server);
+            const securityThreshold = Math.max(
+                serverInfo.minDifficulty + 15,
+                serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
+            );
+
+            const moneyProtectionThreshold =
+                gameState.priorityServer === server
+                    ? priorityServerMinMoneyProtectionThreshold
+                    : minMoneyProtectionThreshold;
+
+            const needsRecovery =
+                serverInfo.hackDifficulty > securityThreshold ||
+                serverInfo.moneyAvailable < serverInfo.moneyMax * moneyProtectionThreshold;
+
             if (needsRecovery) {
                 return ServerState.RECOVERING;
             }
@@ -395,238 +552,51 @@ export async function main(ns) {
         return ServerState.BATCHING;
     }
 
-    // === RECOVERY CONDITION CHECK ===
-    function checkIfServerNeedsRecovery(server, serverStats, serverInfo, gameState) {
-        const securityThreshold = Math.max(
-            serverInfo.minDifficulty + 15,
-            serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
-        );
-
-        const moneyProtectionThreshold =
-            gameState.priorityServer === server
-                ? priorityServerMinMoneyProtectionThreshold
-                : minMoneyProtectionThreshold;
-
-        return (
-            serverInfo.hackDifficulty > securityThreshold ||
-            serverInfo.moneyAvailable < serverInfo.moneyMax * moneyProtectionThreshold
-        );
-    }
-
-    // === SERVER ACTIONS CALCULATOR ===
-    function calculateServerActions(server, serverState, serverIndex, ramToDistribute, gameState) {
+    // === HASH UPGRADE ACTIONS CALCULATOR ===
+    function calculateHashUpgradeActions(gameState) {
         const actions = [];
 
-        switch (serverState) {
-            case ServerState.NEEDS_PREP:
-                return calculatePrepActions(server, serverIndex, gameState);
+        if (!ALLOW_HASH_UPGRADES) return actions;
 
-            case ServerState.PREPPING:
-                return calculatePreppingActions(server, gameState);
+        // Find highest priority server for hash upgrades
+        const highestPriorityServer = gameState.serversByThroughput.find((server) => {
+            return ns.getServerMaxMoney(server) < 10e12 || ns.getServerMinSecurityLevel(server) > 10;
+        });
 
-            case ServerState.BATCHING:
-                return calculateBatchingActions(server, serverIndex, ramToDistribute, gameState);
+        if (!highestPriorityServer) return actions;
 
-            case ServerState.RECOVERING:
-                return calculateRecoveryActions(server, gameState);
-
-            case ServerState.ON_HOLD:
-                return calculateOnHoldActions(server, gameState);
-
-            case ServerState.EXCLUDED:
-                return [];
-
-            default:
-                return [
-                    {
-                        type: ActionType.LOG_MESSAGE,
-                        message: `ERROR: Unknown server state: ${serverState} for ${server}`,
-                    },
-                ];
+        // Mark priority server if changed
+        if (gameState.priorityServer !== highestPriorityServer) {
+            actions.push({
+                type: ActionType.LOG_MESSAGE,
+                message: `INFO: ${highestPriorityServer} marked as priority server for enhanced corrections`,
+                newPriorityServer: highestPriorityServer, // Include the server for executor
+            });
         }
-    }
 
-    // === INDIVIDUAL STATE ACTION CALCULATORS ===
-    function calculatePrepActions(server, serverIndex, gameState) {
-        return [
-            {
-                type: ActionType.PREP_SERVER,
-                server,
-                serverIndex,
-                allowPartial: ALLOW_PARTIAL_PREP,
-            },
-        ];
-    }
+        const serverScriptInfo = gameState.runningScriptInfo.get(highestPriorityServer);
+        const hasAllScripts = serverScriptInfo?.hasHack && serverScriptInfo?.hasGrow && serverScriptInfo?.hasWeaken;
 
-    function calculatePreppingActions(server, gameState) {
-        const actions = [];
+        if (!hasAllScripts) return actions;
 
-        if (serverPrepTimings.has(server)) {
-            const prepTiming = serverPrepTimings.get(server);
-            const prepStats = getServerPrepStats(ns, server);
-            const newWeakenTime = prepStats.weakenTime;
+        const serverInfo = ns.getServer(highestPriorityServer);
 
-            const currentFinishTime = prepTiming.startTime + prepTiming.weakenTime;
-            const newFinishTime = Date.now() + newWeakenTime;
+        // Generate upgrade actions
+        if (serverInfo.moneyMax < 10e12 && PRIORITY_SERVER_CORRECTIVE_MULTIPLIER > 1.1) {
+            actions.push({
+                type: ActionType.UPGRADE_HASH_MAX_MONEY,
+                server: highestPriorityServer,
+            });
+        }
 
-            if (currentFinishTime > newFinishTime) {
-                actions.push({
-                    type: ActionType.LOG_MESSAGE,
-                    message: `INFO: ${server} hack levels improved so much that we should re-prep since it'll be faster`,
-                });
-                actions.push({
-                    type: ActionType.KILL_SCRIPTS,
-                    server,
-                    scriptTypes: ["grow", "weaken"],
-                });
-            }
+        if (serverInfo.hackDifficulty > 10 && serverInfo.hackDifficulty === serverInfo.minDifficulty) {
+            actions.push({
+                type: ActionType.UPGRADE_HASH_MIN_SECURITY,
+                server: highestPriorityServer,
+            });
         }
 
         return actions;
-    }
-
-    function calculateBatchingActions(server, serverIndex, ramToDistribute, gameState) {
-        const serverStats = gameState.globalPrioritiesMap.get(server);
-
-        if (serverStats.skippedDueToSecurity) {
-            return [
-                {
-                    type: ActionType.LOG_MESSAGE,
-                    message: `WARN: ${server} skipped due to security drift, needs prep`,
-                },
-            ];
-        }
-
-        // Calculate batches needed
-        const currentServerScripts = gameState.runningScriptInfo.get(server) || { ramUsed: 0 };
-        const ramUsedByServer = currentServerScripts.ramUsed;
-        const ramToAllocate = Math.min(ramToDistribute, serverStats.ramForMaxThroughput);
-        const remainingRamForSustainedThroughput = Math.max(0, ramToAllocate - ramUsedByServer);
-
-        const { batchLimitForSustainedThroughput, ramNeededPerBatch } = serverStats;
-        const targetBatchesForSustainedThroughput = Math.floor(remainingRamForSustainedThroughput / ramNeededPerBatch);
-        const maxBatchesThisTick = Math.floor(TICK_DELAY / TIME_PER_BATCH);
-
-        let batchesToSchedule = Math.min(
-            batchLimitForSustainedThroughput,
-            maxBatchesThisTick,
-            targetBatchesForSustainedThroughput,
-        );
-
-        if (serverStats.weakenTime < TIME_PER_BATCH) {
-            batchesToSchedule = maxBatchesThisTick;
-        }
-
-        if (batchesToSchedule > 0) {
-            let timeDriftDelay = 0;
-            if (gameState.serverBatchTimings.has(server)) {
-                const originalTimings = gameState.serverBatchTimings.get(server);
-                timeDriftDelay = originalTimings.originalWeakenTime - serverStats.weakenTime;
-                if (timeDriftDelay < 0) {
-                    timeDriftDelay = 0;
-                }
-            }
-
-            const actions = [
-                {
-                    type: ActionType.SCHEDULE_BATCHES,
-                    server,
-                    serverIndex,
-                    batchesToSchedule,
-                    serverStats,
-                    timeDriftDelay,
-                    ramUsed: batchesToSchedule * ramNeededPerBatch,
-                },
-            ];
-
-            // Store timings if not already stored
-            if (!gameState.serverBatchTimings.has(server)) {
-                actions.push({
-                    type: ActionType.STORE_TIMINGS,
-                    server,
-                    timings: {
-                        originalWeakenTime: serverStats.weakenTime,
-                        originalGrowthTime: serverStats.growthTime,
-                        originalHackTime: serverStats.hackTime,
-                    },
-                });
-            }
-
-            // Update baseline security
-            actions.push({
-                type: ActionType.UPDATE_BASELINE,
-                server,
-            });
-
-            return actions;
-        }
-
-        return [];
-    }
-
-    function calculateRecoveryActions(server, gameState) {
-        const serverInfo = ns.getServer(server);
-        const isFullyPrepped =
-            serverInfo.moneyAvailable >= serverInfo.moneyMax && serverInfo.hackDifficulty <= serverInfo.minDifficulty;
-
-        if (isFullyPrepped) {
-            // Clean up stale prep scripts
-            return [
-                {
-                    type: ActionType.LOG_MESSAGE,
-                    message: `INFO: ${server} is fully prepped with lingering G/W scripts. Clearing them to start HGW.`,
-                },
-                {
-                    type: ActionType.KILL_SCRIPTS,
-                    server,
-                    scriptTypes: ["grow", "weaken"],
-                },
-            ];
-        }
-
-        // Handle drift recovery
-        const serverStats = gameState.globalPrioritiesMap.get(server);
-        const securityThreshold = Math.max(
-            serverInfo.minDifficulty + 15,
-            serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
-        );
-        const moneyProtectionThreshold =
-            gameState.priorityServer === server
-                ? priorityServerMinMoneyProtectionThreshold
-                : minMoneyProtectionThreshold;
-
-        const isSecurityBreach = serverInfo.hackDifficulty > securityThreshold;
-        const message = isSecurityBreach
-            ? `WARN: ${new Date().toLocaleTimeString()} Security on ${server} (${ns.formatNumber(
-                  serverInfo.hackDifficulty,
-                  2,
-              )}) breached threshold (${ns.formatNumber(securityThreshold, 2)}). Recovering.`
-            : `WARN: ${new Date().toLocaleTimeString()} Money on ${server} ($${ns.formatNumber(
-                  serverInfo.moneyAvailable,
-              )}) below ${ns.formatPercent(moneyProtectionThreshold)} of max money. Recovering.`;
-
-        return [
-            { type: ActionType.LOG_MESSAGE, message },
-            { type: ActionType.KILL_SCRIPTS, server, scriptTypes: ["hack"] },
-            { type: ActionType.CLEAR_TIMINGS, server },
-        ];
-    }
-
-    function calculateOnHoldActions(server, gameState) {
-        const resumeTime = gameState.serversOnHold.get(server);
-        const timeLeft = Math.max(0, resumeTime - Date.now());
-
-        // Only log occasionally to avoid spam
-        if (gameState.tickCounter % 10 === 0) {
-            return [
-                {
-                    type: ActionType.LOG_MESSAGE,
-                    message: `INFO: ${server} on hold for drift. Resume in ${ns.formatNumber(timeLeft / 1000, 1)}s`,
-                },
-            ];
-        }
-
-        return [];
     }
 
     // === ACTION EXECUTOR ===
