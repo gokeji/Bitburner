@@ -284,17 +284,6 @@ export async function main(ns) {
             }
         }
 
-        if (continuousMode && bitnodeHacknetSpend > hacknetMaxSpend) {
-            if (!hasPrintedWaitingMessage) {
-                printUpgradeSummary(); // Print summary before waiting
-                ns.print(`Exceeded max spend of ${ns.formatNumber(hacknetMaxSpend)}. Waiting for more money...`);
-                hasPrintedWaitingMessage = true;
-            }
-            await ns.sleep(10000); // Wait 10 seconds before checking again
-            continue;
-        }
-        hasPrintedWaitingMessage = false;
-
         // Update the current list of hacknet servers
         for (let i = 0; i < ns.hacknet.numNodes(); i++) {
             const nodeStats = ns.hacknet.getNodeStats(i);
@@ -369,9 +358,20 @@ export async function main(ns) {
 
             // Purchase the node first, then upgrade it
             const newNodeIndex = performUpgrade(bestUpgrade);
-            await upgradeNewServerToPaybackTime(newNodeIndex, 4);
+            await upgradeNewServerToPaybackTime(newNodeIndex, 2);
             continue; // Skip the normal upgrade flow since we already handled this upgrade
         }
+
+        if (continuousMode && bitnodeHacknetSpend > hacknetMaxSpend) {
+            if (!hasPrintedWaitingMessage) {
+                printUpgradeSummary(); // Print summary before waiting
+                ns.print(`Exceeded max spend of ${ns.formatNumber(hacknetMaxSpend)}. Waiting for more money...`);
+                hasPrintedWaitingMessage = true;
+            }
+            await ns.sleep(10000); // Wait 10 seconds before checking again
+            continue;
+        }
+        hasPrintedWaitingMessage = false;
 
         // Check if payback time is too long
         if (bestUpgrade.paybackHours > maxPaybackHours && !continuousMode) {
