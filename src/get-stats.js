@@ -544,7 +544,7 @@ function cleanupCaches() {
 
     // Clean HGW stats cache
     for (const [server, data] of hgwStatsCache.entries()) {
-        if (now - data.timestamp > 6000) {
+        if (now - data.timestamp > HGW_DISPLAY_CACHE_EXPIRY_MS) {
             // Keep for 6 seconds before cleanup
             hgwStatsCache.delete(server);
         }

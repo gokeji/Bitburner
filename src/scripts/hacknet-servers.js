@@ -276,7 +276,7 @@ export async function main(ns) {
 
                 if (
                     hacknetWithLowestCache &&
-                    ns.hacknet.getCacheUpgradeCost(lowestCacheServerIndex) < ns.getPlayer().money / 10
+                    ns.hacknet.getCacheUpgradeCost(lowestCacheServerIndex) < ns.getPlayer().money / 5
                 ) {
                     ns.hacknet.upgradeCache(lowestCacheServerIndex);
                     ns.print(`Upgraded cache on node ${lowestCacheServerIndex}`);
