@@ -176,12 +176,14 @@ export async function main(ns) {
     // === DATA GATHERING PHASE ===
     function gatherGameState(ns) {
         // Gather all required data for decision making
-        const runningScriptInfo = getRunningScriptInfo(ns);
+        const { scriptInfoByTarget, scriptInfoByHost } = getRunningScriptInfo(ns);
 
         maxRamAvailableForHacking = executableServers.reduce(
-            (acc, server) => acc + (runningScriptInfo.get(server) ? runningScriptInfo.get(server).ramUsed : 0),
+            (acc, server) => acc + scriptInfoByHost.get(server).ramUsed,
             totalFreeRam,
         );
+
+        ns.print(`DEBUG: maxRamAvailableForHacking: ${ns.formatRam(maxRamAvailableForHacking)}`);
 
         // Calculate global priorities map once per tick (without excluding any servers)
         const { prioritiesMap, serverMaxThroughputs } = calculateTargetServerPriorities(ns);
@@ -212,7 +214,7 @@ export async function main(ns) {
         // ns.print(`DEBUG: serversByThroughput = [${serversByThroughput.join(", ")}]`);
 
         return {
-            runningScriptInfo,
+            scriptInfoByTarget,
             serversByThroughput,
             globalPrioritiesMap,
             serversOnHold: new Map(serversOnHold), // Copy for immutability
@@ -510,7 +512,7 @@ export async function main(ns) {
         // }
 
         const serverInfo = ns.getServer(server);
-        const currentServerScripts = gameState.runningScriptInfo.get(server) || {
+        const currentServerScripts = gameState.scriptInfoByTarget.get(server) || {
             ramUsed: 0,
             isPrep: false,
             hasHack: false,
@@ -557,7 +559,7 @@ export async function main(ns) {
 
         if (!highestPriorityServer) return actions;
 
-        const serverScriptInfo = gameState.runningScriptInfo.get(highestPriorityServer);
+        const serverScriptInfo = gameState.scriptInfoByTarget.get(highestPriorityServer);
         const hasAllScripts = serverScriptInfo?.hasHack && serverScriptInfo?.hasGrow && serverScriptInfo?.hasWeaken;
 
         if (!hasAllScripts) return actions;
@@ -1054,6 +1056,7 @@ export async function main(ns) {
      */
     function getRunningScriptInfo(ns) {
         const scriptInfoByTarget = new Map();
+        const scriptInfoByHost = new Map();
 
         const hackScriptName = hackScript.startsWith("/") ? hackScript.substring(1) : hackScript;
         const growScriptName = growScript.startsWith("/") ? growScript.substring(1) : growScript;
@@ -1061,6 +1064,9 @@ export async function main(ns) {
 
         for (const server of executableServers) {
             const runningScripts = ns.ps(server);
+            scriptInfoByHost.set(server, {
+                ramUsed: 0,
+            });
 
             for (const script of runningScripts) {
                 if (
@@ -1087,9 +1093,11 @@ export async function main(ns) {
                     }
 
                     const info = scriptInfoByTarget.get(target);
+                    const hostInfo = scriptInfoByHost.get(server);
                     const scriptRam = ns.getScriptRam(script.filename, server);
                     if (scriptRam > 0) {
                         info.ramUsed += scriptRam * script.threads;
+                        hostInfo.ramUsed += scriptRam * script.threads;
                     }
 
                     if (script.args.includes("prep")) {
@@ -1104,7 +1112,7 @@ export async function main(ns) {
                 }
             }
         }
-        return scriptInfoByTarget;
+        return { scriptInfoByTarget, scriptInfoByHost };
     }
 
     /**
