@@ -34,7 +34,7 @@ export async function main(ns) {
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TIME_PER_BATCH = BASE_SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES;
-    const TICK_DELAY = 1600; // ms delay between ticks
+    const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
     const ALWAYS_XP_FARM = false;
@@ -246,9 +246,9 @@ export async function main(ns) {
         ) {
             const server = gameState.serversByThroughput[serverIndex];
             const serverState = determineServerState(server, gameState);
-            if (serverState !== ServerState.EXCLUDED) {
-                ns.print(`DEBUG: Server ${server} state: ${serverState}`);
-            }
+            // if (serverState !== ServerState.EXCLUDED) {
+            //     ns.print(`DEBUG: Server ${server} state: ${serverState}`);
+            // }
             const serverInfo = ns.getServer(server);
 
             // === SERVER ACTIONS CALCULATION ===
@@ -348,13 +348,11 @@ export async function main(ns) {
                     // calculateBatchingActions
                     if (serverStats && serverStats.selectedByKnapsack) {
                         if (serverStats.skippedDueToSecurity) {
-                            serverActions = [
-                                {
-                                    type: ActionType.SKIP_BATCHES,
-                                    server,
-                                },
-                            ];
-                            continue;
+                            serverActions.push({
+                                type: ActionType.SKIP_BATCHES,
+                                server,
+                            });
+                            break;
                         }
 
                         // Single server optimization - continuously add batches every tick
@@ -369,9 +367,9 @@ export async function main(ns) {
                             batchesToSchedule = maxBatchesThisTick;
                         }
 
-                        ns.print(
-                            `MAX HACK ${server}: Scheduling ${batchesToSchedule} batches (sustained=${batchLimitForSustainedThroughput}, tick_max=${maxBatchesThisTick})`,
-                        );
+                        // ns.print(
+                        //     `MAX HACK ${server}: Scheduling ${batchesToSchedule} batches (sustained=${batchLimitForSustainedThroughput}, tick_max=${maxBatchesThisTick})`,
+                        // );
 
                         if (batchesToSchedule > 0) {
                             let timeDriftDelay = 0;
@@ -383,17 +381,15 @@ export async function main(ns) {
                                 }
                             }
 
-                            serverActions = [
-                                {
-                                    type: ActionType.SCHEDULE_BATCHES,
-                                    server,
-                                    serverIndex: serverIndex + 1,
-                                    batchesToSchedule,
-                                    serverStats,
-                                    timeDriftDelay,
-                                    ramUsed: batchesToSchedule * ramNeededPerBatch,
-                                },
-                            ];
+                            serverActions.push({
+                                type: ActionType.SCHEDULE_BATCHES,
+                                server,
+                                serverIndex: serverIndex + 1,
+                                batchesToSchedule,
+                                serverStats,
+                                timeDriftDelay,
+                                ramUsed: batchesToSchedule * ramNeededPerBatch,
+                            });
 
                             // Store timings if not already stored
                             if (!gameState.serverBatchTimings.has(server)) {
@@ -414,9 +410,6 @@ export async function main(ns) {
                                 server,
                             });
                         }
-                    } else {
-                        // Server not selected for max hack optimization - skip
-                        continue;
                     }
                     break;
 
@@ -859,18 +852,18 @@ export async function main(ns) {
 
         const maxConcurrentBatches = Math.floor(maxRamAvailableForHacking / ramRequired);
 
-        const theoreticalBatchLimit = weakenTime / TIME_PER_BATCH;
+        const theoreticalBatchLimit = Math.floor(weakenTime / TIME_PER_BATCH);
         const batchLimitForSustainedThroughput = Math.min(maxConcurrentBatches, theoreticalBatchLimit);
 
         // Throughput is money per second from sustainable batches
         const throughput = (batchLimitForSustainedThroughput * moneyPerBatch) / (weakenTime / 1000);
-        const ramUsageForSustainedThroughput = maxConcurrentBatches * ramRequired;
+        const ramUsageForSustainedThroughput = batchLimitForSustainedThroughput * ramRequired;
         // const priority = throughput / ramRequired;
 
         const skippedDueToSecurity = serverInfo.hackDifficulty > serverBaselineSecurityLevels.get(server);
 
         // ns.print(
-        //     `DEBUG: ${server} | ${hackThreads}H:${growthThreads}G:${weakenThreadsNeeded}W | throughput: ${ns.formatNumber(throughput, 2)} | ramPerBatch: ${ns.formatRam(ramRequired)} | sustained ram: ${ns.formatRam(ramUsageForSustainedThroughput)} | batches: ${maxConcurrentBatches}`,
+        //     `DEBUG: ${server} | ${hackThreads}H:${growthThreads}G:${weakenThreadsNeeded}W | throughput: ${ns.formatNumber(throughput, 2)} | ramPerBatch: ${ns.formatRam(ramRequired)} | sustained ram: ${ns.formatRam(ramUsageForSustainedThroughput)} | batches: ${batchLimitForSustainedThroughput}`,
         // );
 
         return {
@@ -882,7 +875,6 @@ export async function main(ns) {
             ramRequired,
             throughput,
             priority: throughput,
-            maxConcurrentBatches,
             ramUsageForSustainedThroughput,
 
             // Timing values
@@ -957,14 +949,8 @@ export async function main(ns) {
         for (const config of knapsackResult.selectedItems) {
             selectedServers.add(config.server);
 
-            const cycleTime = config.weakenTime / 1000;
             ns.print(
-                `MAX HACK: ${config.server} - ${config.hackThreads}H (${ns.formatPercent(config.actualHackPercentage)}) - ${ns.formatRam(config.ramRequired)}/batch, max ${config.maxConcurrentBatches} concurrent = ${ns.formatRam(
-                    config.ramUsageForSustainedThroughput,
-                )} total`,
-            );
-            ns.print(
-                `CYCLE: ${ns.formatNumber(cycleTime, 1)}s weaken time, $${ns.formatNumber(config.throughput)}/s throughput`,
+                `MAX HACK: ${config.server} - ${config.hackThreads}H (${ns.formatPercent(config.actualHackPercentage)}) - ${ns.formatRam(config.ramRequired)}/batch, max ${config.batchLimitForSustainedThroughput} concurrent = ${ns.formatRam(config.ramUsageForSustainedThroughput)} total - ${ns.formatNumber(config.throughput, 2)}/s`,
             );
 
             // Map to existing format for compatibility
@@ -998,22 +984,25 @@ export async function main(ns) {
         let remainingWeight = maxWeight;
 
         for (const config of configs) {
+            if (selectedItems.some((selectedConfig) => selectedConfig.server === config.server)) {
+                continue;
+            }
             if (config.ramUsageForSustainedThroughput <= remainingWeight || selectedItems.length === 0) {
                 selectedItems.push(config);
                 remainingWeight -= config.ramUsageForSustainedThroughput;
             }
         }
 
-        if (remainingWeight > 0 && selectedItems.length < configs.length) {
-            const remainingBestConfig = configs.find(
-                (config) =>
-                    !selectedItems.includes(config) &&
-                    selectedItems.every((selectedConfig) => config.server !== selectedConfig.server),
-            );
-            if (remainingBestConfig) {
-                selectedItems.push(remainingBestConfig);
-            }
-        }
+        // if (remainingWeight > 0 && selectedItems.length < configs.length) {
+        //     const remainingBestConfig = configs.find(
+        //         (config) =>
+        //             !selectedItems.includes(config) &&
+        //             selectedItems.every((selectedConfig) => config.server !== selectedConfig.server),
+        //     );
+        //     if (remainingBestConfig) {
+        //         selectedItems.push(remainingBestConfig);
+        //     }
+        // }
 
         const totalThroughput = selectedItems.reduce((sum, config) => sum + config.throughput, 0);
 
