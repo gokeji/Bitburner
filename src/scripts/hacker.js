@@ -20,28 +20,25 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    let MAX_WEAKEN_TIME = 15 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
-    let hackPercentage = 0.01;
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.0; // Use extra grow and weak threads to correct for out of sync HGW batches
+    // let hackPercentage = 0.01;
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1; // Use extra grow and weak threads to correct for out of sync HGW batches
 
     let PARTIAL_PREP_THRESHOLD = 0.4;
     let ALLOW_HASH_UPGRADES = false;
 
-    let serversToHack = ["phantasy"];
+    let serversToHack = ["clarkinc"];
 
-    let minMoneyProtectionThreshold = 1 - hackPercentage - 0.25;
+    // let minMoneyProtectionThreshold = 1 - hackPercentage - 0.25;
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
     const TIME_PER_BATCH = BASE_SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES;
-    const TICK_DELAY = 800; // ms delay between ticks
+    const TICK_DELAY = 1600; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
     const ALWAYS_XP_FARM = false;
     const ALLOW_PARTIAL_PREP = true;
-
-    let PREP_MONEY_THRESHOLD = 0.95; // Prep servers until it's at least this much money
-    let SECURITY_LEVEL_THRESHOLD = 3; // Prep servers to be within minSecurityLevel + this amount
 
     let executableServers = [];
     let hackableServers = [];
@@ -87,6 +84,7 @@ export async function main(ns) {
 
     let maxRamAvailable = 0;
     let totalFreeRam = 0;
+    let maxRamAvailableForHacking = 0;
 
     ns.disableLog("ALL");
 
@@ -103,7 +101,6 @@ export async function main(ns) {
         NEEDS_PREP: "NEEDS_PREP",
         PREPPING: "PREPPING",
         BATCHING: "BATCHING",
-        RECOVERING: "RECOVERING",
         ON_HOLD: "ON_HOLD",
         EXCLUDED: "EXCLUDED", // For servers that don't meet basic criteria
     };
@@ -178,6 +175,14 @@ export async function main(ns) {
 
     // === DATA GATHERING PHASE ===
     function gatherGameState(ns) {
+        // Gather all required data for decision making
+        const runningScriptInfo = getRunningScriptInfo(ns);
+
+        maxRamAvailableForHacking = executableServers.reduce(
+            (acc, server) => acc + (runningScriptInfo.get(server) ? runningScriptInfo.get(server).ramUsed : 0),
+            totalFreeRam,
+        );
+
         // Calculate global priorities map once per tick (without excluding any servers)
         const { prioritiesMap, serverMaxThroughputs } = calculateTargetServerPriorities(ns);
         globalPrioritiesMap = prioritiesMap;
@@ -200,20 +205,16 @@ export async function main(ns) {
         for (let [server, maxThroughput] of serverMaxThroughputs.entries()) {
             throughputPortHandle.write(JSON.stringify({ server: server, profit: maxThroughput }));
         }
-
-        // Gather all required data for decision making
-        const runningScriptInfo = getRunningScriptInfo(ns);
         // Sort servers by their maximum possible throughput (calculated in calculateTargetServerPriorities)
         const serversByThroughput = Array.from(serverMaxThroughputs.entries())
             .sort((a, b) => b[1] - a[1])
             .map(([server]) => server);
+        ns.print(`DEBUG: serversByThroughput = [${serversByThroughput.join(", ")}]`);
 
         return {
             runningScriptInfo,
             serversByThroughput,
             globalPrioritiesMap,
-            maxRamAvailable,
-            totalFreeRam,
             serversOnHold: new Map(serversOnHold), // Copy for immutability
             serverBatchTimings: new Map(serverBatchTimings),
             serverBaselineSecurityLevels: new Map(serverBaselineSecurityLevels),
@@ -224,7 +225,7 @@ export async function main(ns) {
     // === PURE REDUCER - STATE MACHINE ===
     function calculateActions(gameState) {
         const actions = [];
-        let ramToDistribute = gameState.maxRamAvailable;
+        let ramToDistribute = totalFreeRam;
         let totalRamUsed = 0;
         let successfullyProcessedServers = [];
 
@@ -233,6 +234,9 @@ export async function main(ns) {
         actions.push(...hashActions);
 
         // 2. Server Processing Actions
+        ns.print(
+            `DEBUG: Processing ${gameState.serversByThroughput.length} servers with ${ns.formatRam(ramToDistribute)} available`,
+        );
         for (
             let serverIndex = 0;
             serverIndex < gameState.serversByThroughput.length && ramToDistribute > 0;
@@ -240,6 +244,10 @@ export async function main(ns) {
         ) {
             const server = gameState.serversByThroughput[serverIndex];
             const serverState = determineServerState(server, gameState);
+            if (serverState !== ServerState.EXCLUDED) {
+                ns.print(`DEBUG: Server ${server} state: ${serverState}`);
+            }
+            const serverInfo = ns.getServer(server);
 
             // === SERVER ACTIONS CALCULATION ===
             let serverActions = [];
@@ -258,6 +266,27 @@ export async function main(ns) {
                     break;
 
                 case ServerState.PREPPING:
+                    // Calculate completed prep early exit
+                    const isFullyPrepped =
+                        serverInfo.moneyAvailable >= serverInfo.moneyMax &&
+                        serverInfo.hackDifficulty <= serverInfo.minDifficulty;
+
+                    if (isFullyPrepped) {
+                        // Clean up stale prep scripts
+                        serverActions = [
+                            {
+                                type: ActionType.LOG_MESSAGE,
+                                message: `WARN: ${server} is fully prepped with lingering G/W scripts. Clearing them to start HGW.`,
+                            },
+                            {
+                                type: ActionType.KILL_SCRIPTS,
+                                server,
+                                scriptTypes: ["grow", "weaken"],
+                            },
+                        ];
+                        break;
+                    }
+
                     // calculatePreppingActions
                     if (serverPrepTimings.has(server)) {
                         const prepTiming = serverPrepTimings.get(server);
@@ -270,7 +299,7 @@ export async function main(ns) {
                         if (currentFinishTime > newFinishTime) {
                             serverActions.push({
                                 type: ActionType.LOG_MESSAGE,
-                                message: `INFO: ${server} hack levels improved so much that we should re-prep since it'll be faster`,
+                                message: `WARN: ${server} hack levels improved so much that we should re-prep since it'll be faster`,
                             });
                             serverActions.push({
                                 type: ActionType.KILL_SCRIPTS,
@@ -282,26 +311,40 @@ export async function main(ns) {
                     break;
 
                 case ServerState.BATCHING:
-                    // calculateBatchingActions
                     const serverStats = gameState.globalPrioritiesMap.get(server);
+                    // Determine server drift recovery conditions
+                    const securityThreshold = Math.max(
+                        serverInfo.minDifficulty + 15,
+                        serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
+                    );
 
-                    if (serverStats && serverStats.needsPrep) {
-                        // Server was selected by knapsack but needs prep first
+                    const moneyProtectionThreshold = 1 - serverStats.hackPercentage - 0.25;
+
+                    const securityBreach = serverInfo.hackDifficulty > securityThreshold;
+                    const moneyBreach = serverInfo.moneyAvailable < serverInfo.moneyMax * moneyProtectionThreshold;
+
+                    const needsRecovery = securityBreach || moneyBreach;
+
+                    if (needsRecovery) {
+                        const message = securityBreach
+                            ? `WARN: ${new Date().toLocaleTimeString()} Security on ${server} (${ns.formatNumber(
+                                  serverInfo.hackDifficulty,
+                                  2,
+                              )}) breached threshold (${ns.formatNumber(securityThreshold, 2)}). Recovering.`
+                            : `WARN: ${new Date().toLocaleTimeString()} Money on ${server} ($${ns.formatNumber(
+                                  serverInfo.moneyAvailable,
+                              )}) below ${ns.formatPercent(moneyProtectionThreshold)} of max money. Recovering.`;
+
                         serverActions = [
-                            {
-                                type: ActionType.PREP_SERVER,
-                                server,
-                                serverIndex: serverIndex + 1,
-                                allowPartial: ALLOW_PARTIAL_PREP,
-                            },
+                            { type: ActionType.LOG_MESSAGE, message },
+                            { type: ActionType.KILL_SCRIPTS, server, scriptTypes: ["hack"] },
+                            { type: ActionType.CLEAR_TIMINGS, server },
                         ];
-                    } else if (serverStats && serverStats.selectedByKnapsack) {
-                        // Calculate batches needed
-                        const currentServerScripts = gameState.runningScriptInfo.get(server) || { ramUsed: 0 };
-                        const ramUsedByServer = currentServerScripts.ramUsed;
-                        const ramToAllocate = Math.min(ramToDistribute, serverStats.ramForMaxThroughput);
-                        const remainingRamForSustainedThroughput = Math.max(0, ramToAllocate - ramUsedByServer);
+                        break;
+                    }
 
+                    // calculateBatchingActions
+                    if (serverStats && serverStats.selectedByKnapsack) {
                         if (serverStats.skippedDueToSecurity) {
                             serverActions = [
                                 {
@@ -312,21 +355,21 @@ export async function main(ns) {
                             continue;
                         }
 
+                        // Single server optimization - continuously add batches every tick
                         const { batchLimitForSustainedThroughput, ramNeededPerBatch } = serverStats;
-                        const targetBatchesForSustainedThroughput = Math.floor(
-                            remainingRamForSustainedThroughput / ramNeededPerBatch,
-                        );
                         const maxBatchesThisTick = Math.floor(TICK_DELAY / TIME_PER_BATCH);
 
-                        let batchesToSchedule = Math.min(
-                            batchLimitForSustainedThroughput,
-                            maxBatchesThisTick,
-                            targetBatchesForSustainedThroughput,
-                        );
+                        // Schedule up to the maximum batches per tick
+                        let batchesToSchedule = Math.min(batchLimitForSustainedThroughput, maxBatchesThisTick);
 
+                        // For very fast servers (weaken time < TIME_PER_BATCH), use max tick batches
                         if (serverStats.weakenTime < TIME_PER_BATCH) {
                             batchesToSchedule = maxBatchesThisTick;
                         }
+
+                        ns.print(
+                            `MAX HACK ${server}: Scheduling ${batchesToSchedule} batches (sustained=${batchLimitForSustainedThroughput}, tick_max=${maxBatchesThisTick})`,
+                        );
 
                         if (batchesToSchedule > 0) {
                             let timeDriftDelay = 0;
@@ -370,55 +413,8 @@ export async function main(ns) {
                             });
                         }
                     } else {
-                        // Server not selected by knapsack optimization - skip
+                        // Server not selected for max hack optimization - skip
                         continue;
-                    }
-                    break;
-
-                case ServerState.RECOVERING:
-                    // calculateRecoveryActions
-                    const serverInfo = ns.getServer(server);
-                    const isFullyPrepped =
-                        serverInfo.moneyAvailable >= serverInfo.moneyMax &&
-                        serverInfo.hackDifficulty <= serverInfo.minDifficulty;
-
-                    if (isFullyPrepped) {
-                        // Clean up stale prep scripts
-                        serverActions = [
-                            {
-                                type: ActionType.LOG_MESSAGE,
-                                message: `INFO: ${server} is fully prepped with lingering G/W scripts. Clearing them to start HGW.`,
-                            },
-                            {
-                                type: ActionType.KILL_SCRIPTS,
-                                server,
-                                scriptTypes: ["grow", "weaken"],
-                            },
-                        ];
-                    } else {
-                        // Handle drift recovery
-                        const serverStats = gameState.globalPrioritiesMap.get(server);
-                        const securityThreshold = Math.max(
-                            serverInfo.minDifficulty + 15,
-                            serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
-                        );
-                        const moneyProtectionThreshold = minMoneyProtectionThreshold;
-
-                        const isSecurityBreach = serverInfo.hackDifficulty > securityThreshold;
-                        const message = isSecurityBreach
-                            ? `WARN: ${new Date().toLocaleTimeString()} Security on ${server} (${ns.formatNumber(
-                                  serverInfo.hackDifficulty,
-                                  2,
-                              )}) breached threshold (${ns.formatNumber(securityThreshold, 2)}). Recovering.`
-                            : `WARN: ${new Date().toLocaleTimeString()} Money on ${server} ($${ns.formatNumber(
-                                  serverInfo.moneyAvailable,
-                              )}) below ${ns.formatPercent(moneyProtectionThreshold)} of max money. Recovering.`;
-
-                        serverActions = [
-                            { type: ActionType.LOG_MESSAGE, message },
-                            { type: ActionType.KILL_SCRIPTS, server, scriptTypes: ["hack"] },
-                            { type: ActionType.CLEAR_TIMINGS, server },
-                        ];
                     }
                     break;
 
@@ -490,9 +486,9 @@ export async function main(ns) {
     // === SERVER STATE DETERMINATION ===
     function determineServerState(server, gameState) {
         // Basic exclusion checks
-        if (!serversToHack.includes(server)) {
-            return ServerState.EXCLUDED;
-        }
+        // if (!serversToHack.includes(server)) {
+        //     return ServerState.EXCLUDED;
+        // }
 
         if (gameState.serversOnHold.has(server)) {
             return ServerState.ON_HOLD;
@@ -503,14 +499,15 @@ export async function main(ns) {
         }
 
         const serverStats = gameState.globalPrioritiesMap.get(server);
-        if (
-            !serverStats ||
-            serverStats.hackThreads <= 0 ||
-            serverStats.growthThreads <= 0 ||
-            serverStats.weakenThreadsNeeded <= 0
-        ) {
+        if (!serverStats) {
             return ServerState.EXCLUDED;
         }
+        // if (serverStats.batchLimitForSustainedThroughput <= 0) {
+        //     ns.print(
+        //         `DEBUG: No sustainable batches for ${server}: limit=${serverStats.batchLimitForSustainedThroughput}`,
+        //     );
+        //     return ServerState.EXCLUDED;
+        // }
 
         const serverInfo = ns.getServer(server);
         const currentServerScripts = gameState.runningScriptInfo.get(server) || {
@@ -526,38 +523,14 @@ export async function main(ns) {
             currentServerScripts.isPrep ||
             (!currentServerScripts.hasHack && (currentServerScripts.hasGrow || currentServerScripts.hasWeaken));
 
-        // Check for stale prep scripts on fully prepped servers
-        if (isPrep) {
-            const isFullyPrepped =
-                serverInfo.moneyAvailable >= serverInfo.moneyMax &&
-                serverInfo.hackDifficulty <= serverInfo.minDifficulty;
-            if (isFullyPrepped) {
-                return ServerState.RECOVERING; // Will clean up stale scripts
-            }
-            return ServerState.PREPPING;
-        }
-
         // Check for recovery conditions on batching servers
         if (isHgw) {
-            const serverStats = gameState.globalPrioritiesMap.get(server);
-            const securityThreshold = Math.max(
-                serverInfo.minDifficulty + 15,
-                serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
-            );
-
-            const moneyProtectionThreshold =
-                gameState.priorityServer === server
-                    ? priorityServerMinMoneyProtectionThreshold
-                    : minMoneyProtectionThreshold;
-
-            const needsRecovery =
-                serverInfo.hackDifficulty > securityThreshold ||
-                serverInfo.moneyAvailable < serverInfo.moneyMax * moneyProtectionThreshold;
-
-            if (needsRecovery) {
-                return ServerState.RECOVERING;
-            }
             return ServerState.BATCHING;
+        }
+
+        // Check for stale prep scripts on fully prepped servers
+        if (isPrep) {
+            return ServerState.PREPPING;
         }
 
         // Check if server needs prep
@@ -568,7 +541,7 @@ export async function main(ns) {
             return ServerState.NEEDS_PREP;
         }
 
-        return ServerState.BATCHING;
+        return ServerState.EXCLUDED;
     }
 
     // === HASH UPGRADE ACTIONS CALCULATOR ===
@@ -613,8 +586,6 @@ export async function main(ns) {
     async function executeActions(ns, actionResults) {
         const { actions, metadata } = actionResults;
         let totalRamUsed = 0;
-        let serversAttempted = 0;
-        let serversNotDiscarded = 0;
 
         for (const action of actions) {
             switch (action.type) {
@@ -638,13 +609,13 @@ export async function main(ns) {
                     if (batchRamUsed > 0) {
                         totalRamUsed += batchRamUsed;
                     }
-                    serversAttempted++; // Count all batch attempts
-                    serversNotDiscarded++; // If we get here, server was not skipped due to security
+                    totalServersAttempted++; // Count all batch attempts
+                    totalServersNotDiscarded++; // If we get here, server was not skipped due to security
                     break;
 
                 case ActionType.SKIP_BATCHES:
-                    serversAttempted++;
-                    ns.print(`INFO: ${action.server} is skipped due to security.`);
+                    totalServersAttempted++;
+                    ns.print(`WARN: ${action.server} is skipped due to security.`);
                     break;
 
                 case ActionType.KILL_SCRIPTS:
@@ -682,15 +653,9 @@ export async function main(ns) {
             }
         }
 
-        // Update global counters for end-of-tick operations
-        totalServersAttempted = serversAttempted;
-        totalServersNotDiscarded = serversNotDiscarded;
-
         return {
             ...metadata,
             totalRamUsed: metadata.totalRamUsed + totalRamUsed,
-            totalServersAttempted: serversAttempted,
-            totalServersNotDiscarded: serversNotDiscarded,
         };
     }
 
@@ -792,11 +757,10 @@ export async function main(ns) {
      * @param {NS} ns
      * @param {string} server
      * @param {number} hackThreads - Number of hack threads to use
-     * @param {boolean} needsPrep - Whether the server needs prep
      * @param {boolean} useFormulas - If true, use formulas API with optimal server conditions (min security, max money)
      * @returns {Object} - Standardized server configuration object
      */
-    function getServerHackStats(ns, server, hackThreads, needsPrep, useFormulas = true) {
+    function getServerHackStats(ns, server, hackThreads, useFormulas = true) {
         const cpuCores = 1;
         const serverInfo = ns.getServer(server);
 
@@ -864,6 +828,16 @@ export async function main(ns) {
         const weakenTarget = hackSecurityChange + growthSecurityChange;
         const weakenThreadsNeeded = Math.ceil((CORRECTIVE_GROW_WEAK_MULTIPLIER * weakenTarget) / weakenAmount);
 
+        // Debug logging for clarkinc calculations
+        // if (server === "clarkinc" && hackThreads == 12) {
+        //     ns.print(
+        //         `CALC DEBUG ${hackThreads}H: hackSec=${ns.formatNumber(hackSecurityChange, 4)}, growSec=${ns.formatNumber(growthSecurityChange, 4)}, totalSec=${ns.formatNumber(weakenTarget, 4)}`,
+        //     );
+        //     ns.print(
+        //         `CALC DEBUG ${hackThreads}H: ${growthThreads}G threads, ${weakenThreadsNeeded}W threads, ${ns.formatPercent(actualHackPercentage)} hack`,
+        //     );
+        // }
+
         if (hackThreads <= 0 || growthThreads <= 0 || weakenThreadsNeeded <= 0) {
             return null;
         }
@@ -880,13 +854,20 @@ export async function main(ns) {
             hackChance *
             ns.getPlayer().mults.hacking_money *
             ns.getBitNodeMultipliers().ScriptHackMoney;
-        const availableBatchLimit = maxRamAvailable / ramRequired;
-        const throughput = (availableBatchLimit * moneyPerBatch) / (weakenTime / 1000);
+
+        const maxConcurrentBatches = Math.floor(maxRamAvailableForHacking / ramRequired);
 
         const theoreticalBatchLimit = weakenTime / TIME_PER_BATCH;
-        const batchLimitForSustainedThroughput = Math.min(availableBatchLimit, theoreticalBatchLimit);
+        const batchLimitForSustainedThroughput = Math.min(maxConcurrentBatches, theoreticalBatchLimit);
+
+        // Throughput is money per second from sustainable batches
+        const throughput = (batchLimitForSustainedThroughput * moneyPerBatch) / (weakenTime / 1000);
 
         const skippedDueToSecurity = serverInfo.hackDifficulty > serverBaselineSecurityLevels.get(server);
+
+        ns.print(
+            `DEBUG: ${server} | ${hackThreads}H:${growthThreads}G:${weakenThreadsNeeded}W | throughput: ${ns.formatNumber(throughput, 2)} | priority: ${ns.formatNumber(throughput / ramRequired, 2)} | sustained ram: ${ns.formatRam(maxConcurrentBatches * ramRequired)}`,
+        );
 
         return {
             // Core properties
@@ -897,7 +878,8 @@ export async function main(ns) {
             ramRequired,
             throughput,
             priority: throughput / ramRequired,
-            needsPrep,
+            maxConcurrentBatches,
+            ramUsageForSustainedThroughput: maxConcurrentBatches * ramRequired,
 
             // Timing values
             weakenTime,
@@ -924,28 +906,23 @@ export async function main(ns) {
         const allConfigurations = [];
         const serverMaxThroughputs = new Map(); // Track max throughput per server
 
-        for (const server of hackableServers) {
-            const serverInfo = ns.getServer(server);
+        const serversToEvaluate = hackableServers.filter((server) => {
+            return serversToHack.length === 0 ? true : serversToHack.includes(server);
+        });
 
-            // Check if server needs prep
-            const needsPrep =
-                serverInfo.moneyAvailable < serverInfo.moneyMax || serverInfo.hackDifficulty > serverInfo.minDifficulty;
-
+        for (const server of serversToEvaluate) {
             let exceededFullHackPercentage = false;
             let maxPriorityForServer = 0;
 
             // Generate configurations for 1-100 hack threads
-            for (let hackThreads = 1; hackThreads <= 100; hackThreads++) {
+            for (let hackThreads = 1; hackThreads <= 10; hackThreads++) {
                 if (exceededFullHackPercentage) break;
 
-                const hackPercentPerThread = ns.hackAnalyze(server);
-                const effectiveHackPercentage = hackThreads * hackPercentPerThread;
+                const config = getServerHackStats(ns, server, hackThreads);
 
-                if (effectiveHackPercentage >= 1) {
+                if (config.actualHackPercentage >= 1) {
                     exceededFullHackPercentage = true;
                 }
-
-                const config = getServerHackStats(ns, server, hackThreads, needsPrep);
                 if (config) {
                     allConfigurations.push(config);
                     // Track the maximum throughput for this server
@@ -959,8 +936,15 @@ export async function main(ns) {
             serverMaxThroughputs.set(server, maxPriorityForServer);
         }
 
+        ns.print(`DEBUG: allConfigurations: ${allConfigurations.length}`);
+        // for (const config of allConfigurations) {
+        //     ns.print(
+        //         `DEBUG: config.server: ${config.server} | throughput: ${config.throughput} | priority: ${config.priority} | sustained ram: ${ns.formatRam(config.ramUsageForSustainedThroughput)}`,
+        //     );
+        // }
+
         // Step 2: Apply knapsack algorithm
-        const knapsackResult = solveKnapsack(allConfigurations, totalFreeRam);
+        const knapsackResult = solveKnapsack(allConfigurations, maxRamAvailableForHacking);
 
         // Step 3: Convert results to prioritiesMap format (keeping compatibility)
         const prioritiesMap = new Map();
@@ -969,15 +953,22 @@ export async function main(ns) {
         for (const config of knapsackResult.selectedItems) {
             selectedServers.add(config.server);
 
+            const cycleTime = config.weakenTime / 1000;
+            ns.print(
+                `MAX HACK: ${config.server} - ${config.hackThreads}H (${ns.formatPercent(config.actualHackPercentage)}) - ${ns.formatRam(config.ramRequired)}/batch, max ${config.maxConcurrentBatches} concurrent = ${ns.formatRam(
+                    config.ramUsageForSustainedThroughput,
+                )} total`,
+            );
+            ns.print(
+                `CYCLE: ${ns.formatNumber(cycleTime, 1)}s weaken time, $${ns.formatNumber(config.throughput)}/s
+            throughput`,
+            );
+
             // Map to existing format for compatibility
             prioritiesMap.set(config.server, {
                 ...config,
                 ramNeededPerBatch: config.ramRequired,
-                batchLimitForSustainedThroughput: config.batchLimitForSustainedThroughput,
-                maxSecurityIncreasePerBatch: config.totalSecurityIncrease,
-                ramForMaxThroughput: config.ramRequired,
                 hackPercentage: config.actualHackPercentage,
-                maxThroughput: config.throughput,
                 selectedByKnapsack: true,
             });
         }
@@ -1004,9 +995,9 @@ export async function main(ns) {
         let remainingWeight = maxWeight;
 
         for (const config of configs) {
-            if (config.ramRequired <= remainingWeight) {
+            if (config.ramUsageForSustainedThroughput <= remainingWeight || selectedItems.length === 0) {
                 selectedItems.push(config);
-                remainingWeight -= config.ramRequired;
+                remainingWeight -= config.ramUsageForSustainedThroughput;
             }
         }
 
@@ -1071,6 +1062,16 @@ export async function main(ns) {
             const runningScripts = ns.ps(server);
 
             for (const script of runningScripts) {
+                if (
+                    !(
+                        script.filename === hackScriptName ||
+                        script.filename === growScriptName ||
+                        script.filename === weakenScriptName
+                    )
+                ) {
+                    continue;
+                }
+
                 if (script.args.length > 0) {
                     const target = script.args[0];
 
@@ -1851,7 +1852,7 @@ export async function main(ns) {
         const totalRamRequired = getTotalRamRequired(operations);
 
         // Calculate scaling factor if requires more than all of the ram we have
-        if (totalRamRequired > maxRamAvailable && allowPartial) {
+        if (totalRamRequired > maxRamAvailableForHacking && allowPartial) {
             // Scale based on free ram, not max ram
             // Leave a bit of room in every server in case scripts just barely fit
             scalingFactor = Math.max(
