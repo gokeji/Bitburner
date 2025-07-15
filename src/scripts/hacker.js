@@ -320,7 +320,7 @@ export async function main(ns) {
                         serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
                     );
 
-                    const moneyProtectionThreshold = 1 - serverStats.hackPercentage - 0.25;
+                    const moneyProtectionThreshold = 1 - serverStats.hackPercentage - 0.25; // TODO: this could be outdated, a new server can become available and the smaller one gets hacked way less
 
                     const securityBreach = serverInfo.hackDifficulty > securityThreshold;
                     const moneyBreach = serverInfo.moneyAvailable < serverInfo.moneyMax * moneyProtectionThreshold;
@@ -858,7 +858,7 @@ export async function main(ns) {
         // Throughput is money per second from sustainable batches
         const throughput = (batchLimitForSustainedThroughput * moneyPerBatch) / (weakenTime / 1000);
         const ramUsageForSustainedThroughput = batchLimitForSustainedThroughput * ramRequired;
-        // const priority = throughput / ramRequired;
+        const priority = throughput / (ramUsageForSustainedThroughput / 1000);
 
         const skippedDueToSecurity = serverInfo.hackDifficulty > serverBaselineSecurityLevels.get(server);
 
@@ -874,7 +874,7 @@ export async function main(ns) {
             weakenThreadsNeeded,
             ramRequired,
             throughput,
-            priority: throughput,
+            priority,
             ramUsageForSustainedThroughput,
 
             // Timing values
@@ -1021,7 +1021,8 @@ export async function main(ns) {
         let totalRam = 0;
         serverRamCache.clear();
 
-        const stanekIsRunning = ns.scriptRunning("stanek.js", "home");
+        const stanekIsRunning =
+            ns.scriptRunning("stanek.js", "home") || ns.isRunning("scripts/stanek-charge.js", "home", "home");
         if (stanekIsRunning && tickCounter % 10 === 0) {
             ns.print("INFO: Stanek is running - excluding home server RAM from hacking operations");
         }
