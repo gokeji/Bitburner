@@ -28,7 +28,7 @@ export async function main(ns) {
     let PARTIAL_PREP_THRESHOLD = 0.4;
     let ALLOW_HASH_UPGRADES = false;
 
-    let serversToHack = ["clarkinc"];
+    let serversToHack = []; // ["clarkinc"];
 
     // let minMoneyProtectionThreshold = 1 - hackPercentage - 0.25;
     const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
@@ -209,7 +209,7 @@ export async function main(ns) {
         const serversByThroughput = Array.from(serverMaxThroughputs.entries())
             .sort((a, b) => b[1] - a[1])
             .map(([server]) => server);
-        ns.print(`DEBUG: serversByThroughput = [${serversByThroughput.join(", ")}]`);
+        // ns.print(`DEBUG: serversByThroughput = [${serversByThroughput.join(", ")}]`);
 
         return {
             runningScriptInfo,
@@ -541,7 +541,7 @@ export async function main(ns) {
             return ServerState.NEEDS_PREP;
         }
 
-        return ServerState.EXCLUDED;
+        return ServerState.BATCHING;
     }
 
     // === HASH UPGRADE ACTIONS CALCULATOR ===
@@ -862,12 +862,14 @@ export async function main(ns) {
 
         // Throughput is money per second from sustainable batches
         const throughput = (batchLimitForSustainedThroughput * moneyPerBatch) / (weakenTime / 1000);
+        const ramUsageForSustainedThroughput = maxConcurrentBatches * ramRequired;
+        // const priority = throughput / ramRequired;
 
         const skippedDueToSecurity = serverInfo.hackDifficulty > serverBaselineSecurityLevels.get(server);
 
-        ns.print(
-            `DEBUG: ${server} | ${hackThreads}H:${growthThreads}G:${weakenThreadsNeeded}W | throughput: ${ns.formatNumber(throughput, 2)} | priority: ${ns.formatNumber(throughput / ramRequired, 2)} | sustained ram: ${ns.formatRam(maxConcurrentBatches * ramRequired)}`,
-        );
+        // ns.print(
+        //     `DEBUG: ${server} | ${hackThreads}H:${growthThreads}G:${weakenThreadsNeeded}W | throughput: ${ns.formatNumber(throughput, 2)} | ramPerBatch: ${ns.formatRam(ramRequired)} | sustained ram: ${ns.formatRam(ramUsageForSustainedThroughput)} | batches: ${maxConcurrentBatches}`,
+        // );
 
         return {
             // Core properties
@@ -877,9 +879,9 @@ export async function main(ns) {
             weakenThreadsNeeded,
             ramRequired,
             throughput,
-            priority: throughput / ramRequired,
+            priority: throughput,
             maxConcurrentBatches,
-            ramUsageForSustainedThroughput: maxConcurrentBatches * ramRequired,
+            ramUsageForSustainedThroughput,
 
             // Timing values
             weakenTime,
@@ -915,7 +917,7 @@ export async function main(ns) {
             let maxPriorityForServer = 0;
 
             // Generate configurations for 1-100 hack threads
-            for (let hackThreads = 1; hackThreads <= 10; hackThreads++) {
+            for (let hackThreads = 1; hackThreads <= 50; hackThreads++) {
                 if (exceededFullHackPercentage) break;
 
                 const config = getServerHackStats(ns, server, hackThreads);
@@ -960,8 +962,7 @@ export async function main(ns) {
                 )} total`,
             );
             ns.print(
-                `CYCLE: ${ns.formatNumber(cycleTime, 1)}s weaken time, $${ns.formatNumber(config.throughput)}/s
-            throughput`,
+                `CYCLE: ${ns.formatNumber(cycleTime, 1)}s weaken time, $${ns.formatNumber(config.throughput)}/s throughput`,
             );
 
             // Map to existing format for compatibility
