@@ -1004,6 +1004,17 @@ export async function main(ns) {
             }
         }
 
+        if (remainingWeight > 0 && selectedItems.length < configs.length) {
+            const remainingBestConfig = configs.find(
+                (config) =>
+                    !selectedItems.includes(config) &&
+                    selectedItems.every((selectedConfig) => config.server !== selectedConfig.server),
+            );
+            if (remainingBestConfig) {
+                selectedItems.push(remainingBestConfig);
+            }
+        }
+
         const totalThroughput = selectedItems.reduce((sum, config) => sum + config.throughput, 0);
 
         return { selectedItems, totalThroughput };
