@@ -93,6 +93,11 @@ const PrecalculatedRound1Option = {
         waitForAgricultureRP: 55,
         boostMaterialsRatio: 0.815,
     },
+    OPTION5: {
+        agricultureOfficeSize: 3,
+        waitForAgricultureRP: 65,
+        boostMaterialsRatio: 0.715,
+    },
 };
 const PrecalculatedRound2Option = {
     // 15.266e12 17282 804.175
@@ -181,6 +186,14 @@ const PrecalculatedRound2Option = {
         waitForChemicalRP: 148,
         agricultureBoostMaterialsRatio: 0.61,
     },
+    OPTION11: {
+        agricultureOfficeSize: 8,
+        // 3-1-1-3
+        increaseBusiness: true,
+        waitForAgricultureRP: 903,
+        waitForChemicalRP: 516,
+        agricultureBoostMaterialsRatio: 0.4,
+    },
 };
 const PrecalculatedRound3Option = {
     OPTION1: {},
@@ -266,14 +279,16 @@ async function round1(option = PrecalculatedRound1Option.OPTION2) {
         ns.corporation.getCorporation().funds,
         false,
     );
-    if (dataArray.length === 0) {
-        throw new Error("Cannot find optimal data");
-    }
-    const optimalData = dataArray[dataArray.length - 1];
-    buyUpgrade(ns, UpgradeName.SMART_STORAGE, optimalData.smartStorageLevel);
-    buyUpgrade(ns, UpgradeName.SMART_FACTORIES, optimalData.smartFactoriesLevel);
-    for (const city of cities) {
-        upgradeWarehouse(ns, DivisionName.AGRICULTURE, city, optimalData.warehouseLevel);
+    // if (dataArray.length === 0) {
+    //     throw new Error("Cannot find optimal data");
+    // }
+    if (dataArray.length > 0) {
+        const optimalData = dataArray[dataArray.length - 1];
+        buyUpgrade(ns, UpgradeName.SMART_STORAGE, optimalData.smartStorageLevel);
+        buyUpgrade(ns, UpgradeName.SMART_FACTORIES, optimalData.smartFactoriesLevel);
+        for (const city of cities) {
+            upgradeWarehouse(ns, DivisionName.AGRICULTURE, city, optimalData.warehouseLevel);
+        }
     }
     await waitUntilHavingEnoughResearchPoints(ns, [
         {
@@ -365,14 +380,16 @@ async function round2(option = PrecalculatedRound2Option.OPTION2) {
         ns.corporation.getCorporation().funds,
         false,
     );
-    if (dataArray.length === 0) {
-        throw new Error("Cannot find optimal data");
-    }
-    const optimalData = dataArray[dataArray.length - 1];
-    buyUpgrade(ns, UpgradeName.SMART_STORAGE, optimalData.smartStorageLevel);
-    buyUpgrade(ns, UpgradeName.SMART_FACTORIES, optimalData.smartFactoriesLevel);
-    for (const city of cities) {
-        upgradeWarehouse(ns, DivisionName.AGRICULTURE, city, optimalData.warehouseLevel);
+    // if (dataArray.length === 0) {
+    //     throw new Error("Cannot find optimal data");
+    // }
+    if (dataArray.length > 0) {
+        const optimalData = dataArray[dataArray.length - 1];
+        buyUpgrade(ns, UpgradeName.SMART_STORAGE, optimalData.smartStorageLevel);
+        buyUpgrade(ns, UpgradeName.SMART_FACTORIES, optimalData.smartFactoriesLevel);
+        for (const city of cities) {
+            upgradeWarehouse(ns, DivisionName.AGRICULTURE, city, optimalData.warehouseLevel);
+        }
     }
     await waitUntilHavingEnoughResearchPoints(ns, [
         {
@@ -437,7 +454,7 @@ async function round2(option = PrecalculatedRound2Option.OPTION2) {
         ),
     ]);
     if (config.auto === true) {
-        await waitForOffer(ns, 15, 10, 11e12);
+        await waitForOffer(ns, 15, 50, 11e12);
         ns.print(`Round 2: Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
         corporationEventLogger.generateOfferAcceptanceEvent(ns);
         ns.corporation.acceptInvestmentOffer();
@@ -1468,9 +1485,9 @@ function resetStatistics() {
 async function test() {}
 async function main(nsContext) {
     init(nsContext);
-    if (ns.getResetInfo().currentNode !== 3) {
-        throw new Error("This script is specialized for BN3");
-    }
+    // if (ns.getResetInfo().currentNode !== 3) {
+    //     throw new Error("This script is specialized for BN3");
+    // }
     config = ns.flags(defaultConfig);
     if (config.help === true) {
         ns.tprint(`Default config: ${defaultConfig}`);
@@ -1495,6 +1512,7 @@ async function main(nsContext) {
     //     testingTools.resetRNGData();
     //     enableTestingTools = true;
     // }
+
     if (config.round1 === true) {
         ns.print("Round 1");
         await round1();
@@ -1519,6 +1537,25 @@ async function main(nsContext) {
     if (config.test) {
         ns.ui.openTail();
         await test();
+        return;
+    }
+
+    // Auto recognize round
+    if (
+        !ns.corporation.hasCorporation() ||
+        !hasDivision(ns, DivisionName.AGRICULTURE) ||
+        !hasDivision(ns, DivisionName.CHEMICAL)
+    ) {
+        ns.print("Recognize Round 1");
+        await round1();
+        return;
+    } else if (!hasDivision(ns, DivisionName.TOBACCO)) {
+        ns.print("Recognize Round 2");
+        await round2();
+        return;
+    } else {
+        ns.print("Recognize Round 3");
+        await round3();
         return;
     }
 }

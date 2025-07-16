@@ -230,7 +230,7 @@ function createTestingTool() {
                     globalThis.SaveObject.loadGame(saveData);
                     setTimeout(() => {
                         globalThis.AllServers.loadAllServers(currentAllServers);
-                        ns.exec("daemon.js", "home", 1, "--maintainCorporation");
+                        ns.exec("cat/daemon.js", "home", 1, "--maintainCorporation");
                     }, 1e3);
                 });
             });
@@ -382,14 +382,14 @@ async function main(nsContext) {
                 });
                 doc.getElementById("hud-corp-maintain").innerText = `${isDaemonRunning}`;
                 if (runCorpMaintain) {
-                    if (ns.exec("daemon.js", "home", 1, "--maintainCorporation") === 0) {
+                    if (ns.exec("cat/daemon.js", "home", 1, "--maintainCorporation") === 0) {
                         ns.toast("Failed to run daemon.js --maintainCorporation");
                     }
                     runCorpMaintain = false;
                 }
                 if (runDelScripts) {
                     ns.killall("home", true);
-                    if (ns.exec("tools.js", "home", 1, "--deleteAllScripts") === 0) {
+                    if (ns.exec("cat/tools.js", "home", 1, "--deleteAllScripts") === 0) {
                         ns.toast("Failed to run tools.js --deleteAllScripts");
                     }
                     runDelScripts = false;
@@ -400,33 +400,33 @@ async function main(nsContext) {
                 }
                 if (runCorpRound) {
                     if (!hasDivision(ns, DivisionName.CHEMICAL)) {
-                        if (ns.exec("corporation.js", "home", 1, "--round2", "--benchmark") === 0) {
+                        if (ns.exec("cat/corporation.js", "home", 1, "--round2", "--benchmark") === 0) {
                             ns.toast("Failed to run corporation.js --round2 --benchmark");
                         }
                     } else if (!hasDivision(ns, DivisionName.TOBACCO)) {
-                        if (ns.exec("corporation.js", "home", 1, "--round3", "--benchmark") === 0) {
+                        if (ns.exec("cat/corporation.js", "home", 1, "--round3", "--benchmark") === 0) {
                             ns.toast("Failed to run corporation.js --round3 --benchmark");
                         }
                     } else {
-                        if (ns.exec("corporation.js", "home", 1, "--improveAllDivisions", "--benchmark") === 0) {
+                        if (ns.exec("cat/corporation.js", "home", 1, "--improveAllDivisions", "--benchmark") === 0) {
                             ns.toast("Failed to run corporation.js --improveAllDivisions --benchmark");
                         }
                     }
                     runCorpRound = false;
                 }
                 if (runCorpTest) {
-                    if (ns.exec("corporation.js", "home", 1, "--test", "--benchmark") === 0) {
+                    if (ns.exec("cat/corporation.js", "home", 1, "--test", "--benchmark") === 0) {
                         ns.toast("Failed to run corporation.js --test --benchmark");
                     }
                     runCorpTest = false;
                 }
             } else {
                 if (runCorpRound) {
-                    if (ns.exec("corporation.js", "home", 1, "--round1", "--benchmark") === 0) {
+                    if (ns.exec("cat/corporation.js", "home", 1, "--round1", "--benchmark") === 0) {
                         ns.toast("Failed to run corporation.js --round1 --benchmark");
                     }
                     await ns.sleep(1e3);
-                    ns.exec("daemon.js", "home", 1, "--maintainCorporation");
+                    ns.exec("cat/daemon.js", "home", 1, "--maintainCorporation");
                     testingTools.setUnlimitedBonusTime();
                     runCorpRound = false;
                 }
