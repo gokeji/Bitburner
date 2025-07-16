@@ -56,16 +56,21 @@ export async function main(ns) {
 
     // If printFactionServerPaths is true, print the commands to get to each of the faction servers
     if (printFactionServerPaths) {
-        const factionServers = ["CSEC", "avmnite-02h", "I.I.I.I", "run4theh111z"];
-        for (const faction of factionServers) {
-            const { server, path } = findPathToServer(ns, faction);
+        const factionServers = [
+            ["CyberSec", "CSEC"],
+            ["NiteSec", "avmnite-02h"],
+            ["The Black Hand", "I.I.I.I"],
+            ["BitRunners", "run4theh111z"],
+        ];
+        for (const [faction, factionServer] of factionServers) {
+            const { server, path } = findPathToServer(ns, factionServer);
             if (path) {
                 let commandToGetToServer = "home; ";
                 for (let i = 1; i < path.length; i++) {
                     commandToGetToServer += `connect ${path[i]}; `;
                 }
                 ns.tprint(
-                    `=== ${faction} level: ${ns.getServerRequiredHackingLevel(faction)} === \n${commandToGetToServer}\n `,
+                    `=== ${faction} (${factionServer}) level: ${ns.getServerRequiredHackingLevel(factionServer)} === \n${commandToGetToServer}\n `,
                 );
             }
         }

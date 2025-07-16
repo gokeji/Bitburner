@@ -186,7 +186,7 @@ export async function main(ns) {
         ns.print(`DEBUG: maxRamAvailableForHacking: ${ns.formatRam(maxRamAvailableForHacking)}`);
 
         // Calculate global priorities map once per tick (without excluding any servers)
-        const { prioritiesMap, serverMaxThroughputs } = calculateTargetServerPriorities(ns);
+        const { prioritiesMap, serverMaxPriorities } = calculateTargetServerPriorities(ns);
         globalPrioritiesMap = prioritiesMap;
 
         ns.print(
@@ -202,20 +202,26 @@ export async function main(ns) {
         processServersOnHold(ns);
 
         // Send throughput data to port 4 for get_stats.js
-        var throughputPortHandle = ns.getPortHandle(4);
-        throughputPortHandle.clear();
-        for (let [server, maxThroughput] of serverMaxThroughputs.entries()) {
-            throughputPortHandle.write(JSON.stringify({ server: server, profit: maxThroughput }));
+        var priorityPortHandle = ns.getPortHandle(4);
+        priorityPortHandle.clear();
+        for (let [server, maxPriority] of serverMaxPriorities.entries()) {
+            priorityPortHandle.write(JSON.stringify({ server: server, priority: maxPriority }));
         }
+
+        var throughputPortHandle = ns.getPortHandle(5);
+        throughputPortHandle.clear();
+        for (let [server, { throughput }] of prioritiesMap.entries()) {
+            throughputPortHandle.write(JSON.stringify({ server: server, throughput: throughput }));
+        }
+
         // Sort servers by their maximum possible throughput (calculated in calculateTargetServerPriorities)
-        const serversByThroughput = Array.from(serverMaxThroughputs.entries())
+        const serversByPriority = Array.from(serverMaxPriorities.entries())
             .sort((a, b) => b[1] - a[1])
             .map(([server]) => server);
-        // ns.print(`DEBUG: serversByThroughput = [${serversByThroughput.join(", ")}]`);
 
         return {
             scriptInfoByTarget,
-            serversByThroughput,
+            serversByPriority,
             globalPrioritiesMap,
             serversOnHold: new Map(serversOnHold), // Copy for immutability
             serverBatchTimings: new Map(serverBatchTimings),
@@ -237,14 +243,14 @@ export async function main(ns) {
 
         // 2. Server Processing Actions
         ns.print(
-            `DEBUG: Processing ${gameState.serversByThroughput.length} servers with ${ns.formatRam(ramToDistribute)} available`,
+            `DEBUG: Processing ${gameState.serversByPriority.length} servers with ${ns.formatRam(ramToDistribute)} available`,
         );
         for (
             let serverIndex = 0;
-            serverIndex < gameState.serversByThroughput.length && ramToDistribute > 0;
+            serverIndex < gameState.serversByPriority.length && ramToDistribute > 0;
             serverIndex++
         ) {
-            const server = gameState.serversByThroughput[serverIndex];
+            const server = gameState.serversByPriority[serverIndex];
             const serverState = determineServerState(server, gameState);
             // if (serverState !== ServerState.EXCLUDED) {
             //     ns.print(`DEBUG: Server ${server} state: ${serverState}`);
@@ -546,7 +552,7 @@ export async function main(ns) {
         if (!ALLOW_HASH_UPGRADES) return actions;
 
         // Find highest priority server for hash upgrades
-        const highestPriorityServer = gameState.serversByThroughput.find((server) => {
+        const highestPriorityServer = gameState.serversByPriority.find((server) => {
             return ns.getServerMaxMoney(server) < 10e12 || ns.getServerMinSecurityLevel(server) > 10;
         });
 
@@ -843,22 +849,25 @@ export async function main(ns) {
             weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
 
         // Calculate actual throughput (money per second) using ACTUAL hack percentage
+        const bitnodeMultipliers = ns.getBitNodeMultipliers();
         const moneyPerBatch =
             actualHackPercentage *
             serverInfo.moneyMax *
             hackChance *
             ns.getPlayer().mults.hacking_money *
-            ns.getBitNodeMultipliers().ScriptHackMoney;
+            bitnodeMultipliers.ScriptHackMoney *
+            bitnodeMultipliers.ScriptHackMoneyGain;
 
         const maxConcurrentBatches = Math.floor(maxRamAvailableForHacking / ramRequired);
 
-        const theoreticalBatchLimit = Math.floor(weakenTime / TIME_PER_BATCH);
+        const batchesPerTick = Math.floor(TICK_DELAY / TIME_PER_BATCH);
+        const theoreticalBatchLimit = Math.floor((weakenTime / TICK_DELAY) * batchesPerTick);
         const batchLimitForSustainedThroughput = Math.min(maxConcurrentBatches, theoreticalBatchLimit);
 
         // Throughput is money per second from sustainable batches
         const throughput = (batchLimitForSustainedThroughput * moneyPerBatch) / (weakenTime / 1000);
         const ramUsageForSustainedThroughput = batchLimitForSustainedThroughput * ramRequired;
-        const priority = throughput / (ramUsageForSustainedThroughput / 1000);
+        const priority = throughput / (ramUsageForSustainedThroughput / 10000);
 
         const skippedDueToSecurity = serverInfo.hackDifficulty > serverBaselineSecurityLevels.get(server);
 
@@ -900,7 +909,7 @@ export async function main(ns) {
     function calculateTargetServerPriorities(ns) {
         // Step 1: Generate all possible configurations for all servers
         const allConfigurations = [];
-        const serverMaxThroughputs = new Map(); // Track max throughput per server
+        const serverMaxPriorities = new Map(); // Track max throughput per server
 
         const serversToEvaluate = hackableServers.filter((server) => {
             return serversToHack.length === 0 ? true : serversToHack.includes(server);
@@ -929,7 +938,7 @@ export async function main(ns) {
             }
 
             // Store the maximum throughput for this server
-            serverMaxThroughputs.set(server, maxPriorityForServer);
+            serverMaxPriorities.set(server, maxPriorityForServer);
         }
 
         ns.print(`DEBUG: allConfigurations: ${allConfigurations.length}`);
@@ -963,10 +972,10 @@ export async function main(ns) {
         }
 
         ns.print(
-            `KNAPSACK: Selected ${knapsackResult.selectedItems.length} configurations across ${selectedServers.size} servers out of ${serverMaxThroughputs.size} total servers`,
+            `KNAPSACK: Selected ${knapsackResult.selectedItems.length} configurations across ${selectedServers.size} servers out of ${serverMaxPriorities.size} total servers`,
         );
 
-        return { prioritiesMap, serverMaxThroughputs };
+        return { prioritiesMap, serverMaxPriorities };
     }
 
     /**

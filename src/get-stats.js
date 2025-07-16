@@ -38,7 +38,7 @@ export async function main(ns) {
             }
         });
 
-    const charsWidth = 137; // Updated to include 8-char priority column + 6-char batch column + 5-char time column + separators
+    const charsWidth = 141; // Updated to include 8-char priority column + 6-char batch column + 5-char time column + separators
 
     // Chart mode: dynamic updating terminal display
     ns.ui.openTail();
@@ -56,8 +56,9 @@ export async function main(ns) {
     cleanupCaches();
 
     while (true) {
-        // Update profit data from distributed-hack.js
-        update_distributed_hack_profits(ns);
+        // Update priority data from hacker.js
+        updateServerPriorities(ns);
+        updateServerThroughputs(ns);
 
         // Update hacking money rate tracking
         updateHackingMoneyRate(ns);
@@ -79,13 +80,13 @@ export async function main(ns) {
         ns.ui.resizeTail(windowWidth, windowHeight);
 
         // Generate all content first to minimize flashing
-        const chartData = generate_chart_data(ns, servers);
+        const chartData = generateChartData(ns, servers);
         const hackingRate = getHackingMoneyRate();
 
         const timeHeader = `Time: ${new Date().toLocaleTimeString()} - Hack Monitor - Hacking Rate: ${ns.formatNumber(hackingRate)}/s`;
         const separator = "=".repeat(charsWidth);
         const dashSeparator = "-".repeat(charsWidth);
-        const tableHeader = get_table_header();
+        const tableHeader = getTableHeader();
 
         const allUsableServers = getServers(ns, "executable");
         const purchasedServerCount = allUsableServers.filter(
@@ -315,42 +316,55 @@ function findHGWProcesses(ns, targetServer) {
     return result;
 }
 
-// Global variable to store profit data from distributed-hack.js
-var distributedHackProfits = new Map();
+// Global variable to store priority data from hacker.js
+var serverPriorities = new Map();
+var serverThroughputs = new Map();
 
-// Function to read profit data from port 4 (sent by distributed-hack.js)
-function update_distributed_hack_profits(ns) {
-    const profitPortHandle = ns.getPortHandle(4);
-    const newProfits = new Map();
+// Function to read priority data from port 4 (sent by hacker.js)
+function updateServerPriorities(ns) {
+    const priorityPortHandle = ns.getPortHandle(4);
+    const newPriorities = new Map();
 
-    // Read all profit data from the port
-    while (!profitPortHandle.empty()) {
+    // Read all priority data from the port
+    while (!priorityPortHandle.empty()) {
         try {
-            const data = JSON.parse(profitPortHandle.read());
-            newProfits.set(data.server, data.profit);
+            const data = JSON.parse(priorityPortHandle.read());
+            newPriorities.set(data.server, data.priority);
         } catch (e) {
             // Skip invalid JSON data
             continue;
         }
     }
 
-    if (newProfits.size > 0) {
-        // Update the global variable with the new profits
-        distributedHackProfits = newProfits;
+    if (newPriorities.size > 0) {
+        // Update the global variable with the new priorities
+        serverPriorities = newPriorities;
     }
 }
 
-// Get hacking priority from distributed-hack.js data, fallback to local calculation
-function get_hacking_priority(ns, server) {
-    // Try to get from distributed-hack.js first
-    if (distributedHackProfits.has(server)) {
-        return distributedHackProfits.get(server);
+// Function to read throughput data from port 5 (sent by hacker.js)
+function updateServerThroughputs(ns) {
+    const throughputPortHandle = ns.getPortHandle(5);
+    const newThroughputs = new Map();
+
+    // Read all priority data from the port
+    while (!throughputPortHandle.empty()) {
+        try {
+            const data = JSON.parse(throughputPortHandle.read());
+            newThroughputs.set(data.server, data.throughput);
+        } catch (e) {
+            // Skip invalid JSON data
+            continue;
+        }
     }
 
-    return null;
+    if (newThroughputs.size > 0) {
+        // Update the global variable with the new priorities
+        serverThroughputs = newThroughputs;
+    }
 }
 
-function pad_str(string, len) {
+function padStr(string, len) {
     /*
 	Prepends the requested padding to the string.
 	*/
@@ -363,7 +377,7 @@ function pad_str(string, len) {
  * @param {string} server
  * @returns {string}
  */
-function get_server_data(ns, server, useFormulas = false) {
+function getServerData(ns, server, useFormulas = false) {
     /*
 	Creates the info text for each server. Currently gets money, security, RAM, distributed attack info, priority, and batch time.
 	*/
@@ -376,7 +390,8 @@ function get_server_data(ns, server, useFormulas = false) {
     var hgwData = findHGWProcesses(ns, server); // Get distributed attack info and earliest end time
     var attackInfo = hgwData ? hgwData.attackInfo : null;
     var earliestEndTime = hgwData ? hgwData.earliestEndTime : null;
-    var priority = get_hacking_priority(ns, server); // Get hacking priority
+    var priority = serverPriorities.get(server); // Get hacking priority
+    var throughput = serverThroughputs.get(server); // Get hacking throughput
     var weakenTimeMs = ns.getWeakenTime(server); // Get weaken time (batch time)
 
     if (useFormulas) {
@@ -393,7 +408,7 @@ function get_server_data(ns, server, useFormulas = false) {
 
     // Format money with M suffix for millions
     var formatMoney = (amount, digits = 0) => {
-        if (isNaN(amount)) return amount;
+        if (isNaN(amount)) return "--";
         if (amount === null) return "--";
         if (amount === 0) return "0";
 
@@ -471,18 +486,19 @@ function get_server_data(ns, server, useFormulas = false) {
 
     // Build row with separators and no column labels
     var result =
-        `${pad_str(server, 18)}|` +
-        `${pad_str(formatMoney(moneyAvailable, 2), 8)}/${pad_str(formatMoney(moneyMax, 2), 7)}${pad_str(`(${formatPercentage(moneyPercentage, 1)})`, 8)}|` +
+        `${padStr(server, 18)}|` +
+        `${padStr(formatMoney(moneyAvailable, 2), 8)}/${padStr(formatMoney(moneyMax, 2), 7)}${padStr(`(${formatPercentage(moneyPercentage, 1)})`, 8)}|` +
         `${progressBar}|` +
-        `${pad_str(securityLvl.toFixed(2), 6)}(${pad_str(ns.formatNumber(securityMin, 1), 4)})|` +
-        `${pad_str(ram, 4)}G|` +
-        `${pad_str(requiredHackingSkill, 5)}|` +
-        `${pad_str(formatMoney(priority, 2), 8)}|` +
-        `${pad_str(formatTime(weakenTimeMs), 6)}|` +
-        `${pad_str(formatTimeRemaining(earliestEndTime), 6)}|`;
+        `${padStr(securityLvl.toFixed(2), 6)}(${padStr(ns.formatNumber(securityMin, 1), 4)})|` +
+        // `${padStr(ram, 4)}G|` +
+        `${padStr(requiredHackingSkill, 5)}|` +
+        `${padStr(formatMoney(priority, 2), 8)}|` +
+        `${padStr(formatMoney(throughput, 2), 8)}|` +
+        `${padStr(formatTime(weakenTimeMs), 6)}|` +
+        `${padStr(formatTimeRemaining(earliestEndTime), 6)}|`;
 
     // Add distributed attack info
-    result += attackInfo ? pad_str(`${attackInfo}`, 24) : pad_str("", 20);
+    result += attackInfo ? padStr(`${attackInfo}`, 24) : padStr("", 20);
 
     return result;
 }
@@ -519,11 +535,11 @@ function getSortedServerOrder(ns, servers) {
 }
 
 // NEW: Function to generate chart data for dynamic updates
-function generate_chart_data(ns, servers) {
+function generateChartData(ns, servers) {
     var stats = {};
     // For each server in servers, get the server data and add to our Hash Table.
     for (var server of servers) {
-        stats[server] = get_server_data(ns, server);
+        stats[server] = getServerData(ns, server);
     }
 
     // Get sorted server order (cached unless server list changed)
@@ -534,8 +550,21 @@ function generate_chart_data(ns, servers) {
 }
 
 // Add table header function that matches exact column spacing
-function get_table_header() {
-    return `${pad_str("Server", 18)}|${pad_str("Money Available/Max (%)", 24)}|${pad_str("Money Reserve", 20)}|${pad_str("Sec(Min)", 12)}|${pad_str("RAM", 5)}|${pad_str("Skill", 5)}|${pad_str("Priority", 8)}|${pad_str("Batch", 6)}|${pad_str("Due", 6)}|${pad_str("Attack Threads", 24)}`;
+function getTableHeader() {
+    let header =
+        `${padStr("Server", 18)}|` +
+        `${padStr("Money Available/Max (%)", 24)}|` +
+        `${padStr("Money Reserve", 20)}|` +
+        `${padStr("Sec(Min)", 12)}|` +
+        //  padStr("RAM", 5) + "|" +
+        `${padStr("Skill", 5)}|` +
+        `${padStr("Priority", 8)}|` +
+        `${padStr("Profit", 8)}|` +
+        `${padStr("Batch", 6)}|` +
+        `${padStr("Due", 6)}|` +
+        `${padStr("Attack Threads", 24)}`;
+
+    return header;
 }
 
 // Cleanup old cache entries to prevent memory leaks
@@ -565,7 +594,7 @@ function updateHackingMoneyRate(ns) {
 
     // Keep 60 seconds of history (same as karma.js)
     hackingMoneyHistory.push({ money: hackingMoney, time: now });
-    hackingMoneyHistory = hackingMoneyHistory.filter((entry) => now - entry.time <= 60000);
+    hackingMoneyHistory = hackingMoneyHistory.filter((entry) => now - entry.time <= 180000);
 }
 
 // Function to calculate hacking money rate
