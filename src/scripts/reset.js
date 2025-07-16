@@ -14,6 +14,7 @@ export async function main(ns) {
     // Wait for augmentation purchase scripts to complete
     // const pid1 = ns.run("scripts/get-augments.js", 1, "--combat", "--buy", "--force-buy");
     const pid1 = ns.run("scripts/get-augments.js", 1, "--hacking", "--rep", "--hacknet", "--buy", "--force-buy");
+    await ns.sleep(100);
     const pid2 = ns.run("scripts/get-augments.js", 1, "--buy", "--force-buy");
 
     // Wait for both scripts to finish

@@ -23,10 +23,10 @@ export async function main(ns) {
     let MAX_WEAKEN_TIME = 15 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
     // let hackPercentage = 0.01;
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.11; // Use extra grow and weak threads to correct for out of sync HGW batches
 
     let PARTIAL_PREP_THRESHOLD = 0.4;
-    let ALLOW_HASH_UPGRADES = false;
+    let ALLOW_HASH_UPGRADES = true;
 
     let serversToHack = []; // ["clarkinc"];
 

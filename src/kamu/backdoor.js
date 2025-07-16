@@ -1,5 +1,10 @@
 import { NS } from "@ns";
 
+/**
+ * This script is used to backdoor a server.
+ * It will search the network path to the target server and install the backdoor on each server in the path.
+ * @param {NS} ns - The Netscript API.
+ */
 export async function main(ns) {
     // w0r1d_d43m0n
     if (ns.args.length == 1) {
