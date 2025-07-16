@@ -122,60 +122,6 @@ function displayNeuroFluxStatus(ns, validation, isPurchasing, forceBuy) {
     }
 }
 
-/**
- * Estimates NeuroFlux Governor donation costs for budget planning
- * This is called before optimization to ensure donation costs are included in budget
- * @param {NS} ns - NetScript object
- * @param {Object} player - Player object
- * @param {number} currentNeuroFluxLevel - Current NeuroFlux level
- * @param {number} estimatedNeuroFluxCount - Estimated number of NeuroFlux to purchase
- * @param {boolean} allowDonation - Whether donations are allowed
- * @param {Array} specialFactions - Array of factions that cannot receive donations
- * @returns {Object} Object with estimatedDonationCost and bestFaction
- */
-function estimateNeuroFluxDonationCosts(
-    ns,
-    player,
-    currentNeuroFluxLevel,
-    estimatedNeuroFluxCount,
-    allowDonation = false,
-    specialFactions = [],
-) {
-    if (!allowDonation || estimatedNeuroFluxCount <= 0) {
-        return { estimatedDonationCost: 0, bestFaction: null };
-    }
-
-    const baseNeuroFluxRepReq = ns.singularity.getAugmentationRepReq("NeuroFlux Governor");
-    const finalNeuroFluxLevel = currentNeuroFluxLevel + estimatedNeuroFluxCount - 1;
-    const maxNeuroFluxRepReq = baseNeuroFluxRepReq * 1.14 ** (finalNeuroFluxLevel - currentNeuroFluxLevel);
-
-    const neuroFluxFactions = ns.singularity.getAugmentationFactions("NeuroFlux Governor");
-    let maxFactionRep = 0;
-    let bestNeuroFluxFaction = null;
-
-    for (const faction of neuroFluxFactions) {
-        if (player.factions.includes(faction)) {
-            const factionRep = ns.singularity.getFactionRep(faction);
-            if (factionRep > maxFactionRep) {
-                maxFactionRep = factionRep;
-                bestNeuroFluxFaction = faction;
-            }
-        }
-    }
-
-    // Check if we need to donate and can donate
-    if (bestNeuroFluxFaction && maxFactionRep < maxNeuroFluxRepReq) {
-        const favor = ns.singularity.getFactionFavor(bestNeuroFluxFaction);
-        if (favor >= 150 && !specialFactions.includes(bestNeuroFluxFaction)) {
-            const repShortfall = maxNeuroFluxRepReq - maxFactionRep;
-            const donationCost = ns.formulas.reputation.donationForRep(repShortfall, player);
-            return { estimatedDonationCost: donationCost, bestFaction: bestNeuroFluxFaction };
-        }
-    }
-
-    return { estimatedDonationCost: 0, bestFaction: bestNeuroFluxFaction };
-}
-
 export function autocomplete(data, args) {
     data.flags(argsSchema);
     return [];
@@ -1079,12 +1025,21 @@ export async function main(ns) {
     const factionDonationCosts = new Map(); // faction -> donation cost
 
     if (allowDonation && result.purchaseOrder.length > 0) {
-        // Group purchased augments by faction and find max reputation needed per faction
-        const factionMaxRep = new Map(); // faction -> max rep needed
+        // Find the highest reputation requirement among all purchased augments
+        let maxRepNeeded = 0;
+        let bestFactionForDonation = null;
+        let bestFactionCurrentRep = 0;
 
         for (const aug of result.purchaseOrder) {
-            const currentRep = ns.singularity.getFactionRep(aug.faction);
-            const favor = ns.singularity.getFactionFavor(aug.faction);
+            const faction = aug.faction;
+            const favor = ns.singularity.getFactionFavor(faction);
+
+            // Skip if we can't donate to this faction
+            if (favor < 150 || specialFactions.includes(faction)) {
+                continue;
+            }
+
+            ns.print(`Processing ${aug.name} from ${faction}`);
 
             // Get the actual reputation requirement
             let repReq;
@@ -1092,77 +1047,43 @@ export async function main(ns) {
                 // For NeuroFlux Governor, calculate based on the actual level needed
                 const level = parseInt(aug.name.match(/Level (\d+)/)[1]);
                 const baseRepReq = ns.singularity.getAugmentationRepReq("NeuroFlux Governor");
-                repReq = baseRepReq * 1.14 ** (level - 1);
+                repReq = baseRepReq * 1.14 ** (level - currentNeuroFluxPurchaseLevel);
             } else {
                 // For other augments, use the stored repReq or get it dynamically
                 repReq = aug.repReq || ns.singularity.getAugmentationRepReq(aug.name);
             }
 
-            if (currentRep < repReq && favor >= 150 && !specialFactions.includes(aug.faction)) {
-                const currentMax = factionMaxRep.get(aug.faction) || 0;
-                factionMaxRep.set(aug.faction, Math.max(currentMax, repReq));
+            // Track the highest reputation requirement
+            if (repReq > maxRepNeeded) {
+                maxRepNeeded = repReq;
+            }
+
+            // Find the faction with the highest current reputation (best candidate for donation)
+            const currentRep = ns.singularity.getFactionRep(faction);
+            if (currentRep > bestFactionCurrentRep) {
+                bestFactionCurrentRep = currentRep;
+                bestFactionForDonation = faction;
             }
         }
 
-        // Calculate donation cost for each faction
-        for (const [faction, maxRepNeeded] of factionMaxRep) {
-            const currentRep = ns.singularity.getFactionRep(faction);
+        // If we need to donate, calculate the cost for the best faction
+        if (maxRepNeeded > 0 && bestFactionForDonation) {
+            const currentRep = ns.singularity.getFactionRep(bestFactionForDonation);
             const repShortfall = maxRepNeeded - currentRep;
 
             if (repShortfall > 0) {
                 const donationCost = ns.formulas.reputation.donationForRep(repShortfall, ns.getPlayer());
-                factionDonationCosts.set(faction, donationCost);
+                ns.print(
+                    `Donating $${ns.formatNumber(donationCost)} to ${bestFactionForDonation}, need ${repShortfall} more rep`,
+                );
+                factionDonationCosts.set(bestFactionForDonation, donationCost);
                 totalDonationCosts += donationCost;
             }
         }
     }
 
-    // Recalculate actual NeuroFlux donation costs based on final optimization result
-    if (allowDonation && result.neurofluxCount > 0) {
-        const neuroFluxValidation = validateNeuroFluxReputation(
-            ns,
-            player,
-            currentNeuroFluxPurchaseLevel,
-            result.neurofluxCount,
-            allowDonation,
-            specialFactions,
-        );
-
-        if (neuroFluxValidation.canAffordWithDonation && neuroFluxValidation.bestFaction) {
-            const currentRep = ns.singularity.getFactionRep(neuroFluxValidation.bestFaction);
-            const favor = ns.singularity.getFactionFavor(neuroFluxValidation.bestFaction);
-
-            // Check if we can donate to this faction (exclude special factions)
-            if (
-                currentRep < neuroFluxValidation.maxRepReq &&
-                favor >= 150 &&
-                !specialFactions.includes(neuroFluxValidation.bestFaction)
-            ) {
-                const repShortfall = neuroFluxValidation.maxRepReq - currentRep;
-                const actualNeuroFluxDonationCost = ns.formulas.reputation.donationForRep(repShortfall, ns.getPlayer());
-
-                // Update the faction donation costs with the actual amount needed
-                const existingDonation = factionDonationCosts.get(neuroFluxValidation.bestFaction) || 0;
-                if (actualNeuroFluxDonationCost > existingDonation) {
-                    const additionalCost = actualNeuroFluxDonationCost - existingDonation;
-                    factionDonationCosts.set(neuroFluxValidation.bestFaction, actualNeuroFluxDonationCost);
-                    totalDonationCosts += additionalCost;
-
-                    ns.print(
-                        `\n🔄 Adjusted NeuroFlux donation: $${ns.formatNumber(actualNeuroFluxDonationCost)} to ${neuroFluxValidation.bestFaction} (for ${result.neurofluxCount} levels)`,
-                    );
-                } else if (actualNeuroFluxDonationCost < existingDonation) {
-                    const savedCost = existingDonation - actualNeuroFluxDonationCost;
-                    factionDonationCosts.set(neuroFluxValidation.bestFaction, actualNeuroFluxDonationCost);
-                    totalDonationCosts -= savedCost;
-
-                    ns.print(
-                        `\n💰 Reduced NeuroFlux donation: $${ns.formatNumber(actualNeuroFluxDonationCost)} to ${neuroFluxValidation.bestFaction} (saved $${ns.formatNumber(savedCost)})`,
-                    );
-                }
-            }
-        }
-    }
+    // The donation costs are now calculated correctly in the main loop above
+    // No need for additional NeuroFlux-specific recalculation
 
     // Display the optimal purchase order
     ns.print("\n");

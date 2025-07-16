@@ -12,6 +12,7 @@ export async function main(ns) {
     ns.tprint(`Current neuroflux level: ${currentNeuroFluxLevel}`);
 
     // Wait for augmentation purchase scripts to complete
+    // const pid1 = ns.run("scripts/get-augments.js", 1, "--combat", "--buy", "--force-buy");
     const pid1 = ns.run("scripts/get-augments.js", 1, "--hacking", "--rep", "--hacknet", "--buy", "--force-buy");
     const pid2 = ns.run("scripts/get-augments.js", 1, "--buy", "--force-buy");
 
