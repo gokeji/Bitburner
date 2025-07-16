@@ -35,7 +35,11 @@ export async function main(ns) {
         const success = ns.exec("kamu/share.js", server, maxThreads);
         if (!success) {
             ns.print(`Failed to execute share.js on ${server}`);
+            await ns.sleep(10025); // Sleep 25ms extra to make sure share is done running
+            continue;
         }
-        await ns.sleep(10025); // Sleep 25ms extra to make sure share is done running
+        while (ns.scriptRunning("kamu/share.js", server)) {
+            await ns.sleep(20);
+        }
     }
 }

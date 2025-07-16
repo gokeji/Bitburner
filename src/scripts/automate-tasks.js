@@ -7,6 +7,17 @@ export async function main(ns) {
     ns.disableLog("sleep");
     ns.disableLog("singularity.commitCrime");
 
+    /**
+     * @typedef {
+     *     { type: "faction", target: string, goal: string } |
+     *     { type: "augmentation", target: string, acceptGraft: boolean } |
+     *     { type: "homicide" } |
+     *     { type: "graft", target: string } |
+     *     { type: "reset" }
+     * } Task
+     */
+
+    /** @type {Task[]} */
     let taskQueue = [
         { type: "faction", target: "Daedalus", goal: "100000" },
         { type: "faction", target: "Daedalus", goal: "favor" },
@@ -25,7 +36,7 @@ export async function main(ns) {
         // { type: "faction", target: "Netburners", goal: "12500" },
         // { type: "reset" },
 
-        { type: "faction", target: "NiteSec", goal: "45000" },
+        // { type: "faction", target: "NiteSec", goal: "45000" }, // CRTX42-AA Gene Modification
         // { type: "graft", target: "QLink" },
         {
             type: "graft",
@@ -35,17 +46,22 @@ export async function main(ns) {
             type: "graft",
             target: "BitRunners Neurolink",
         },
+        {
+            type: "graft",
+            target: "SPTN-97 Gene Modification",
+        },
 
-        { type: "faction", target: "Chongqing", goal: "37500" },
-        { type: "faction", target: "Tian Di Hui", goal: "75000" },
-        { type: "faction", target: "BitRunners", goal: "100000" },
+        { type: "faction", target: "Tetrads", goal: "62500" }, // Bionic Arms
+        { type: "reset" },
+        { type: "faction", target: "Chongqing", goal: "37500" }, // Neuregen Gene Modification
+        { type: "faction", target: "Tian Di Hui", goal: "75000" }, // Neuroreceptor Management Implant
+        { type: "faction", target: "BitRunners", goal: "100000" }, // Embedded Netburner Module Core V3 Upgrade
 
         // { type: "faction", target: "NiteSec", goal: "favor" },
 
-        { type: "faction", target: "The Black Hand", goal: "100000" },
+        { type: "faction", target: "The Black Hand", goal: "100000" }, // The Black Hand
         { type: "faction", target: "BitRunners", goal: "250000" },
         { type: "faction", target: "BitRunners", goal: "favor" },
-        // { type: "reset" },
     ];
 
     ns.print("\n\n\n\n\n\n");
@@ -173,7 +189,9 @@ async function executeTask(ns, task, isFirstTime = false) {
             }
 
             if (!currentWork || currentWork.type !== "FACTION" || currentWork.factionName !== task.target) {
-                const success = ns.singularity.workForFaction(task.target, "hacking", true);
+                const workTypes = ns.singularity.getFactionWorkTypes(task.target);
+                const preferredWorkType = workTypes.includes("hacking") ? "hacking" : workTypes[0];
+                const success = ns.singularity.workForFaction(task.target, preferredWorkType, true);
                 if (success && isFirstTime) {
                     ns.print(
                         `${new Date().toLocaleTimeString()} Starting work for ${task.target}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)}`,

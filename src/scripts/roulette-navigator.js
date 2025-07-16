@@ -4,7 +4,7 @@ let doc = eval("document");
 let options;
 const argsSchema = [
     ["click-sleep-time", 5], // Time to sleep in milliseconds before and after clicking any button
-    ["find-sleep-time", 0], // Time to sleep in milliseconds before trying to find any element on screen
+    // ["find-sleep-time", 0], // Time to sleep in milliseconds before trying to find any element on screen
     ["enable-logging", false], // Set to true to pop up a tail window and generate logs
     ["roulette-script", "scripts/roulette.js"], // Path to the roulette script to run
 ];
@@ -193,7 +193,7 @@ export async function main(ns) {
 }
 
 // DOM helper functions (adapted from casino.js)
-async function click(ns, button) {
+export async function click(ns, button) {
     if (button === null || button === undefined)
         throw new Error(
             "click was called on a null reference. This means the prior button detection failed, but was assumed to have succeeded.",
@@ -215,7 +215,7 @@ async function click(ns, button) {
 }
 
 /** Try to find an element, with retries. Throws an error if the element could not be found. */
-async function findRequiredElement(ns, xpath, retries = 15, customErrorMessage = null) {
+export async function findRequiredElement(ns, xpath, retries = 15, customErrorMessage = null) {
     return await internalfindWithRetry(ns, xpath, false, retries, customErrorMessage);
 }
 
@@ -240,7 +240,7 @@ async function internalfindWithRetry(ns, xpath, expectFailure, maxRetries, custo
                 false,
             );
         // If enabled give the game some time to render an item before we try to find it on screen
-        if (options["find-sleep-time"]) await ns.sleep(options["find-sleep-time"]);
+        // if (options["find-sleep-time"]) await ns.sleep(options["find-sleep-time"]);
         let attempts = 0,
             retryDelayMs = 1; // starting retry delay (ms), will be increased with each attempt
         while (attempts++ <= maxRetries) {

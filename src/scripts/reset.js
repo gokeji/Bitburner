@@ -5,6 +5,9 @@ import { getCurrentNeuroFluxPurchaseLevel } from "./get-augments.js";
 export async function main(ns) {
     let resetLog = [`Reset started at ${new Date().toLocaleString()}\n`];
 
+    // Kill all other scripts
+    ns.killall("home", true);
+
     const currentNeuroFluxLevel = getCurrentNeuroFluxPurchaseLevel(ns);
     ns.tprint(`Current neuroflux level: ${currentNeuroFluxLevel}`);
 

@@ -11,9 +11,13 @@ export async function main(ns) {
     //     await ns.sleep(10000);
     // }
     // ns.print(ns.getServerMaxMoney("ecorp"));
-    const newlyPurchasedAugmentations = ns.singularity.getOwnedAugmentations(true);
-    ns.print(JSON.stringify(newlyPurchasedAugmentations, null, 2));
-    ns.print(JSON.stringify(ns.singularity.getAugmentationStats("NeuroFlux Governor"), null, 2));
+    // const newlyPurchasedAugmentations = ns.singularity.getOwnedAugmentations(true);
+    // ns.print(JSON.stringify(newlyPurchasedAugmentations, null, 2));
+    // ns.print(JSON.stringify(ns.singularity.getAugmentationStats("NeuroFlux Governor"), null, 2));
+
+    ns.print(ns.getPlayer().mults.hacking_money);
+    ns.print(ns.getBitNodeMultipliers().ScriptHackMoney);
+    ns.print(ns.getBitNodeMultipliers().ScriptHackMoneyGain);
 }
 
 export const MaxFavor = 35331;

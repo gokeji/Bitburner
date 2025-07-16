@@ -9,6 +9,10 @@ export async function main(ns) {
     const processes = ns.ps();
     for (const process of processes) {
         if (ignoreScripts.includes(process.filename)) continue;
-        ns.tprint(`(PID - ${process.pid}) ${process.filename} ${process.args.join(" ")}`);
+        const ramUsed = ns.getScriptRam(process.filename) * process.threads;
+        const pidDisplay = `(PID - ${process.pid})`.padEnd(14);
+        const scriptDisplay = process.filename + " " + process.args.join(" ");
+        const ramDisplay = `[${ns.formatRam(ramUsed)}]`;
+        ns.tprint(`${pidDisplay} ${scriptDisplay.padEnd(40)} ${ramDisplay}`);
     }
 }

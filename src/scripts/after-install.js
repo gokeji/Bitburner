@@ -1,4 +1,5 @@
 import { NS } from "@ns";
+import { click, findRequiredElement } from "./roulette-navigator";
 
 /**
  *
@@ -45,6 +46,8 @@ export async function main(ns) {
             await ns.sleep(5000);
         }
 
+        let previousCasinoMoney = 0;
+        let previousCasinoMoneyTime = 0;
         // Wait for casino to make 10B
         while (ns.getMoneySources().sinceInstall.casino < 10e9) {
             ns.print(`Waiting for casino to make 10B`);
@@ -55,6 +58,20 @@ export async function main(ns) {
                 !ns.scriptRunning("scripts/roulette.js", "home")
             ) {
                 ns.run("scripts/roulette-navigator.js");
+            }
+
+            // Check every minute
+            if (Date.now() - previousCasinoMoneyTime > 60000 || previousCasinoMoney === 0) {
+                if (previousCasinoMoney === ns.getMoneySources().sinceInstall.casino) {
+                    // If casino money hasn't changed in a minute, there's a bug, exit roulette screen so it can restart
+                    await click(ns, await findRequiredElement(ns, "//button[contains(text(), 'Stop playing')]"));
+                    ns.tprint(
+                        "WARN: Casino money hasn't changed in a minute, exiting roulette screen so it can restart",
+                    );
+                }
+
+                previousCasinoMoney = ns.getMoneySources().sinceInstall.casino;
+                previousCasinoMoneyTime = Date.now();
             }
 
             await ns.sleep(5000);
@@ -75,4 +92,22 @@ export async function main(ns) {
     // Run autoplay.js to start rest of the scripts
     ns.run("autoplay.js");
     ns.print("INFO After-install complete - autoplay.js has been started");
+
+    // while (true) {
+    //     const timeSinceInstall = Date.now() - ns.getResetInfo().lastAugReset;
+    //     if (timeSinceInstall > 12 * 60 * 1000) {
+    //         // run reset.js after 10 minutes
+    //         let success = ns.run("scripts/reset.js");
+    //         if (success) {
+    //             ns.print("INFO Reset.js has been started");
+    //             break;
+    //         } else {
+    //             ns.print("WARN Failed to start reset.js");
+    //         }
+    //     }
+    //     ns.print(
+    //         `INFO ${ns.formatNumber(timeSinceInstall / 1000 / 60)} minutes since install. Will reset after 12 minutes.`,
+    //     );
+    //     await ns.sleep(30000);
+    // }
 }

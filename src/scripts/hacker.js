@@ -37,7 +37,7 @@ export async function main(ns) {
     const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
-    const ALWAYS_XP_FARM = false;
+    const ALWAYS_XP_FARM = true;
     const ALLOW_PARTIAL_PREP = true;
 
     let executableServers = [];
@@ -929,11 +929,14 @@ export async function main(ns) {
                     exceededFullHackPercentage = true;
                 }
                 if (config) {
-                    allConfigurations.push(config);
                     // Track the maximum throughput for this server
                     if (config.priority > maxPriorityForServer) {
                         maxPriorityForServer = config.priority;
                     }
+                    if (ns.getWeakenTime(server) > MAX_WEAKEN_TIME) {
+                        continue;
+                    }
+                    allConfigurations.push(config);
                 }
             }
 
