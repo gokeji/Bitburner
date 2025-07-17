@@ -9,9 +9,10 @@ export async function main(ns) {
     ns.disableLog("ALL");
 
     const isLateGame =
-        ns.getPlayer().mults.hacking * ns.getBitNodeMultipliers().HackingLevelMultiplier > 5 ||
-        ns.getServerMaxRam("home") >= 2 ** 20 ||
-        (ns.gang.inGang() && ns.gang.getGangInformation().respect > 200e6);
+        (ns.getPlayer().mults.hacking * ns.getBitNodeMultipliers().HackingLevelMultiplier > 5 ||
+            ns.getServerMaxRam("home") >= 2 ** 20 ||
+            (ns.gang.inGang() && ns.gang.getGangInformation().respect > 200e6)) &&
+        ns.getResetInfo().currentNode != 8;
 
     if (ns.getPlayer().factions.includes("Church of the Machine God")) {
         // Start stanek early so it can run during crime and casino phases
@@ -47,7 +48,7 @@ export async function main(ns) {
         }
 
         let previousCasinoMoney = 0;
-        let previousCasinoMoneyTime = 0;
+        let previousCasinoMoneyTime = Date.now();
         // Wait for casino to make 10B
         while (ns.getMoneySources().sinceInstall.casino < 10e9) {
             ns.print(`Waiting for casino to make 10B`);
@@ -61,7 +62,7 @@ export async function main(ns) {
             }
 
             // Check every minute
-            if (Date.now() - previousCasinoMoneyTime > 60000 || previousCasinoMoney === 0) {
+            if (Date.now() - previousCasinoMoneyTime > 60000) {
                 if (previousCasinoMoney === ns.getMoneySources().sinceInstall.casino) {
                     // If casino money hasn't changed in a minute, there's a bug, exit roulette screen so it can restart
                     await click(ns, await findRequiredElement(ns, "//button[contains(text(), 'Stop playing')]"));
@@ -79,7 +80,7 @@ export async function main(ns) {
     }
 
     // Upgrade home ram to at least 1024GB
-    while (ns.getServer("home").maxRam < 1024) {
+    while (ns.getServer("home").maxRam < 512) {
         if (ns.getPlayer().money < ns.singularity.getUpgradeHomeRamCost()) {
             ns.print(`Not enough money to upgrade home ram, waiting...`);
             await ns.sleep(5000);

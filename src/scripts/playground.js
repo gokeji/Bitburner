@@ -15,9 +15,19 @@ export async function main(ns) {
     // ns.print(JSON.stringify(newlyPurchasedAugmentations, null, 2));
     // ns.print(JSON.stringify(ns.singularity.getAugmentationStats("NeuroFlux Governor"), null, 2));
 
-    ns.print(ns.getPlayer().mults.hacking_money);
-    ns.print(ns.getBitNodeMultipliers().ScriptHackMoney);
-    ns.print(ns.getBitNodeMultipliers().ScriptHackMoneyGain);
+    // ns.print(ns.getPlayer().mults.hacking_money);
+    // ns.print(ns.getBitNodeMultipliers().ScriptHackMoney);
+    // ns.print(ns.getBitNodeMultipliers().ScriptHackMoneyGain);
+
+    while (!ns.stock.has4SDataTIXAPI()) {
+        if (ns.getPlayer().money > 25e9) {
+            ns.stock.purchase4SMarketDataTixApi();
+        }
+        await ns.sleep(500);
+    }
+
+    ns.scriptKill("kamu/early-stock-trader.js", "home");
+    ns.run("kamu/stock-trader.js");
 }
 
 export const MaxFavor = 35331;

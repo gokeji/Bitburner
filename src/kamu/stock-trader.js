@@ -3,7 +3,7 @@
 // requires 4s Market Data TIX API Access
 
 // defines if stocks can be shorted (see BitNode 8)
-const shortAvailable = false;
+const shortAvailable = true;
 
 const commission = 100000;
 
@@ -29,38 +29,34 @@ function tendStocks(ns) {
 
     for (const stock of stocks) {
         if (stock.longShares > 0) {
-            if (stock.forecast > 0.5) {
-                longStocks.add(stock.sym);
+            if (stock.forecast > 0.55) {
                 ns.print(
-                    `INFO ${stock.summary} LONG ${ns.formatNumber(stock.cost + stock.profit, 1)} ${ns.formatPercent((100 * stock.profit) / stock.cost, 2)}`,
+                    `INFO ${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)}`,
                 );
-                overallValue += stock.cost + stock.profit;
+                overallValue += stock.value;
                 totalProfit += stock.profit;
-            } else {
+            } else if (stock.forecast < 0.53) {
                 const salePrice = ns.stock.sellStock(stock.sym, stock.longShares);
                 const saleTotal = salePrice * stock.longShares;
                 const saleCost = stock.longPrice * stock.longShares;
                 const saleProfit = saleTotal - saleCost - 2 * commission;
                 stock.shares = 0;
-                shortStocks.add(stock.sym);
                 ns.print(`WARN ${stock.summary} SOLD for ${ns.formatNumber(saleProfit, 1)} profit`);
             }
         }
         if (stock.shortShares > 0) {
-            if (stock.forecast < 0.5) {
-                shortStocks.add(stock.sym);
+            if (stock.forecast < 0.4) {
                 ns.print(
-                    `INFO ${stock.summary} SHORT ${ns.formatNumber(stock.cost + stock.profit, 1)} ${ns.formatPercent((100 * stock.profit) / stock.cost, 2)}`,
+                    `INFO ${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)}`,
                 );
-                overallValue += stock.cost + stock.profit;
+                overallValue += stock.value;
                 totalProfit += stock.profit;
-            } else {
+            } else if (stock.forecast > 0.45) {
                 const salePrice = ns.stock.sellShort(stock.sym, stock.shortShares);
                 const saleTotal = salePrice * stock.shortShares;
                 const saleCost = stock.shortPrice * stock.shortShares;
                 const saleProfit = saleTotal - saleCost - 2 * commission;
                 stock.shares = 0;
-                longStocks.add(stock.sym);
                 ns.print(`WARN ${stock.summary} SHORT SOLD for ${ns.formatNumber(saleProfit, 1)} profit`);
             }
         }
@@ -70,7 +66,6 @@ function tendStocks(ns) {
         var money = ns.getServerMoneyAvailable("home");
         //ns.print(`INFO ${stock.summary}`);
         if (stock.forecast > 0.55) {
-            longStocks.add(stock.sym);
             //ns.print(`INFO ${stock.summary}`);
             if (money > 500 * commission) {
                 const sharesToBuy = Math.min(stock.maxShares, Math.floor((money - commission) / stock.askPrice));
@@ -78,8 +73,7 @@ function tendStocks(ns) {
                     ns.print(`WARN ${stock.summary} LONG BOUGHT ${ns.formatNumber(sharesToBuy, 1)}`);
                 }
             }
-        } else if (stock.forecast < 0.45 && shortAvailable) {
-            shortStocks.add(stock.sym);
+        } else if (stock.forecast < 0.4 && shortAvailable) {
             //ns.print(`INFO ${stock.summary}`);
             if (money > 500 * commission) {
                 const sharesToBuy = Math.min(stock.maxShares, Math.floor((money - commission) / stock.bidPrice));
@@ -92,20 +86,47 @@ function tendStocks(ns) {
     ns.print("Stock value: " + ns.formatNumber(overallValue, 1));
     ns.print("Total P&L: " + (totalProfit >= 0 ? "+" : "") + ns.formatNumber(totalProfit, 1));
 
+    for (const stock of stocks) {
+        if (stock.longShares > 0) {
+            longStocks.add(stock.sym);
+        }
+        if (stock.shortShares > 0) {
+            shortStocks.add(stock.sym);
+        }
+    }
+
+    // const highestValueStock = stocks.reduce((highest, current) => {
+    //     return current.value > highest.value ? current : highest;
+    // }, stocks[0]);
+
+    // if (highestValueStock.longShares > 0) {
+    //     longStocks.add(highestValueStock.sym);
+    // }
+    // if (highestValueStock.shortShares > 0) {
+    //     shortStocks.add(highestValueStock.sym);
+    // }
+
     // send stock market manipulation orders to hack manager
     var growStockPort = ns.getPortHandle(1); // port 1 is grow
     var hackStockPort = ns.getPortHandle(2); // port 2 is hack
-    if (growStockPort.empty() && hackStockPort.empty()) {
-        // only write to ports if empty
-        for (const sym of longStocks) {
-            //ns.print("INFO grow " + sym);
-            growStockPort.write(getSymServer(sym));
-        }
-        for (const sym of shortStocks) {
-            //ns.print("INFO hack " + sym);
-            hackStockPort.write(getSymServer(sym));
-        }
+
+    for (const sym of longStocks) {
+        //ns.print("INFO grow " + sym);
+        growStockPort.write(getSymServer(sym));
     }
+    if (shortStocks.size === 0) {
+        hackStockPort.write("EMPTY");
+    }
+    for (const sym of shortStocks) {
+        //ns.print("INFO hack " + sym);
+        hackStockPort.write(getSymServer(sym));
+    }
+    if (longStocks.size === 0) {
+        growStockPort.write("EMPTY");
+    }
+
+    ns.print("longStocks: " + Array.from(longStocks).join(", "));
+    ns.print("shortStocks: " + Array.from(shortStocks).join(", "));
 }
 
 export function getAllStocks(ns) {
@@ -131,6 +152,7 @@ export function getAllStocks(ns) {
         var shortProfit = stock.shortShares * (stock.shortPrice - stock.askPrice) - 2 * commission;
         stock.profit = longProfit + shortProfit;
         stock.cost = stock.longShares * stock.longPrice + stock.shortShares * stock.shortPrice;
+        stock.value = stock.cost + stock.profit;
 
         // profit potential as chance for profit * effect of profit
         var profitChance = 2 * Math.abs(stock.forecast - 0.5);

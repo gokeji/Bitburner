@@ -9,7 +9,6 @@ const commission = 100000;
  */
 function calculatePortfolioValue(ns) {
     const stockSymbols = ns.stock.getSymbols();
-    const positionsHeld = [];
 
     let totalValue = 0;
     let totalProfit = 0;
@@ -36,7 +35,7 @@ function calculatePortfolioValue(ns) {
                 const costBasis = longPrice * longShares;
                 const profit = currentValue - costBasis - 2 * commission;
 
-                totalValue += currentValue;
+                totalValue += costBasis + profit;
                 totalProfit += profit;
 
                 positions.push({
@@ -45,6 +44,7 @@ function calculatePortfolioValue(ns) {
                     shares: longShares,
                     currentValue: currentValue,
                     profit: profit,
+                    totalValue: costBasis + profit,
                     forecast: forecast,
                 });
             }
@@ -54,7 +54,7 @@ function calculatePortfolioValue(ns) {
                 const costBasis = shortPrice * shortShares;
                 const profit = costBasis - currentValue - 2 * commission;
 
-                totalValue += currentValue;
+                totalValue += costBasis + profit;
                 totalProfit += profit;
 
                 positions.push({
@@ -63,6 +63,7 @@ function calculatePortfolioValue(ns) {
                     shares: shortShares,
                     currentValue: currentValue,
                     profit: profit,
+                    totalValue: costBasis + profit,
                     forecast: forecast,
                 });
             }
@@ -159,7 +160,7 @@ export async function main(ns) {
             ns.print("\n");
 
             // Show individual positions (limit to top 3 by value)
-            var sortedPositions = portfolio.positions.sort((a, b) => b.currentValue - a.currentValue);
+            var sortedPositions = portfolio.positions.sort((a, b) => b.totalValue - a.totalValue);
             ns.print("🔹 Top Positions:");
             for (let i = 0; i < Math.min(3, sortedPositions.length); i++) {
                 var pos = sortedPositions[i];

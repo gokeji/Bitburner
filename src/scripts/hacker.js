@@ -39,6 +39,11 @@ export async function main(ns) {
     const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
     const ALWAYS_XP_FARM = true;
     const ALLOW_PARTIAL_PREP = true;
+    const SHOULD_INFLUENCE_STOCKS = true;
+    const ONLY_MANIPULATE_STOCKS = true;
+
+    let growStocks = new Set();
+    let hackStocks = new Set();
 
     let executableServers = [];
     let hackableServers = [];
@@ -184,6 +189,40 @@ export async function main(ns) {
         );
 
         ns.print(`DEBUG: maxRamAvailableForHacking: ${ns.formatRam(maxRamAvailableForHacking)}`);
+
+        // Gather stocks to grow/short
+        if (SHOULD_INFLUENCE_STOCKS) {
+            /** @param {NS} ns
+             * @param {number} portNumber
+             * @param {Set<string>} content
+             * @returns {Set<string>}
+             */
+            function getStockPortContent(ns, portNumber, content) {
+                var portHandle = ns.getPortHandle(portNumber);
+                var firstPortElement = portHandle.peek();
+                if (firstPortElement == "NULL PORT DATA") {
+                    // no new data available
+                    return content;
+                } else if (firstPortElement == "EMPTY") {
+                    // "EMPTY" means that the list shall be set to empty
+                    portHandle.clear();
+                    return new Set();
+                } else {
+                    // list shall be updated
+                    content = new Set();
+                    while (!portHandle.empty()) {
+                        content.add(portHandle.read());
+                    }
+                }
+                return content;
+            }
+
+            growStocks = getStockPortContent(ns, 1, growStocks); // port 1 is grow
+            hackStocks = getStockPortContent(ns, 2, hackStocks); // port 2 is hack
+
+            ns.print(`DEBUG: growStocks: ${Array.from(growStocks).join(", ")}`);
+            ns.print(`DEBUG: hackStocks: ${Array.from(hackStocks).join(", ")}`);
+        }
 
         // Calculate global priorities map once per tick (without excluding any servers)
         const { prioritiesMap, serverMaxPriorities } = calculateTargetServerPriorities(ns);
@@ -493,10 +532,6 @@ export async function main(ns) {
 
         if (gameState.serversOnHold.has(server)) {
             return ServerState.ON_HOLD;
-        }
-
-        if (ns.getWeakenTime(server) > MAX_WEAKEN_TIME) {
-            return ServerState.EXCLUDED;
         }
 
         const serverStats = gameState.globalPrioritiesMap.get(server);
@@ -908,7 +943,7 @@ export async function main(ns) {
      */
     function calculateTargetServerPriorities(ns) {
         // Step 1: Generate all possible configurations for all servers
-        const allConfigurations = [];
+        let allConfigurations = [];
         const serverMaxPriorities = new Map(); // Track max throughput per server
 
         const serversToEvaluate = hackableServers.filter((server) => {
@@ -916,27 +951,22 @@ export async function main(ns) {
         });
 
         for (const server of serversToEvaluate) {
-            let exceededFullHackPercentage = false;
             let maxPriorityForServer = 0;
 
             // Generate configurations for 1-100 hack threads
-            for (let hackThreads = 1; hackThreads <= 50; hackThreads++) {
-                if (exceededFullHackPercentage) break;
-
+            for (let hackThreads = 1; hackThreads <= 200; hackThreads++) {
                 const config = getServerHackStats(ns, server, hackThreads);
+                // Track the maximum throughput for this server
+                if (config.priority > maxPriorityForServer) {
+                    maxPriorityForServer = config.priority;
+                }
+                if (ns.getWeakenTime(server) > MAX_WEAKEN_TIME && !growStocks.has(server) && !hackStocks.has(server)) {
+                    continue;
+                }
+                allConfigurations.push(config);
 
                 if (config.actualHackPercentage >= 1) {
-                    exceededFullHackPercentage = true;
-                }
-                if (config) {
-                    // Track the maximum throughput for this server
-                    if (config.priority > maxPriorityForServer) {
-                        maxPriorityForServer = config.priority;
-                    }
-                    if (ns.getWeakenTime(server) > MAX_WEAKEN_TIME) {
-                        continue;
-                    }
-                    allConfigurations.push(config);
+                    break;
                 }
             }
 
@@ -951,16 +981,40 @@ export async function main(ns) {
         //     );
         // }
 
+        if (ONLY_MANIPULATE_STOCKS) {
+            // Only evaluate servers that are in the growStocks or hackStocks sets. Priority is calculated based on stock manipulation strength
+            allConfigurations = [];
+            const stockManipulationServers = new Set();
+            for (const server of growStocks) {
+                stockManipulationServers.add(server);
+            }
+            for (const server of hackStocks) {
+                stockManipulationServers.add(server);
+            }
+            for (const server of stockManipulationServers) {
+                // Generate configurations for 1-100 hack threads
+                for (let hackThreads = 1; hackThreads <= 200; hackThreads++) {
+                    const config = getServerHackStats(ns, server, hackThreads);
+                    config.priority =
+                        (config.actualHackPercentage * config.batchLimitForSustainedThroughput) /
+                        config.weakenTime /
+                        config.ramUsageForSustainedThroughput;
+                    allConfigurations.push(config);
+
+                    if (config.actualHackPercentage >= 1) {
+                        break;
+                    }
+                }
+            }
+        }
+
         // Step 2: Apply knapsack algorithm
-        const knapsackResult = solveKnapsack(allConfigurations, maxRamAvailableForHacking);
+        const selectedConfigs = solveKnapsack(allConfigurations, maxRamAvailableForHacking);
 
         // Step 3: Convert results to prioritiesMap format (keeping compatibility)
         const prioritiesMap = new Map();
-        const selectedServers = new Set();
 
-        for (const config of knapsackResult.selectedItems) {
-            selectedServers.add(config.server);
-
+        for (const config of selectedConfigs) {
             ns.print(
                 `MAX HACK: ${config.server} - ${config.hackThreads}H (${ns.formatPercent(config.actualHackPercentage)}) - ${ns.formatRam(config.ramRequired)}/batch, max ${config.batchLimitForSustainedThroughput} concurrent = ${ns.formatRam(config.ramUsageForSustainedThroughput)} total - ${ns.formatNumber(config.throughput, 2)}/s`,
             );
@@ -975,7 +1029,7 @@ export async function main(ns) {
         }
 
         ns.print(
-            `KNAPSACK: Selected ${knapsackResult.selectedItems.length} configurations across ${selectedServers.size} servers out of ${serverMaxPriorities.size} total servers`,
+            `KNAPSACK: Selected ${selectedConfigs.length} configurations across ${serverMaxPriorities.size} total servers`,
         );
 
         return { prioritiesMap, serverMaxPriorities };
@@ -985,14 +1039,15 @@ export async function main(ns) {
      * Simple knapsack solver for server configurations
      */
     function solveKnapsack(configs, maxWeight) {
+        const selectedItems = [];
+
         if (configs.length === 0 || maxWeight <= 0) {
-            return { selectedItems: [], totalThroughput: 0 };
+            return selectedItems;
         }
 
         // Sort by priority (throughput/ram ratio) descending for greedy approximation
         configs.sort((a, b) => b.priority - a.priority);
 
-        const selectedItems = [];
         let remainingWeight = maxWeight;
 
         for (const config of configs) {
@@ -1018,7 +1073,8 @@ export async function main(ns) {
 
         const totalThroughput = selectedItems.reduce((sum, config) => sum + config.throughput, 0);
 
-        return { selectedItems, totalThroughput };
+        return selectedItems;
+    }
     }
 
     /**
@@ -1460,7 +1516,7 @@ export async function main(ns) {
                 return false;
             }
             for (const [server, threads] of finalAllocation.grow) {
-                executeGrow(ns, server, target, threads, growDelay, false, true, growthTime);
+                executeGrow(ns, server, target, threads, growDelay, true, growthTime);
             }
             totalRamUsed += finalAllocation.scalingFactor * growRam;
 
@@ -1573,11 +1629,11 @@ export async function main(ns) {
         if (allocation.hack && allocation.grow && allocation.weaken) {
             // Execute hack operations
             for (const [server, threads] of allocation.hack) {
-                executeHack(ns, server, target, threads, hackDelay, false, false, hackTime);
+                executeHack(ns, server, target, threads, hackDelay, false, hackTime);
             }
 
             for (const [server, threads] of allocation.grow) {
-                executeGrow(ns, server, target, threads, growDelay, false, false, growthTime);
+                executeGrow(ns, server, target, threads, growDelay, false, growthTime);
             }
 
             // Execute weaken operations
@@ -1628,18 +1684,17 @@ export async function main(ns) {
      * @param {string} target
      * @param {number} threads
      * @param {number} sleepTime
-     * @param {boolean} stockArg - Whether to influence stock or not.
      * @param {boolean} isPrep - Whether the script is being executed for prep.
      * @param {number} growTime - The time the grow script should finish at.
      */
-    function executeGrow(ns, host, target, threads, sleepTime, stockArg = false, isPrep = false, growTime = 0) {
+    function executeGrow(ns, host, target, threads, sleepTime, isPrep = false, growTime = 0) {
         const pid = ns.exec(
             growScript,
             host,
             threads,
             target,
             sleepTime,
-            stockArg,
+            growStocks.has(target),
             isPrep ? "prep" : "hgw",
             tickCounter,
             `endTime=${Date.now() + sleepTime + growTime}`,
@@ -1648,7 +1703,7 @@ export async function main(ns) {
             ns.tprint(`WARN Failed to execute grow script on ${target}`);
             ns.print(`WARN Failed to execute grow script on ${target}`);
             ns.print(
-                `WARN Host: ${host}, Target: ${target}, Threads: ${threads}, SleepTime: ${sleepTime}, StockArg: ${stockArg}, IsPrep: ${isPrep}, GrowTime: ${growTime}`,
+                `WARN Host: ${host}, Target: ${target}, Threads: ${threads}, SleepTime: ${sleepTime}, StockArg: ${growStocks.has(target)}, IsPrep: ${isPrep}, GrowTime: ${growTime}`,
             );
         }
     }
@@ -1660,18 +1715,17 @@ export async function main(ns) {
      * @param {string} target
      * @param {number} threads
      * @param {number} sleepTime
-     * @param {boolean} stockArg - Whether to influence stock or not.
      * @param {boolean} isPrep - Whether the script is being executed for prep.
      * @param {number} hackTime - The time the hack script should finish at.
      */
-    function executeHack(ns, host, target, threads, sleepTime, stockArg = false, isPrep = false, hackTime = 0) {
+    function executeHack(ns, host, target, threads, sleepTime, isPrep = false, hackTime = 0) {
         const pid = ns.exec(
             hackScript,
             host,
             threads,
             target,
             sleepTime,
-            stockArg,
+            hackStocks.has(target),
             isPrep ? "prep" : "hgw",
             tickCounter,
             `endTime=${Date.now() + sleepTime + hackTime}`,
@@ -1680,7 +1734,7 @@ export async function main(ns) {
             ns.tprint(`WARN Failed to execute hack script on ${target}`);
             ns.print(`WARN Failed to execute hack script on ${target}`);
             ns.print(
-                `WARN Host: ${host}, Target: ${target}, Threads: ${threads}, SleepTime: ${sleepTime}, StockArg: ${stockArg}, IsPrep: ${isPrep}, HackTime: ${hackTime}`,
+                `WARN Host: ${host}, Target: ${target}, Threads: ${threads}, SleepTime: ${sleepTime}, StockArg: ${hackStocks.has(target)}, IsPrep: ${isPrep}, HackTime: ${hackTime}`,
             );
         }
     }

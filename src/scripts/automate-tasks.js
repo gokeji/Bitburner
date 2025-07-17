@@ -22,14 +22,14 @@ export async function main(ns) {
         { type: "faction", target: "Daedalus", goal: "100000" },
         { type: "faction", target: "Daedalus", goal: "favor" },
         { type: "homicide" },
-        {
-            type: "graft",
-            target: "OmniTek InfoLoad",
-        },
-        {
-            type: "graft",
-            target: "ADR-V2 Pheromone Gene",
-        },
+        // {
+        //     type: "graft",
+        //     target: "OmniTek InfoLoad",
+        // },
+        // {
+        //     type: "graft",
+        //     target: "ADR-V2 Pheromone Gene",
+        // },
         // { type: "faction", target: "CyberSec", goal: "2000" },
         // { type: "faction", target: "Tian Di Hui", goal: "6250" },
         // { type: "faction", target: "Netburners", goal: "7500" },
@@ -38,29 +38,29 @@ export async function main(ns) {
 
         // { type: "faction", target: "NiteSec", goal: "45000" }, // CRTX42-AA Gene Modification
         // { type: "graft", target: "QLink" },
-        {
-            type: "graft",
-            target: "Xanipher",
-        },
-        {
-            type: "graft",
-            target: "BitRunners Neurolink",
-        },
-        {
-            type: "graft",
-            target: "SPTN-97 Gene Modification",
-        },
+        // {
+        //     type: "graft",
+        //     target: "Xanipher",
+        // },
+        // {
+        //     type: "graft",
+        //     target: "BitRunners Neurolink",
+        // },
+        // {
+        //     type: "graft",
+        //     target: "SPTN-97 Gene Modification",
+        // },
 
-        { type: "faction", target: "Tetrads", goal: "62500" }, // Bionic Arms
-        { type: "reset" },
-        { type: "faction", target: "Chongqing", goal: "37500" }, // Neuregen Gene Modification
-        { type: "faction", target: "Tian Di Hui", goal: "75000" }, // Neuroreceptor Management Implant
-        { type: "faction", target: "BitRunners", goal: "100000" }, // Embedded Netburner Module Core V3 Upgrade
+        // { type: "faction", target: "Tetrads", goal: "62500" }, // Bionic Arms
+        // { type: "reset" },
+        // { type: "faction", target: "Chongqing", goal: "37500" }, // Neuregen Gene Modification
+        // { type: "faction", target: "Tian Di Hui", goal: "75000" }, // Neuroreceptor Management Implant
+        // { type: "faction", target: "The Black Hand", goal: "100000" }, // The Black Hand
+        // { type: "faction", target: "BitRunners", goal: "100000" }, // Embedded Netburner Module Core V3 Upgrade
 
         // { type: "faction", target: "NiteSec", goal: "favor" },
 
-        { type: "faction", target: "The Black Hand", goal: "100000" }, // The Black Hand
-        { type: "faction", target: "BitRunners", goal: "250000" },
+        // { type: "faction", target: "BitRunners", goal: "250000" },
         { type: "faction", target: "BitRunners", goal: "favor" },
     ];
 
@@ -188,10 +188,28 @@ async function executeTask(ns, task, isFirstTime = false) {
                     ns.formulas.reputation.calculateFavorToRep(currentFavor);
             }
 
-            if (!currentWork || currentWork.type !== "FACTION" || currentWork.factionName !== task.target) {
-                const workTypes = ns.singularity.getFactionWorkTypes(task.target);
-                const preferredWorkType = workTypes.includes("hacking") ? "hacking" : workTypes[0];
-                const success = ns.singularity.workForFaction(task.target, preferredWorkType, true);
+            const workTypes = ns.singularity.getFactionWorkTypes(task.target);
+            let bestWorkType = workTypes[0];
+            let bestWorkGains = 0;
+            for (const workType of workTypes) {
+                const workGains = ns.formulas.work.factionGains(
+                    ns.getPlayer(),
+                    workType,
+                    ns.singularity.getFactionFavor(task.target),
+                );
+                if (workGains > bestWorkGains) {
+                    bestWorkType = workType;
+                    bestWorkGains = workGains;
+                }
+            }
+
+            if (
+                !currentWork ||
+                currentWork.type !== "FACTION" ||
+                currentWork.factionName !== task.target ||
+                currentWork.factionWorkType !== bestWorkType
+            ) {
+                const success = ns.singularity.workForFaction(task.target, bestWorkType, true);
                 if (success && isFirstTime) {
                     ns.print(
                         `${new Date().toLocaleTimeString()} Starting work for ${task.target}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)}`,
