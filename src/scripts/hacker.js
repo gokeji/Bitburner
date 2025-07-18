@@ -211,7 +211,7 @@ export async function main(ns) {
                     content = new Map();
                     while (!portHandle.empty()) {
                         const [server, value] = portHandle.read().split(":");
-                        content.set(server, value);
+                        content.set(server, Number(value));
                     }
                 }
                 return content;
@@ -1003,6 +1003,12 @@ export async function main(ns) {
             for (const server of hackStocks.keys()) {
                 stockManipulationServers.add(server);
             }
+            // const highestValueServer = Array.from(stockManipulationServers).reduce((a, b) => {
+            //     const aValue = (growStocks.get(a) ?? 0) + (hackStocks.get(a) ?? 0);
+            //     const bValue = (growStocks.get(b) ?? 0) + (hackStocks.get(b) ?? 0);
+            //     return aValue > bValue ? a : b;
+            // }, "");
+            // ns.print(`DEBUG: highestValueServer: ${highestValueServer}`);
             for (const server of stockManipulationServers) {
                 if (server === "") continue;
                 // Generate configurations for 1-100 hack threads
@@ -1010,10 +1016,10 @@ export async function main(ns) {
                     const config = getServerHackStats(ns, server, hackThreads);
                     if (config === null) continue;
                     const totalStockValue = (growStocks.get(server) ?? 0) + (hackStocks.get(server) ?? 0);
-                    config.priority =
+                    config.throughput =
                         (config.actualHackPercentage * totalStockValue * config.batchLimitForSustainedThroughput) /
-                        config.weakenTime /
-                        config.ramUsageForSustainedThroughput;
+                        config.weakenTime;
+                    config.priority = config.throughput / (config.ramUsageForSustainedThroughput / 10000);
                     allConfigurations.push(config);
 
                     if (config.actualHackPercentage >= 1) break;
@@ -1022,12 +1028,6 @@ export async function main(ns) {
         }
 
         ns.print(`DEBUG: allConfigurations: ${allConfigurations.length}`);
-
-        // for (const config of allConfigurations) {
-        //     ns.print(
-        //         `DEBUG: config.server: ${config.server} | throughput: ${config.throughput} | priority: ${config.priority} | sustained ram: ${ns.formatRam(config.ramUsageForSustainedThroughput)}`,
-        //     );
-        // }
 
         // Step 2: Apply knapsack algorithm
         const selectedConfigs = knapsackBucketed(allConfigurations, maxRamAvailableForHacking);
@@ -1059,7 +1059,7 @@ export async function main(ns) {
         // Calculate value/weight ratio for each configuration
         const configsWithRatio = configurations.map((config) => ({
             ...config,
-            ratio: config.priority / config.ramUsageForSustainedThroughput,
+            ratio: config.throughput / config.ramUsageForSustainedThroughput,
         }));
 
         // Sort by value/weight ratio (descending)
@@ -1080,7 +1080,7 @@ export async function main(ns) {
 
             selected.push(config);
             usedServers.add(config.server);
-            totalValue += config.priority;
+            totalValue += config.throughput;
             totalWeight += config.ramUsageForSustainedThroughput;
             remainingWeight -= config.ramUsageForSustainedThroughput;
         }
@@ -1099,7 +1099,7 @@ export async function main(ns) {
 
         for (const config of configurations) {
             const existing = serverBestConfigs.get(config.server);
-            if (!existing || config.priority > existing.priority) {
+            if (!existing || config.throughput > existing.throughput) {
                 serverBestConfigs.set(config.server, config);
             }
         }
@@ -1107,11 +1107,8 @@ export async function main(ns) {
         // Use only the best configuration per server
         const uniqueConfigs = Array.from(serverBestConfigs.values());
 
-        const maxWeight = Math.max(...uniqueConfigs.map((c) => c.ramUsageForSustainedThroughput));
-
         // Use smaller bucket size for better precision
-        const bucketSize = Math.max(1, Math.ceil(maxWeight / numBuckets));
-        const adjustedBuckets = Math.ceil(weightLimit / bucketSize);
+        const bucketSize = Math.max(1, Math.ceil(weightLimit / numBuckets));
 
         // Convert weights to bucket indices
         const bucketedConfigs = uniqueConfigs.map((config) => ({
@@ -1121,7 +1118,7 @@ export async function main(ns) {
         }));
 
         // Initialize DP table: dp[bucket][item] = {maxValue, selectedConfigs}
-        const dp = new Array(adjustedBuckets + 1).fill(0).map(() =>
+        const dp = new Array(numBuckets + 1).fill(0).map(() =>
             new Array(uniqueConfigs.length + 1).fill(0).map(() => ({
                 maxValue: 0,
                 selectedConfigs: [],
@@ -1131,7 +1128,7 @@ export async function main(ns) {
         // Fill the DP table
         for (let i = 1; i <= uniqueConfigs.length; i++) {
             const config = bucketedConfigs[i - 1];
-            for (let w = 1; w <= adjustedBuckets; w++) {
+            for (let w = 1; w <= numBuckets; w++) {
                 // Option 1: Don't include current item
                 dp[w][i] = {
                     maxValue: dp[w][i - 1].maxValue,
@@ -1140,7 +1137,7 @@ export async function main(ns) {
 
                 // Option 2: Include current item (if it fits)
                 if (config.bucketWeight <= w) {
-                    const valueWithItem = dp[w - config.bucketWeight][i - 1].maxValue + config.priority;
+                    const valueWithItem = dp[w - config.bucketWeight][i - 1].maxValue + config.throughput;
                     if (valueWithItem > dp[w][i].maxValue) {
                         dp[w][i] = {
                             maxValue: valueWithItem,
@@ -1152,7 +1149,7 @@ export async function main(ns) {
         }
 
         // Find the actual total weight
-        const selected = dp[adjustedBuckets][uniqueConfigs.length].selectedConfigs;
+        const selected = dp[numBuckets][uniqueConfigs.length].selectedConfigs;
 
         return selected;
     }

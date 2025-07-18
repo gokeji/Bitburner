@@ -9,7 +9,7 @@ function knapsackGreedy(configurations, weightLimit) {
     // Calculate value/weight ratio for each configuration
     const configsWithRatio = configurations.map((config) => ({
         ...config,
-        ratio: config.priority / config.ramUsageForSustainedThroughput,
+        ratio: config.throughput / config.ramUsageForSustainedThroughput,
     }));
 
     // Sort by value/weight ratio (descending)
@@ -30,17 +30,12 @@ function knapsackGreedy(configurations, weightLimit) {
 
         selected.push(config);
         usedServers.add(config.server);
-        totalValue += config.priority;
+        totalValue += config.throughput;
         totalWeight += config.ramUsageForSustainedThroughput;
         remainingWeight -= config.ramUsageForSustainedThroughput;
     }
 
-    return {
-        selected,
-        totalValue,
-        totalWeight,
-        remainingWeight,
-    };
+    return { selected, totalValue, totalWeight, remainingWeight };
 }
 
 /**
@@ -52,7 +47,7 @@ function knapsackTopN(configurations, weightLimit, maxConfigs = 100) {
     // Calculate value/weight ratio for each configuration
     const configsWithRatio = configurations.map((config) => ({
         ...config,
-        ratio: config.priority / config.ramUsageForSustainedThroughput,
+        ratio: config.throughput / config.ramUsageForSustainedThroughput,
     }));
 
     // Sort by value/weight ratio (descending)
@@ -74,7 +69,7 @@ function knapsackTopN(configurations, weightLimit, maxConfigs = 100) {
 
         selected.push(config);
         usedServers.add(config.server);
-        totalValue += config.priority;
+        totalValue += config.throughput;
         totalWeight += config.ramUsageForSustainedThroughput;
         remainingWeight -= config.ramUsageForSustainedThroughput;
     }
@@ -92,13 +87,13 @@ function knapsackTopN(configurations, weightLimit, maxConfigs = 100) {
  * Uses adaptive bucketing based on actual weight distribution.
  * Only one configuration per server allowed.
  */
-function knapsackBucketed(configurations, weightLimit, numBuckets = 1000) {
+function knapsackBucketed(configurations, weightLimit, numBuckets = 100) {
     // Find unique servers and their best configuration (highest priority per server)
     const serverBestConfigs = new Map();
 
     for (const config of configurations) {
         const existing = serverBestConfigs.get(config.server);
-        if (!existing || config.priority > existing.priority) {
+        if (!existing || config.throughput > existing.throughput) {
             serverBestConfigs.set(config.server, config);
         }
     }
@@ -106,16 +101,7 @@ function knapsackBucketed(configurations, weightLimit, numBuckets = 1000) {
     // Use only the best configuration per server
     const uniqueConfigs = Array.from(serverBestConfigs.values());
 
-    // Sort by weight to better understand distribution
-    // const sortedByWeight = [...uniqueConfigs].sort(
-    //     (a, b) => a.ramUsageForSustainedThroughput - b.ramUsageForSustainedThroughput,
-    // );
-    const maxWeight = Math.max(...uniqueConfigs.map((c) => c.ramUsageForSustainedThroughput));
-    const minWeight = Math.min(...uniqueConfigs.map((c) => c.ramUsageForSustainedThroughput));
-
-    // Use smaller bucket size for better precision
-    const bucketSize = Math.max(1, Math.ceil(maxWeight / numBuckets));
-    const adjustedBuckets = Math.ceil(weightLimit / bucketSize);
+    const bucketSize = Math.ceil(weightLimit / numBuckets);
 
     // Convert weights to bucket indices
     const bucketedConfigs = uniqueConfigs.map((config) => ({
@@ -125,7 +111,7 @@ function knapsackBucketed(configurations, weightLimit, numBuckets = 1000) {
     }));
 
     // Initialize DP table: dp[bucket][item] = {maxValue, selectedConfigs}
-    const dp = new Array(adjustedBuckets + 1).fill(0).map(() =>
+    const dp = new Array(numBuckets + 1).fill(0).map(() =>
         new Array(uniqueConfigs.length + 1).fill(0).map(() => ({
             maxValue: 0,
             selectedConfigs: [],
@@ -135,7 +121,7 @@ function knapsackBucketed(configurations, weightLimit, numBuckets = 1000) {
     // Fill the DP table
     for (let i = 1; i <= uniqueConfigs.length; i++) {
         const config = bucketedConfigs[i - 1];
-        for (let w = 1; w <= adjustedBuckets; w++) {
+        for (let w = 1; w <= numBuckets; w++) {
             // Option 1: Don't include current item
             dp[w][i] = {
                 maxValue: dp[w][i - 1].maxValue,
@@ -144,7 +130,7 @@ function knapsackBucketed(configurations, weightLimit, numBuckets = 1000) {
 
             // Option 2: Include current item (if it fits)
             if (config.bucketWeight <= w) {
-                const valueWithItem = dp[w - config.bucketWeight][i - 1].maxValue + config.priority;
+                const valueWithItem = dp[w - config.bucketWeight][i - 1].maxValue + config.throughput;
                 if (valueWithItem > dp[w][i].maxValue) {
                     dp[w][i] = {
                         maxValue: valueWithItem,
@@ -156,16 +142,16 @@ function knapsackBucketed(configurations, weightLimit, numBuckets = 1000) {
     }
 
     // Find the actual total weight
-    const selected = dp[adjustedBuckets][uniqueConfigs.length].selectedConfigs;
+    const selected = dp[numBuckets][uniqueConfigs.length].selectedConfigs;
     const actualWeight = selected.reduce((sum, config) => sum + config.originalWeight, 0);
 
     return {
         selected,
-        totalValue: dp[adjustedBuckets][uniqueConfigs.length].maxValue,
+        totalValue: dp[numBuckets][uniqueConfigs.length].maxValue,
         totalWeight: actualWeight,
         remainingWeight: weightLimit - actualWeight,
         bucketSize,
-        bucketsUsed: Math.ceil(actualWeight / bucketSize),
+        bucketsUsed: numBuckets,
         uniqueServers: uniqueConfigs.length,
         totalConfigurations: configurations.length,
     };
