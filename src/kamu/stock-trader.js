@@ -6,6 +6,7 @@
 const shortAvailable = true;
 
 const commission = 100000;
+const reserveCash = 0.5e9;
 
 export async function main(ns) {
     ns.disableLog("ALL");
@@ -30,40 +31,50 @@ function tendStocks(ns) {
     for (const stock of stocks) {
         if (stock.longShares > 0) {
             if (stock.forecast > 0.55) {
+                longStocks.add(stock.sym);
                 ns.print(
                     `INFO ${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)}`,
                 );
                 overallValue += stock.value;
                 totalProfit += stock.profit;
-            } else if (stock.forecast < 0.53) {
-                const salePrice = ns.stock.sellStock(stock.sym, stock.longShares);
-                const saleTotal = salePrice * stock.longShares;
-                const saleCost = stock.longPrice * stock.longShares;
-                const saleProfit = saleTotal - saleCost - 2 * commission;
-                stock.shares = 0;
-                ns.print(`WARN ${stock.summary} SOLD for ${ns.formatNumber(saleProfit, 1)} profit`);
+            } else {
+                shortStocks.add(stock.sym);
+
+                if (stock.forecast < 0.53) {
+                    const salePrice = ns.stock.sellStock(stock.sym, stock.longShares);
+                    const saleTotal = salePrice * stock.longShares;
+                    const saleCost = stock.longPrice * stock.longShares;
+                    const saleProfit = saleTotal - saleCost - 2 * commission;
+                    stock.shares = 0;
+                    ns.print(`WARN ${stock.summary} SOLD for ${ns.formatNumber(saleProfit, 1)} profit`);
+                }
             }
         }
         if (stock.shortShares > 0) {
             if (stock.forecast < 0.4) {
+                shortStocks.add(stock.sym);
                 ns.print(
                     `INFO ${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)}`,
                 );
                 overallValue += stock.value;
                 totalProfit += stock.profit;
-            } else if (stock.forecast > 0.45) {
-                const salePrice = ns.stock.sellShort(stock.sym, stock.shortShares);
-                const saleTotal = salePrice * stock.shortShares;
-                const saleCost = stock.shortPrice * stock.shortShares;
-                const saleProfit = saleTotal - saleCost - 2 * commission;
-                stock.shares = 0;
-                ns.print(`WARN ${stock.summary} SHORT SOLD for ${ns.formatNumber(saleProfit, 1)} profit`);
+            } else {
+                longStocks.add(stock.sym);
+
+                if (stock.forecast > 0.45) {
+                    const salePrice = ns.stock.sellShort(stock.sym, stock.shortShares);
+                    const saleTotal = salePrice * stock.shortShares;
+                    const saleCost = stock.shortPrice * stock.shortShares;
+                    const saleProfit = saleTotal - saleCost - 2 * commission;
+                    stock.shares = 0;
+                    ns.print(`WARN ${stock.summary} SHORT SOLD for ${ns.formatNumber(saleProfit, 1)} profit`);
+                }
             }
         }
     }
 
     for (const stock of stocks) {
-        var money = ns.getServerMoneyAvailable("home");
+        var money = ns.getServerMoneyAvailable("home") - reserveCash;
         //ns.print(`INFO ${stock.summary}`);
         if (stock.forecast > 0.55) {
             //ns.print(`INFO ${stock.summary}`);
@@ -86,14 +97,14 @@ function tendStocks(ns) {
     ns.print("Stock value: " + ns.formatNumber(overallValue, 1));
     ns.print("Total P&L: " + (totalProfit >= 0 ? "+" : "") + ns.formatNumber(totalProfit, 1));
 
-    for (const stock of stocks) {
-        if (stock.longShares > 0) {
-            longStocks.add(stock.sym);
-        }
-        if (stock.shortShares > 0) {
-            shortStocks.add(stock.sym);
-        }
-    }
+    // for (const stock of stocks) {
+    //     if (stock.longShares > 0) {
+    //         longStocks.add(stock.sym);
+    //     }
+    //     if (stock.shortShares > 0) {
+    //         shortStocks.add(stock.sym);
+    //     }
+    // }
 
     // const highestValueStock = stocks.reduce((highest, current) => {
     //     return current.value > highest.value ? current : highest;

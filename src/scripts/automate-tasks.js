@@ -19,19 +19,20 @@ export async function main(ns) {
 
     /** @type {Task[]} */
     let taskQueue = [
+        { type: "faction", target: "Daedalus", goal: "250000000" },
         { type: "faction", target: "Daedalus", goal: "100000" },
         { type: "faction", target: "Daedalus", goal: "favor" },
         { type: "homicide" },
-        // {
-        //     type: "graft",
-        //     target: "OmniTek InfoLoad",
-        // },
+        {
+            type: "graft",
+            target: "OmniTek InfoLoad",
+        },
         // {
         //     type: "graft",
         //     target: "ADR-V2 Pheromone Gene",
         // },
-        // { type: "faction", target: "CyberSec", goal: "2000" },
-        // { type: "faction", target: "Tian Di Hui", goal: "6250" },
+        // { type: "faction", target: "CyberSec", goal: "2000" }, // Synaptic Enhancement Implant
+        // { type: "faction", target: "Tian Di Hui", goal: "6250" }, // Social Negotiation Assistant (S.N.A)
         // { type: "faction", target: "Netburners", goal: "7500" },
         // { type: "faction", target: "Netburners", goal: "12500" },
         // { type: "reset" },
@@ -53,15 +54,16 @@ export async function main(ns) {
 
         // { type: "faction", target: "Tetrads", goal: "62500" }, // Bionic Arms
         // { type: "reset" },
-        // { type: "faction", target: "Chongqing", goal: "37500" }, // Neuregen Gene Modification
-        // { type: "faction", target: "Tian Di Hui", goal: "75000" }, // Neuroreceptor Management Implant
-        // { type: "faction", target: "The Black Hand", goal: "100000" }, // The Black Hand
-        // { type: "faction", target: "BitRunners", goal: "100000" }, // Embedded Netburner Module Core V3 Upgrade
+        { type: "faction", target: "The Black Hand", goal: "100000" }, // The Black Hand
+        { type: "faction", target: "Chongqing", goal: "37500" }, // Neuregen Gene Modification
+        { type: "faction", target: "Tian Di Hui", goal: "75000" }, // Neuroreceptor Management Implant
+        { type: "faction", target: "BitRunners", goal: "100000" }, // Embedded Netburner Module Core V3 Upgrade
 
         // { type: "faction", target: "NiteSec", goal: "favor" },
 
-        // { type: "faction", target: "BitRunners", goal: "250000" },
+        { type: "faction", target: "BitRunners", goal: "250000" },
         { type: "faction", target: "BitRunners", goal: "favor" },
+        { type: "faction", target: "BitRunners", goal: "250000000" },
     ];
 
     ns.print("\n\n\n\n\n\n");

@@ -141,8 +141,10 @@ export async function main(ns) {
             var timeElapsed = (now - oldest.time) / 1000;
             valueRate = (portfolio.totalValue - oldest.totalValue) / timeElapsed;
             profitRate = (portfolio.totalProfit - oldest.totalProfit) / timeElapsed;
-            totalStockRate = (totalStockValueSinceInstall - oldest.totalStockValueSinceInstall) / timeElapsed;
+            // totalStockRate = (totalStockValueSinceInstall - oldest.totalStockValueSinceInstall) / timeElapsed;
         }
+        const timeSinceReset = (now - ns.getResetInfo().lastAugReset) / 1000;
+        totalStockRate = totalStockValueSinceInstall / timeSinceReset;
 
         ns.print("💰 Market Cap: " + ns.formatNumber(totalMarketCap));
         ns.print("🏦 Bitnode Returns: " + ns.formatNumber(totalStockValueSinceInstall));

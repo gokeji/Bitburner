@@ -62,7 +62,7 @@ export async function main(ns) {
             }
 
             // Check every minute
-            if (Date.now() - previousCasinoMoneyTime > 60000) {
+            if (Date.now() - previousCasinoMoneyTime > 30000) {
                 if (previousCasinoMoney === ns.getMoneySources().sinceInstall.casino) {
                     // If casino money hasn't changed in a minute, there's a bug, exit roulette screen so it can restart
                     await click(ns, await findRequiredElement(ns, "//button[contains(text(), 'Stop playing')]"));
