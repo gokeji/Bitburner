@@ -36,6 +36,7 @@ export async function main(ns) {
 
     const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
     const ALWAYS_XP_FARM = true;
+    const XP_FARM_SERVER = "foodnstuff";
     const ALLOW_PARTIAL_PREP = true;
     const SHOULD_INFLUENCE_STOCKS = true;
     const ONLY_MANIPULATE_STOCKS = true;
@@ -513,10 +514,12 @@ export async function main(ns) {
 
         // 3. XP Farm Action
         if (ramToDistribute > 0) {
+            const scriptInfo = gameState.scriptInfoByTarget.get(XP_FARM_SERVER);
             actions.push({
                 type: ActionType.XP_FARM,
                 ramAvailable: ramToDistribute,
                 always: ALWAYS_XP_FARM,
+                isBatching: scriptInfo?.hasGrow && scriptInfo?.hasWeaken && scriptInfo?.hasHack,
             });
         }
 
@@ -559,19 +562,20 @@ export async function main(ns) {
             hasHack: false,
             hasGrow: false,
             hasWeaken: false,
+            isXp: false,
         };
 
         const isHgw = currentServerScripts.hasHack && currentServerScripts.hasGrow && currentServerScripts.hasWeaken;
         const isPrep =
             currentServerScripts.isPrep ||
-            (!currentServerScripts.hasHack && (currentServerScripts.hasGrow || currentServerScripts.hasWeaken));
+            (!currentServerScripts.hasHack &&
+                (currentServerScripts.hasGrow || currentServerScripts.hasWeaken) &&
+                !currentServerScripts.isXp);
 
-        // Check for recovery conditions on batching servers
         if (isHgw) {
             return ServerState.BATCHING;
         }
 
-        // Check for stale prep scripts on fully prepped servers
         if (isPrep) {
             return ServerState.PREPPING;
         }
@@ -684,7 +688,7 @@ export async function main(ns) {
                     break;
 
                 case ActionType.XP_FARM:
-                    xpFarm(ns, action.always);
+                    xpFarm(ns, action.always, action.isBatching);
                     break;
 
                 case ActionType.LOG_MESSAGE:
@@ -1234,6 +1238,7 @@ export async function main(ns) {
                             hasGrow: false,
                             hasWeaken: false,
                             isPrep: false,
+                            isXp: false,
                         });
                     }
 
@@ -1247,6 +1252,10 @@ export async function main(ns) {
 
                     if (script.args.includes("prep")) {
                         info.isPrep = true;
+                    }
+
+                    if (script.args.includes("xp")) {
+                        info.isXp = true;
                     }
 
                     if (script.args.includes("hgw")) {
@@ -1822,8 +1831,8 @@ export async function main(ns) {
      * Late game the xpFarm cycle is finally faster than our tick time so we can do a few cycles per tick and we will also have left over ram
      * @param {NS} ns - The Netscript API.
      */
-    function xpFarm(ns, always = false) {
-        const xpTarget = "foodnstuff";
+    function xpFarm(ns, always = false, isBatching = false) {
+        const xpTarget = XP_FARM_SERVER;
         const xpFarmScript = "/scripts/xp-farm.js";
 
         // Check if target server exists and we have root access
@@ -1833,7 +1842,10 @@ export async function main(ns) {
 
         let serverInfo = ns.getServer(xpTarget);
 
-        if (serverInfo.moneyAvailable < serverInfo.moneyMax || serverInfo.hackDifficulty > serverInfo.minDifficulty) {
+        if (
+            (serverInfo.moneyAvailable < serverInfo.moneyMax || serverInfo.hackDifficulty > serverInfo.minDifficulty) &&
+            !isBatching
+        ) {
             const prepRamUsed = prepServer(ns, xpTarget, 1, true);
             if (prepRamUsed !== false && prepRamUsed > 0) {
                 ns.print(`SUCCESS XP Farm: Prepped ${xpTarget} with ${ns.formatRam(prepRamUsed)}`);

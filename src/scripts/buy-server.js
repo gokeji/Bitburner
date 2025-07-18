@@ -1,3 +1,5 @@
+import { NS } from "@ns";
+
 /** @param {NS} ns **/
 export async function main(ns) {
     // Check if --check flag is passed
@@ -17,8 +19,16 @@ export async function main(ns) {
             ns.tprint(`${ramDisplay.padEnd(13)} | $${costDisplay}`);
         }
 
+        ns.tprint("");
+        ns.tprint(
+            `Upgrade home RAM to ${ns.formatRam(ns.getServerMaxRam("home") * 2)}: $${ns.formatNumber(ns.singularity.getUpgradeHomeRamCost(), 3)}`,
+        );
+        ns.tprint(
+            `Upgrade home cores to ${ns.getServer("home").cpuCores + 1}: $${ns.formatNumber(ns.singularity.getUpgradeHomeCoresCost(), 3)}`,
+        );
+
         const playerMoney = ns.getPlayer().money;
-        ns.tprint(`\nYour current money: $${ns.formatNumber(playerMoney, 3)}`);
+        ns.tprint(`Your current money: $${ns.formatNumber(playerMoney, 3)}`);
         ns.tprint(`Purchased servers: ${ns.getPurchasedServers().length}/${ns.getPurchasedServerLimit()}`);
         return;
     }

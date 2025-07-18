@@ -51,7 +51,7 @@ function tendStocks(ns) {
             }
         }
         if (stock.shortShares > 0) {
-            if (stock.forecast < 0.4) {
+            if (stock.forecast < 0.45) {
                 shortStocks.set(stock.sym, stock);
                 ns.print(
                     `INFO ${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)}`,
@@ -61,7 +61,7 @@ function tendStocks(ns) {
             } else {
                 longStocks.set(stock.sym, stock);
 
-                if (stock.forecast > 0.45) {
+                if (stock.forecast > 0.47) {
                     const salePrice = ns.stock.sellShort(stock.sym, stock.shortShares);
                     const saleTotal = salePrice * stock.shortShares;
                     const saleCost = stock.shortPrice * stock.shortShares;
@@ -84,7 +84,7 @@ function tendStocks(ns) {
                     ns.print(`WARN ${stock.summary} LONG BOUGHT ${ns.formatNumber(sharesToBuy, 1)}`);
                 }
             }
-        } else if (stock.forecast < 0.4 && shortAvailable) {
+        } else if (stock.forecast < 0.45 && shortAvailable) {
             //ns.print(`INFO ${stock.summary}`);
             if (money > 500 * commission) {
                 const sharesToBuy = Math.min(stock.maxShares, Math.floor((money - commission) / stock.bidPrice));

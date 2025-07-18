@@ -39,10 +39,10 @@ export async function main(ns) {
 
         // { type: "faction", target: "NiteSec", goal: "45000" }, // CRTX42-AA Gene Modification
         // { type: "graft", target: "QLink" },
-        // {
-        //     type: "graft",
-        //     target: "Xanipher",
-        // },
+        {
+            type: "graft",
+            target: "Xanipher",
+        },
         // {
         //     type: "graft",
         //     target: "BitRunners Neurolink",
