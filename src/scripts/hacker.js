@@ -40,8 +40,8 @@ export async function main(ns) {
     const SHOULD_INFLUENCE_STOCKS = true;
     const ONLY_MANIPULATE_STOCKS = true;
 
-    let growStocks = new Set();
-    let hackStocks = new Set();
+    let growStocks = new Map();
+    let hackStocks = new Map();
 
     let executableServers = [];
     let hackableServers = [];
@@ -204,12 +204,13 @@ export async function main(ns) {
                 } else if (firstPortElement == "EMPTY") {
                     // "EMPTY" means that the list shall be set to empty
                     portHandle.clear();
-                    return new Set();
+                    return new Map();
                 } else {
                     // list shall be updated
-                    content = new Set();
+                    content = new Map();
                     while (!portHandle.empty()) {
-                        content.add(portHandle.read());
+                        const [server, value] = portHandle.read().split(":");
+                        content.set(server, value);
                     }
                 }
                 return content;
@@ -218,8 +219,16 @@ export async function main(ns) {
             growStocks = getStockPortContent(ns, 1, growStocks); // port 1 is grow
             hackStocks = getStockPortContent(ns, 2, hackStocks); // port 2 is hack
 
-            ns.print(`DEBUG: growStocks: ${Array.from(growStocks).join(", ")}`);
-            ns.print(`DEBUG: hackStocks: ${Array.from(hackStocks).join(", ")}`);
+            ns.print(
+                `DEBUG: growStocks: ${Array.from(growStocks.entries())
+                    .map(([server, value]) => `${server}:${ns.formatNumber(value, 1)}`)
+                    .join(", ")}`,
+            );
+            ns.print(
+                `DEBUG: hackStocks: ${Array.from(hackStocks.entries())
+                    .map(([server, value]) => `${server}:${ns.formatNumber(value, 1)}`)
+                    .join(", ")}`,
+            );
         }
 
         // Calculate global priorities map once per tick (without excluding any servers)
@@ -918,6 +927,7 @@ export async function main(ns) {
             throughput,
             priority,
             ramUsageForSustainedThroughput,
+            batchSustainRatio: batchLimitForSustainedThroughput / theoreticalBatchLimit,
 
             // Timing values
             weakenTime,
@@ -955,7 +965,7 @@ export async function main(ns) {
             for (let hackThreads = 1; hackThreads <= 200; hackThreads++) {
                 const config = getServerHackStats(ns, server, hackThreads);
 
-                if (config === null) {
+                if (config === null || config.batchSustainRatio < 0.7) {
                     continue;
                 }
 
@@ -983,10 +993,10 @@ export async function main(ns) {
             // Only evaluate servers that are in the growStocks or hackStocks sets. Priority is calculated based on stock manipulation strength
             allConfigurations = [];
             const stockManipulationServers = new Set();
-            for (const server of growStocks) {
+            for (const server of growStocks.keys()) {
                 stockManipulationServers.add(server);
             }
-            for (const server of hackStocks) {
+            for (const server of hackStocks.keys()) {
                 stockManipulationServers.add(server);
             }
             for (const server of stockManipulationServers) {
@@ -995,8 +1005,9 @@ export async function main(ns) {
                 for (let hackThreads = 1; hackThreads <= 200; hackThreads++) {
                     const config = getServerHackStats(ns, server, hackThreads);
                     if (config === null) continue;
+                    const totalStockValue = (growStocks.get(server) ?? 0) + (hackStocks.get(server) ?? 0);
                     config.priority =
-                        (config.actualHackPercentage * config.batchLimitForSustainedThroughput) /
+                        (config.actualHackPercentage * totalStockValue * config.batchLimitForSustainedThroughput) /
                         config.weakenTime /
                         config.ramUsageForSustainedThroughput;
                     allConfigurations.push(config);
@@ -1022,7 +1033,7 @@ export async function main(ns) {
 
         for (const config of selectedConfigs) {
             ns.print(
-                `MAX HACK: ${config.server} - ${config.hackThreads}H (${ns.formatPercent(config.actualHackPercentage)}) - ${ns.formatRam(config.ramRequired)}/batch, max ${config.batchLimitForSustainedThroughput} concurrent = ${ns.formatRam(config.ramUsageForSustainedThroughput)} total - ${ns.formatNumber(config.throughput, 2)}/s`,
+                `MAX HACK: ${config.server} - ${config.hackThreads}H (${ns.formatPercent(config.actualHackPercentage)}) - ${ns.formatRam(config.ramRequired)}/batch, max ${config.batchLimitForSustainedThroughput} concurrent = ${ns.formatRam(config.ramUsageForSustainedThroughput)} (${ns.formatPercent(config.batchSustainRatio)}) priority - ${ns.formatNumber(config.priority, 2)}`,
             );
 
             // Map to existing format for compatibility

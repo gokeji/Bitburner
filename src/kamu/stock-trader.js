@@ -23,22 +23,22 @@ function tendStocks(ns) {
 
     stocks.sort((a, b) => b.profitPotential - a.profitPotential);
 
-    var longStocks = new Set();
-    var shortStocks = new Set();
+    var longStocks = new Map();
+    var shortStocks = new Map();
     var overallValue = 0;
     var totalProfit = 0;
 
     for (const stock of stocks) {
         if (stock.longShares > 0) {
             if (stock.forecast > 0.55) {
-                longStocks.add(stock.sym);
+                longStocks.set(stock.sym, stock);
                 ns.print(
                     `INFO ${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)}`,
                 );
                 overallValue += stock.value;
                 totalProfit += stock.profit;
             } else {
-                shortStocks.add(stock.sym);
+                shortStocks.set(stock.sym, stock);
 
                 if (stock.forecast < 0.53) {
                     const salePrice = ns.stock.sellStock(stock.sym, stock.longShares);
@@ -52,14 +52,14 @@ function tendStocks(ns) {
         }
         if (stock.shortShares > 0) {
             if (stock.forecast < 0.4) {
-                shortStocks.add(stock.sym);
+                shortStocks.set(stock.sym, stock);
                 ns.print(
                     `INFO ${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)}`,
                 );
                 overallValue += stock.value;
                 totalProfit += stock.profit;
             } else {
-                longStocks.add(stock.sym);
+                longStocks.set(stock.sym, stock);
 
                 if (stock.forecast > 0.45) {
                     const salePrice = ns.stock.sellShort(stock.sym, stock.shortShares);
@@ -121,23 +121,23 @@ function tendStocks(ns) {
     var growStockPort = ns.getPortHandle(1); // port 1 is grow
     var hackStockPort = ns.getPortHandle(2); // port 2 is hack
 
-    for (const sym of longStocks) {
+    for (const stock of longStocks.values()) {
         //ns.print("INFO grow " + sym);
-        growStockPort.write(getSymServer(sym));
+        growStockPort.write(`${getSymServer(stock.sym)}:${stock.value}`);
     }
     if (shortStocks.size === 0) {
         hackStockPort.write("EMPTY");
     }
-    for (const sym of shortStocks) {
+    for (const stock of shortStocks.values()) {
         //ns.print("INFO hack " + sym);
-        hackStockPort.write(getSymServer(sym));
+        hackStockPort.write(`${getSymServer(stock.sym)}:${stock.value}`);
     }
     if (longStocks.size === 0) {
         growStockPort.write("EMPTY");
     }
 
-    ns.print("longStocks: " + Array.from(longStocks).join(", "));
-    ns.print("shortStocks: " + Array.from(shortStocks).join(", "));
+    ns.print("longStocks: " + Array.from(longStocks.keys()).join(", "));
+    ns.print("shortStocks: " + Array.from(shortStocks.keys()).join(", "));
 }
 
 export function getAllStocks(ns) {
