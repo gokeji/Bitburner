@@ -61,7 +61,7 @@ function calculatePortfolioValue(ns) {
                     symbol: sym,
                     type: "SHORT",
                     shares: shortShares,
-                    currentValue: currentValue,
+                    currentValue: costBasis + profit,
                     profit: profit,
                     totalValue: costBasis + profit,
                     forecast: forecast,

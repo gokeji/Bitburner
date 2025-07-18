@@ -1003,12 +1003,6 @@ export async function main(ns) {
             for (const server of hackStocks.keys()) {
                 stockManipulationServers.add(server);
             }
-            // const highestValueServer = Array.from(stockManipulationServers).reduce((a, b) => {
-            //     const aValue = (growStocks.get(a) ?? 0) + (hackStocks.get(a) ?? 0);
-            //     const bValue = (growStocks.get(b) ?? 0) + (hackStocks.get(b) ?? 0);
-            //     return aValue > bValue ? a : b;
-            // }, "");
-            // ns.print(`DEBUG: highestValueServer: ${highestValueServer}`);
             for (const server of stockManipulationServers) {
                 if (server === "") continue;
                 // Generate configurations for 1-100 hack threads

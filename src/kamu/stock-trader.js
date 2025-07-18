@@ -1,3 +1,5 @@
+import { NS } from "@ns";
+
 // file: stock-trader.js
 
 // requires 4s Market Data TIX API Access
@@ -8,12 +10,18 @@ const shortAvailable = true;
 const commission = 100000;
 const reserveCash = 0.5e9;
 
+const BUY_LONG_THRESHOLD = 0.6;
+const SELL_LONG_THRESHOLD = 0.55;
+const BUY_SHORT_THRESHOLD = 0.4;
+const SELL_SHORT_THRESHOLD = 0.45;
+
+/** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog("ALL");
 
     while (true) {
         tendStocks(ns);
-        await ns.sleep(5 * 1000);
+        await ns.stock.nextUpdate();
     }
 }
 
@@ -28,9 +36,15 @@ function tendStocks(ns) {
     var overallValue = 0;
     var totalProfit = 0;
 
+    const shouldLongStocks = stocks.filter((stock) => stock.forecast > BUY_LONG_THRESHOLD);
+    const shouldShortStocks = stocks.filter((stock) => stock.forecast < BUY_SHORT_THRESHOLD);
+
+    const currentLongStocks = stocks.filter((stock) => stock.longShares > 0);
+    const currentShortStocks = stocks.filter((stock) => stock.shortShares > 0);
+
     for (const stock of stocks) {
         if (stock.longShares > 0) {
-            if (stock.forecast > 0.55) {
+            if (stock.forecast > BUY_LONG_THRESHOLD) {
                 longStocks.set(stock.sym, stock);
                 ns.print(
                     `INFO ${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)}`,
@@ -40,7 +54,7 @@ function tendStocks(ns) {
             } else {
                 shortStocks.set(stock.sym, stock);
 
-                if (stock.forecast < 0.53) {
+                if (stock.forecast < SELL_LONG_THRESHOLD) {
                     const salePrice = ns.stock.sellStock(stock.sym, stock.longShares);
                     const saleTotal = salePrice * stock.longShares;
                     const saleCost = stock.longPrice * stock.longShares;
@@ -51,7 +65,7 @@ function tendStocks(ns) {
             }
         }
         if (stock.shortShares > 0) {
-            if (stock.forecast < 0.45) {
+            if (stock.forecast < BUY_SHORT_THRESHOLD) {
                 shortStocks.set(stock.sym, stock);
                 ns.print(
                     `INFO ${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)}`,
@@ -61,7 +75,7 @@ function tendStocks(ns) {
             } else {
                 longStocks.set(stock.sym, stock);
 
-                if (stock.forecast > 0.47) {
+                if (stock.forecast > SELL_SHORT_THRESHOLD) {
                     const salePrice = ns.stock.sellShort(stock.sym, stock.shortShares);
                     const saleTotal = salePrice * stock.shortShares;
                     const saleCost = stock.shortPrice * stock.shortShares;
@@ -76,7 +90,7 @@ function tendStocks(ns) {
     for (const stock of stocks) {
         var money = ns.getServerMoneyAvailable("home") - reserveCash;
         //ns.print(`INFO ${stock.summary}`);
-        if (stock.forecast > 0.55) {
+        if (stock.forecast > BUY_LONG_THRESHOLD) {
             //ns.print(`INFO ${stock.summary}`);
             if (money > 500 * commission) {
                 const sharesToBuy = Math.min(stock.maxShares, Math.floor((money - commission) / stock.askPrice));
@@ -84,7 +98,7 @@ function tendStocks(ns) {
                     ns.print(`WARN ${stock.summary} LONG BOUGHT ${ns.formatNumber(sharesToBuy, 1)}`);
                 }
             }
-        } else if (stock.forecast < 0.45 && shortAvailable) {
+        } else if (stock.forecast < BUY_SHORT_THRESHOLD && shortAvailable) {
             //ns.print(`INFO ${stock.summary}`);
             if (money > 500 * commission) {
                 const sharesToBuy = Math.min(stock.maxShares, Math.floor((money - commission) / stock.bidPrice));
@@ -123,14 +137,16 @@ function tendStocks(ns) {
 
     for (const stock of longStocks.values()) {
         //ns.print("INFO grow " + sym);
-        growStockPort.write(`${getSymServer(stock.sym)}:${stock.value}`);
+        // Prioritize volatile stocks
+        growStockPort.write(`${getSymServer(stock.sym)}:${stock.value * stock.volatility * 100}`);
     }
     if (shortStocks.size === 0) {
         hackStockPort.write("EMPTY");
     }
     for (const stock of shortStocks.values()) {
         //ns.print("INFO hack " + sym);
-        hackStockPort.write(`${getSymServer(stock.sym)}:${stock.value}`);
+        // Prioritize volatile stocks
+        hackStockPort.write(`${getSymServer(stock.sym)}:${stock.value * stock.volatility * 100}`);
     }
     if (longStocks.size === 0) {
         growStockPort.write("EMPTY");
@@ -167,7 +183,7 @@ export function getAllStocks(ns) {
 
         // profit potential as chance for profit * effect of profit
         var profitChance = 2 * Math.abs(stock.forecast - 0.5);
-        var profitPotential = profitChance * stock.volatility;
+        var profitPotential = profitChance * stock.volatility ** 2;
         stock.profitPotential = profitPotential;
 
         stock.summary = `${stock.sym}: ${stock.forecast.toFixed(3)} ± ${stock.volatility.toFixed(3)}`;
