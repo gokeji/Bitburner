@@ -22,11 +22,9 @@ export async function main(ns) {
     // === Hacker Settings ===
     let MAX_WEAKEN_TIME = 15 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
-    // let hackPercentage = 0.01;
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.11; // Use extra grow and weak threads to correct for out of sync HGW batches
-
-    let PARTIAL_PREP_THRESHOLD = 0.4;
-    let ALLOW_HASH_UPGRADES = true;
+    let ALLOW_HASH_UPGRADES = false;
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.02; // Use extra grow and weak threads to correct for out of sync HGW batches
+    let PARTIAL_PREP_THRESHOLD = 0.1;
 
     let serversToHack = []; // ["clarkinc"];
 
@@ -391,7 +389,7 @@ export async function main(ns) {
                     }
 
                     // calculateBatchingActions
-                    if (serverStats && serverStats.selectedByKnapsack) {
+                    if (serverStats) {
                         if (serverStats.skippedDueToSecurity) {
                             serverActions.push({
                                 type: ActionType.SKIP_BATCHES,
@@ -956,6 +954,11 @@ export async function main(ns) {
             // Generate configurations for 1-100 hack threads
             for (let hackThreads = 1; hackThreads <= 200; hackThreads++) {
                 const config = getServerHackStats(ns, server, hackThreads);
+
+                if (config === null) {
+                    continue;
+                }
+
                 // Track the maximum throughput for this server
                 if (config.priority > maxPriorityForServer) {
                     maxPriorityForServer = config.priority;
@@ -974,12 +977,7 @@ export async function main(ns) {
             serverMaxPriorities.set(server, maxPriorityForServer);
         }
 
-        ns.print(`DEBUG: allConfigurations: ${allConfigurations.length}`);
-        // for (const config of allConfigurations) {
-        //     ns.print(
-        //         `DEBUG: config.server: ${config.server} | throughput: ${config.throughput} | priority: ${config.priority} | sustained ram: ${ns.formatRam(config.ramUsageForSustainedThroughput)}`,
-        //     );
-        // }
+        // ns.write("allConfigurations.txt", JSON.stringify(allConfigurations, null, 2), "w");
 
         if (ONLY_MANIPULATE_STOCKS) {
             // Only evaluate servers that are in the growStocks or hackStocks sets. Priority is calculated based on stock manipulation strength
@@ -992,24 +990,32 @@ export async function main(ns) {
                 stockManipulationServers.add(server);
             }
             for (const server of stockManipulationServers) {
+                if (server === "") continue;
                 // Generate configurations for 1-100 hack threads
                 for (let hackThreads = 1; hackThreads <= 200; hackThreads++) {
                     const config = getServerHackStats(ns, server, hackThreads);
+                    if (config === null) continue;
                     config.priority =
                         (config.actualHackPercentage * config.batchLimitForSustainedThroughput) /
                         config.weakenTime /
                         config.ramUsageForSustainedThroughput;
                     allConfigurations.push(config);
 
-                    if (config.actualHackPercentage >= 1) {
-                        break;
-                    }
+                    if (config.actualHackPercentage >= 1) break;
                 }
             }
         }
 
+        ns.print(`DEBUG: allConfigurations: ${allConfigurations.length}`);
+
+        // for (const config of allConfigurations) {
+        //     ns.print(
+        //         `DEBUG: config.server: ${config.server} | throughput: ${config.throughput} | priority: ${config.priority} | sustained ram: ${ns.formatRam(config.ramUsageForSustainedThroughput)}`,
+        //     );
+        // }
+
         // Step 2: Apply knapsack algorithm
-        const selectedConfigs = solveKnapsack(allConfigurations, maxRamAvailableForHacking);
+        const selectedConfigs = knapsackBucketed(allConfigurations, maxRamAvailableForHacking);
 
         // Step 3: Convert results to prioritiesMap format (keeping compatibility)
         const prioritiesMap = new Map();
@@ -1024,7 +1030,6 @@ export async function main(ns) {
                 ...config,
                 ramNeededPerBatch: config.ramRequired,
                 hackPercentage: config.actualHackPercentage,
-                selectedByKnapsack: true,
             });
         }
 
@@ -1035,46 +1040,106 @@ export async function main(ns) {
         return { prioritiesMap, serverMaxPriorities };
     }
 
-    /**
-     * Simple knapsack solver for server configurations
-     */
-    function solveKnapsack(configs, maxWeight) {
-        const selectedItems = [];
+    function knapsackGreedy(configurations, weightLimit) {
+        // Calculate value/weight ratio for each configuration
+        const configsWithRatio = configurations.map((config) => ({
+            ...config,
+            ratio: config.priority / config.ramUsageForSustainedThroughput,
+        }));
 
-        if (configs.length === 0 || maxWeight <= 0) {
-            return selectedItems;
-        }
+        // Sort by value/weight ratio (descending)
+        configsWithRatio.sort((a, b) => b.ratio - a.ratio);
 
-        // Sort by priority (throughput/ram ratio) descending for greedy approximation
-        configs.sort((a, b) => b.priority - a.priority);
+        let remainingWeight = weightLimit;
+        const selected = [];
+        const usedServers = new Set(); // Track servers already used
+        let totalValue = 0;
+        let totalWeight = 0;
 
-        let remainingWeight = maxWeight;
-
-        for (const config of configs) {
-            if (selectedItems.some((selectedConfig) => selectedConfig.server === config.server)) {
+        // Greedily select configurations
+        for (const config of configsWithRatio) {
+            // Skip if server already used or doesn't fit
+            if (usedServers.has(config.server) || config.ramUsageForSustainedThroughput > remainingWeight) {
                 continue;
             }
-            if (config.ramUsageForSustainedThroughput <= remainingWeight || selectedItems.length === 0) {
-                selectedItems.push(config);
-                remainingWeight -= config.ramUsageForSustainedThroughput;
+
+            selected.push(config);
+            usedServers.add(config.server);
+            totalValue += config.priority;
+            totalWeight += config.ramUsageForSustainedThroughput;
+            remainingWeight -= config.ramUsageForSustainedThroughput;
+        }
+
+        return selected;
+    }
+
+    /**
+     * Bucketed Dynamic Programming solution for the 0/1 Knapsack problem.
+     * Uses adaptive bucketing based on actual weight distribution.
+     * Only one configuration per server allowed.
+     */
+    function knapsackBucketed(configurations, weightLimit, numBuckets = 100) {
+        // Find unique servers and their best configuration (highest priority per server)
+        const serverBestConfigs = new Map();
+
+        for (const config of configurations) {
+            const existing = serverBestConfigs.get(config.server);
+            if (!existing || config.priority > existing.priority) {
+                serverBestConfigs.set(config.server, config);
             }
         }
 
-        // if (remainingWeight > 0 && selectedItems.length < configs.length) {
-        //     const remainingBestConfig = configs.find(
-        //         (config) =>
-        //             !selectedItems.includes(config) &&
-        //             selectedItems.every((selectedConfig) => config.server !== selectedConfig.server),
-        //     );
-        //     if (remainingBestConfig) {
-        //         selectedItems.push(remainingBestConfig);
-        //     }
-        // }
+        // Use only the best configuration per server
+        const uniqueConfigs = Array.from(serverBestConfigs.values());
 
-        const totalThroughput = selectedItems.reduce((sum, config) => sum + config.throughput, 0);
+        const maxWeight = Math.max(...uniqueConfigs.map((c) => c.ramUsageForSustainedThroughput));
 
-        return selectedItems;
-    }
+        // Use smaller bucket size for better precision
+        const bucketSize = Math.max(1, Math.ceil(maxWeight / numBuckets));
+        const adjustedBuckets = Math.ceil(weightLimit / bucketSize);
+
+        // Convert weights to bucket indices
+        const bucketedConfigs = uniqueConfigs.map((config) => ({
+            ...config,
+            bucketWeight: Math.ceil(config.ramUsageForSustainedThroughput / bucketSize),
+            originalWeight: config.ramUsageForSustainedThroughput,
+        }));
+
+        // Initialize DP table: dp[bucket][item] = {maxValue, selectedConfigs}
+        const dp = new Array(adjustedBuckets + 1).fill(0).map(() =>
+            new Array(uniqueConfigs.length + 1).fill(0).map(() => ({
+                maxValue: 0,
+                selectedConfigs: [],
+            })),
+        );
+
+        // Fill the DP table
+        for (let i = 1; i <= uniqueConfigs.length; i++) {
+            const config = bucketedConfigs[i - 1];
+            for (let w = 1; w <= adjustedBuckets; w++) {
+                // Option 1: Don't include current item
+                dp[w][i] = {
+                    maxValue: dp[w][i - 1].maxValue,
+                    selectedConfigs: [...dp[w][i - 1].selectedConfigs],
+                };
+
+                // Option 2: Include current item (if it fits)
+                if (config.bucketWeight <= w) {
+                    const valueWithItem = dp[w - config.bucketWeight][i - 1].maxValue + config.priority;
+                    if (valueWithItem > dp[w][i].maxValue) {
+                        dp[w][i] = {
+                            maxValue: valueWithItem,
+                            selectedConfigs: [...dp[w - config.bucketWeight][i - 1].selectedConfigs, config],
+                        };
+                    }
+                }
+            }
+        }
+
+        // Find the actual total weight
+        const selected = dp[adjustedBuckets][uniqueConfigs.length].selectedConfigs;
+
+        return selected;
     }
 
     /**

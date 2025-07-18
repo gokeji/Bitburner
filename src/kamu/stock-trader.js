@@ -198,7 +198,7 @@ function getSymServer(sym) {
         RHOC: "rho-construction",
         APHE: "alpha-ent",
         SYSC: "syscore",
-        CTK: "comptek",
+        CTK: "computek",
         NTLK: "netlink",
         OMGA: "omega-net",
         JGN: "joesguns",
