@@ -37,24 +37,6 @@ function tendStocks(ns) {
 
     stocks.sort((a, b) => b.profitPotential - a.profitPotential);
 
-    for (const stock of stocks) {
-        if (stock.longShares > 0) {
-            const shareOwnership = stock.longShares / stock.maxShares;
-            customPrint(
-                ns,
-                `${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
-            );
-        } else if (stock.shortShares > 0) {
-            const shareOwnership = stock.shortShares / stock.maxShares;
-            customPrint(
-                ns,
-                `${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
-            );
-        } else {
-            customPrint(ns, `${stock.summary}`);
-        }
-    }
-
     var longStocks = new Map();
     var shortStocks = new Map();
     var overallValue = 0;
@@ -129,17 +111,14 @@ function tendStocks(ns) {
 
     // Rebalance portfolio
     const shouldOwnStocks = stocks.filter(
-        (stock) => stock.forecast > BUY_LONG_THRESHOLD || stock.forecast < BUY_SHORT_THRESHOLD,
+        (stock) =>
+            stock.forecast > BUY_LONG_THRESHOLD ||
+            stock.forecast < BUY_SHORT_THRESHOLD ||
+            stock.longShares > 0 ||
+            stock.shortShares > 0,
     );
     const ownedStocks = stocks.filter((stock) => stock.longShares > 0 || stock.shortShares > 0);
-    const ownedStocksCount = ownedStocks.length;
-    let shouldBuyStocks = shouldOwnStocks.filter((stock) => !ownedStocks.includes(stock));
-
-    // Only consider the top N stocks where N is the number of stocks we currently own
-    const maxPositionsToConsider = ownedStocksCount;
-    shouldBuyStocks = shouldBuyStocks.slice(0, maxPositionsToConsider);
-
-    for (const stock of shouldBuyStocks) {
+    for (const stock of shouldOwnStocks) {
         if (stock.forecast > BUY_LONG_THRESHOLD) {
             const sharesToBuy = stock.maxShares - stock.longShares - (buyOrders.get(stock.sym)?.sharesToBuy ?? 0);
             if (sharesToBuy > 0) {
@@ -235,6 +214,24 @@ function tendStocks(ns) {
             } else if (purchaseType === "Short" && ns.stock.buyShort(stock.sym, sharesToBuy) > 0) {
                 ns.print(`WARN ${stock.summary} SHORT BOUGHT ${ns.formatNumber(sharesToBuy, 1)}`);
             }
+        }
+    }
+
+    for (const stock of shouldOwnStocks) {
+        if (stock.longShares > 0) {
+            const shareOwnership = stock.longShares / stock.maxShares;
+            customPrint(
+                ns,
+                `${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
+            );
+        } else if (stock.shortShares > 0) {
+            const shareOwnership = stock.shortShares / stock.maxShares;
+            customPrint(
+                ns,
+                `${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
+            );
+        } else {
+            customPrint(ns, `${stock.summary}`);
         }
     }
 
