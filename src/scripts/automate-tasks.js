@@ -23,26 +23,26 @@ export async function main(ns) {
         { type: "faction", target: "Daedalus", goal: "100000" },
         { type: "faction", target: "Daedalus", goal: "favor" },
         { type: "homicide" },
-        {
-            type: "graft",
-            target: "OmniTek InfoLoad",
-        },
+        // {
+        //     type: "graft",
+        //     target: "OmniTek InfoLoad",
+        // },
         // {
         //     type: "graft",
         //     target: "ADR-V2 Pheromone Gene",
         // },
-        // { type: "faction", target: "CyberSec", goal: "2000" }, // Synaptic Enhancement Implant
-        // { type: "faction", target: "Tian Di Hui", goal: "6250" }, // Social Negotiation Assistant (S.N.A)
+        { type: "faction", target: "CyberSec", goal: "2000" }, // Synaptic Enhancement Implant
+        { type: "faction", target: "Tian Di Hui", goal: "6250" }, // Social Negotiation Assistant (S.N.A)
         // { type: "faction", target: "Netburners", goal: "7500" },
         // { type: "faction", target: "Netburners", goal: "12500" },
         // { type: "reset" },
 
-        // { type: "faction", target: "NiteSec", goal: "45000" }, // CRTX42-AA Gene Modification
+        { type: "faction", target: "NiteSec", goal: "45000" }, // CRTX42-AA Gene Modification
         // { type: "graft", target: "QLink" },
-        {
-            type: "graft",
-            target: "Xanipher",
-        },
+        // {
+        //     type: "graft",
+        //     target: "Xanipher",
+        // },
         // {
         //     type: "graft",
         //     target: "BitRunners Neurolink",

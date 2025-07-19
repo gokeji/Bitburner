@@ -1,15 +1,15 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = -1; //120 * 10 ** 9; // 12 B max server value
+const MAX_SERVER_VALUE = 0; //-1; //120 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
-const SERVER_TO_STANEK = "b-01";
+const SERVER_TO_STANEK = null; // "b-01";
 
-var IPVGO_OPPONENTS = [
-    "Netburners", // increased hacknet production
+let IPVGO_OPPONENTS = [
+    // "Netburners", // increased hacknet production
     // "Slum Snakes", // crime success rate
-    "The Black Hand", // hacking money
+    // "The Black Hand", // hacking money
     // "Tetrads", // strength, defense, dexterity, and agility levels
     "Daedalus", // reputation gain
     "Illuminati", // faster hack(), grow(), and weaken()
@@ -40,7 +40,7 @@ export async function main(ns) {
             }
         });
 
-    startUpgradeHnetIfNeeded(ns);
+    // startUpgradeHnetIfNeeded(ns);
 
     // After unlocking gangs, sleeves should be assigned manually
     // if (ns.heart.break() > -54000) {
@@ -49,11 +49,11 @@ export async function main(ns) {
 
     startGangIfNeeded(ns);
 
-    restartUpgradeServers(ns);
+    // restartUpgradeServers(ns);
 
     restartIpvgo(ns);
 
-    startUpgradeHomeRamIfNeeded(ns);
+    // startUpgradeHomeRamIfNeeded(ns);
 
     // Start TOR and program managers
     startTorManagerIfNotRunning(ns);
@@ -94,16 +94,16 @@ export async function main(ns) {
     }
 
     // Wait for Church of the Machine God to be unlocked
-    while (!ns.getPlayer().factions.includes("Church of the Machine God")) {
-        await ns.sleep(1000);
-    }
+    // while (!ns.getPlayer().factions.includes("Church of the Machine God")) {
+    //     await ns.sleep(1000);
+    // }
 
-    // Start stanek charging without blocking
-    if (!ranInitialStanek) {
-        startStanekIfNotRunning(ns);
-        ranInitialStanek = true;
-        ns.tprint("INFO Stanek started - hacker will avoid home RAM while it's running");
-    }
+    // // Start stanek charging without blocking
+    // if (!ranInitialStanek) {
+    //     startStanekIfNotRunning(ns);
+    //     ranInitialStanek = true;
+    //     ns.tprint("INFO Stanek started - hacker will avoid home RAM while it's running");
+    // }
 
     // Study Algorithms until we have 1350 exp to bootstrap early game hacking levels
     while (ns.getPlayer().exp.hacking < 1350) {
@@ -161,8 +161,8 @@ export async function main(ns) {
             MAX_SERVER_VALUE === -1 && ns.getPurchasedServers().length < ns.getPurchasedServerLimit();
 
         // Start stock trader and also share ram after we purchase the server to share ram on
-        if (totalServerValue > MAX_SERVER_VALUE && !noMaxServerValueCondition) {
-            // startStockTraderIfNotRunning(ns);
+        if (totalServerValue >= MAX_SERVER_VALUE && !noMaxServerValueCondition && !startedStockTrader) {
+            startStockTraderIfNotRunning(ns);
 
             startedStockTrader = true;
         }
@@ -248,11 +248,12 @@ function restartIpvgo(ns) {
 
     const hasRedPill = ns.singularity.getOwnedAugmentations().includes("The Red Pill");
 
+    let opponents = IPVGO_OPPONENTS;
     if (hasRedPill) {
-        IPVGO_OPPONENTS = ["????????????"]; // Only use ipvgo for hacking levels
+        opponents = ["????????????"]; // Only use ipvgo for hacking levels
     }
 
-    startScriptIfNotRunning(ns, "ipvgo-smart.js", HOST_NAME, 1, ...IPVGO_OPPONENTS);
+    startScriptIfNotRunning(ns, "ipvgo-smart.js", HOST_NAME, 1, ...opponents);
     // Note: This function checks for a different script name than what it starts
 }
 
@@ -264,7 +265,7 @@ function startSleeveIfNeeded(ns) {
 }
 
 function startGangIfNeeded(ns) {
-    const result = startScriptIfNotRunning(ns, "gangs.js", HOST_NAME, 1, "--money-focus");
+    const result = startScriptIfNotRunning(ns, "gangs.js", HOST_NAME, 1, "--reputation-focus");
     // if (result.success) {
     //     ns.ui.openTail(result.pid, HOST_NAME);
     // }
