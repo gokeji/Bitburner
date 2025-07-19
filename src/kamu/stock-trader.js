@@ -46,12 +46,39 @@ function tendStocks(ns) {
     const buyOrders = new Map();
     const sellOrders = new Map();
 
+    const shouldOwnStocks = stocks.filter(
+        (stock) =>
+            stock.forecast > BUY_LONG_THRESHOLD ||
+            stock.forecast < BUY_SHORT_THRESHOLD ||
+            stock.longShares > 0 ||
+            stock.shortShares > 0,
+    );
+
+    for (const stock of shouldOwnStocks) {
+        if (stock.longShares > 0) {
+            const shareOwnership = stock.longShares / stock.maxShares;
+            customPrint(
+                ns,
+                `${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
+            );
+        } else if (stock.shortShares > 0) {
+            const shareOwnership = stock.shortShares / stock.maxShares;
+            customPrint(
+                ns,
+                `${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
+            );
+        } else {
+            customPrint(ns, `${stock.summary}`);
+        }
+    }
+
     for (const stock of stocks) {
         if (stock.longShares > 0) {
+            overallValue += stock.value;
+            totalProfit += stock.profit;
+
             if (stock.forecast > BUY_LONG_THRESHOLD) {
                 longStocks.set(stock.sym, stock);
-                overallValue += stock.value;
-                totalProfit += stock.profit;
             } else {
                 shortStocks.set(stock.sym, stock);
 
@@ -66,18 +93,17 @@ function tendStocks(ns) {
             }
         }
         if (stock.shortShares > 0) {
+            overallValue += stock.value;
+            totalProfit += stock.profit;
+
             if (stock.forecast < BUY_SHORT_THRESHOLD) {
                 shortStocks.set(stock.sym, stock);
-                overallValue += stock.value;
-                totalProfit += stock.profit;
             } else {
                 longStocks.set(stock.sym, stock);
 
                 if (stock.forecast > SELL_SHORT_THRESHOLD) {
-                    const salePrice = ns.stock.sellShort(stock.sym, stock.shortShares);
-                    const saleTotal = salePrice * stock.shortShares;
-                    const saleCost = stock.shortPrice * stock.shortShares;
-                    const saleProfit = saleTotal - saleCost - commission;
+                    const saleProfit = ns.stock.getSaleGain(stock.sym, stock.shortShares, "Short");
+                    ns.stock.sellShort(stock.sym, stock.shortShares);
                     stock.shares = 0;
                     ns.print(`WARN ${stock.summary} SHORT SOLD for ${ns.formatNumber(saleProfit, 1)} profit`);
                 }
@@ -110,14 +136,7 @@ function tendStocks(ns) {
     }
 
     // Rebalance portfolio
-    const shouldOwnStocks = stocks.filter(
-        (stock) =>
-            stock.forecast > BUY_LONG_THRESHOLD ||
-            stock.forecast < BUY_SHORT_THRESHOLD ||
-            stock.longShares > 0 ||
-            stock.shortShares > 0,
-    );
-    const ownedStocks = stocks.filter((stock) => stock.longShares > 0 || stock.shortShares > 0);
+    const ownedStocks = stocks.filter((stock) => stock.longShares > 0 || stock.shortShares > 0).reverse();
     for (const stock of shouldOwnStocks) {
         if (stock.forecast > BUY_LONG_THRESHOLD) {
             const sharesToBuy = stock.maxShares - stock.longShares - (buyOrders.get(stock.sym)?.sharesToBuy ?? 0);
@@ -214,24 +233,6 @@ function tendStocks(ns) {
             } else if (purchaseType === "Short" && ns.stock.buyShort(stock.sym, sharesToBuy) > 0) {
                 ns.print(`WARN ${stock.summary} SHORT BOUGHT ${ns.formatNumber(sharesToBuy, 1)}`);
             }
-        }
-    }
-
-    for (const stock of shouldOwnStocks) {
-        if (stock.longShares > 0) {
-            const shareOwnership = stock.longShares / stock.maxShares;
-            customPrint(
-                ns,
-                `${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
-            );
-        } else if (stock.shortShares > 0) {
-            const shareOwnership = stock.shortShares / stock.maxShares;
-            customPrint(
-                ns,
-                `${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
-            );
-        } else {
-            customPrint(ns, `${stock.summary}`);
         }
     }
 

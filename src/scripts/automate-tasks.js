@@ -25,10 +25,10 @@ export async function main(ns) {
         { type: "faction", target: "Daedalus", goal: "100000" },
         { type: "faction", target: "Daedalus", goal: "favor" },
         { type: "homicide" },
-        // {
-        //     type: "graft",
-        //     target: "OmniTek InfoLoad",
-        // },
+        {
+            type: "graft",
+            target: "OmniTek InfoLoad",
+        },
         // {
         //     type: "graft",
         //     target: "ADR-V2 Pheromone Gene",
@@ -45,6 +45,10 @@ export async function main(ns) {
         { type: "augmentation", target: "CRTX42-AA Gene Modification" }, // NiteSec 45000
 
         // { type: "graft", target: "QLink" },
+        {
+            type: "graft",
+            target: "Neuronal Densification",
+        },
         // {
         //     type: "graft",
         //     target: "Xanipher",

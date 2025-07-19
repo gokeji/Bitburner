@@ -1004,7 +1004,7 @@ export async function main(ns) {
             for (const server of stockManipulationServers) {
                 if (server === "") continue;
                 // Generate configurations for 1-100 hack threads
-                for (let hackThreads = 1; hackThreads <= 200; hackThreads++) {
+                for (let hackThreads = 1; hackThreads <= 600; hackThreads++) {
                     const config = getServerHackStats(ns, server, hackThreads);
                     if (config === null) continue;
                     const totalStockValue = (growStocks.get(server) ?? 0) + (hackStocks.get(server) ?? 0);

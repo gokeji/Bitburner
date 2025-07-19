@@ -22,7 +22,7 @@ export function calculatePortfolioValue(ns) {
         if (stock.longShares > 0) {
             const currentValue = stock.bidPrice * stock.longShares;
             const costBasis = stock.longPrice * stock.longShares;
-            const profit = currentValue - costBasis - 2 * commission;
+            const profit = currentValue - costBasis - commission;
 
             totalValue += currentValue;
             totalProfit += profit;
@@ -40,16 +40,16 @@ export function calculatePortfolioValue(ns) {
         if (stock.shortShares > 0) {
             const currentValue = stock.askPrice * stock.shortShares;
             const costBasis = stock.shortPrice * stock.shortShares;
-            const profit = costBasis - currentValue - 2 * commission;
+            const profit = costBasis - currentValue - commission;
 
-            totalValue += currentValue;
+            totalValue += costBasis + profit;
             totalProfit += profit;
 
             positions.push({
                 symbol: stock.sym,
                 type: "SHORT",
                 shares: stock.shortShares,
-                currentValue: currentValue,
+                currentValue: costBasis + profit,
                 profit: profit,
                 forecast: stock.forecast,
             });
