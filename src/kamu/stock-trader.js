@@ -37,6 +37,24 @@ function tendStocks(ns) {
 
     stocks.sort((a, b) => b.profitPotential - a.profitPotential);
 
+    for (const stock of stocks) {
+        if (stock.longShares > 0) {
+            const shareOwnership = stock.longShares / stock.maxShares;
+            customPrint(
+                ns,
+                `${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
+            );
+        } else if (stock.shortShares > 0) {
+            const shareOwnership = stock.shortShares / stock.maxShares;
+            customPrint(
+                ns,
+                `${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
+            );
+        } else {
+            customPrint(ns, `${stock.summary}`);
+        }
+    }
+
     var longStocks = new Map();
     var shortStocks = new Map();
     var overallValue = 0;
@@ -48,11 +66,6 @@ function tendStocks(ns) {
 
     for (const stock of stocks) {
         if (stock.longShares > 0) {
-            const shareOwnership = stock.longShares / stock.maxShares;
-            customPrint(
-                ns,
-                `${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
-            );
             if (stock.forecast > BUY_LONG_THRESHOLD) {
                 longStocks.set(stock.sym, stock);
                 overallValue += stock.value;
@@ -71,11 +84,6 @@ function tendStocks(ns) {
             }
         }
         if (stock.shortShares > 0) {
-            const shareOwnership = stock.shortShares / stock.maxShares;
-            customPrint(
-                ns,
-                `${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
-            );
             if (stock.forecast < BUY_SHORT_THRESHOLD) {
                 shortStocks.set(stock.sym, stock);
                 overallValue += stock.value;
@@ -132,27 +140,24 @@ function tendStocks(ns) {
     shouldBuyStocks = shouldBuyStocks.slice(0, maxPositionsToConsider);
 
     for (const stock of shouldBuyStocks) {
-        customPrint(ns, `NEED ${stock.summary}`);
-    }
-
-    for (const stock of shouldBuyStocks) {
-        if (stock.longShares > 0 && stock.longShares + (buyOrders.get(stock.sym)?.sharesToBuy ?? 0) < stock.maxShares) {
+        if (stock.forecast > BUY_LONG_THRESHOLD) {
             const sharesToBuy = stock.maxShares - stock.longShares - (buyOrders.get(stock.sym)?.sharesToBuy ?? 0);
-            purchaseDemands.set(stock.sym, {
-                stock: stock,
-                sharesToBuy: sharesToBuy,
-                type: "Long",
-            });
-        } else if (
-            stock.shortShares > 0 &&
-            stock.shortShares + (buyOrders.get(stock.sym)?.sharesToBuy ?? 0) < stock.maxShares
-        ) {
+            if (sharesToBuy > 0) {
+                purchaseDemands.set(stock.sym, {
+                    stock: stock,
+                    sharesToBuy: sharesToBuy,
+                    type: "Long",
+                });
+            }
+        } else if (stock.forecast < BUY_SHORT_THRESHOLD) {
             const sharesToBuy = stock.maxShares - stock.shortShares - (buyOrders.get(stock.sym)?.sharesToBuy ?? 0);
-            purchaseDemands.set(stock.sym, {
-                stock: stock,
-                sharesToBuy: sharesToBuy,
-                type: "Short",
-            });
+            if (sharesToBuy > 0) {
+                purchaseDemands.set(stock.sym, {
+                    stock: stock,
+                    sharesToBuy: sharesToBuy,
+                    type: "Short",
+                });
+            }
         }
     }
 
@@ -168,7 +173,7 @@ function tendStocks(ns) {
         while (remainingSharesToBuy > 0 && idx < ownedStocks.length) {
             // See if we can sell something lower profit to buy this stock
             const otherStock = ownedStocks[idx];
-            if (otherStock.profitPotential < stock.profitPotential - 0.1) {
+            if (otherStock.profitPotential < stock.profitPotential - 0.2) {
                 const lowerProfitStock = otherStock;
 
                 const existingSellOrders = sellOrders.get(lowerProfitStock.sym) ?? 0;

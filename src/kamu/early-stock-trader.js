@@ -9,7 +9,7 @@ const shortAvailable = true;
 const commission = 100000;
 const samplingLength = 30;
 const minSamplingLength = 15;
-const ONLY_TRACK_STOCKS = ["JGN", "SGC"]; // Only track stocks we can manipulate early game
+const ONLY_TRACK_STOCKS = []; //["JGN", "SGC"]; // Only track stocks we can manipulate early game
 
 function predictState(samples) {
     const limits = [
