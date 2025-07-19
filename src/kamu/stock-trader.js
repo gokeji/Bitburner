@@ -83,12 +83,7 @@ function tendStocks(ns) {
                 shortStocks.set(stock.sym, stock);
 
                 if (stock.forecast < SELL_LONG_THRESHOLD) {
-                    const salePrice = ns.stock.sellStock(stock.sym, stock.longShares);
-                    const saleTotal = salePrice * stock.longShares;
-                    const saleCost = stock.longPrice * stock.longShares;
-                    const saleProfit = saleTotal - saleCost - commission;
-                    stock.shares = 0;
-                    ns.print(`WARN ${stock.summary} SOLD for ${ns.formatNumber(saleProfit, 1)} profit`);
+                    sellOrders.set(stock.sym, stock.longShares);
                 }
             }
         }
@@ -102,43 +97,16 @@ function tendStocks(ns) {
                 longStocks.set(stock.sym, stock);
 
                 if (stock.forecast > SELL_SHORT_THRESHOLD) {
-                    const saleProfit = ns.stock.getSaleGain(stock.sym, stock.shortShares, "Short");
-                    ns.stock.sellShort(stock.sym, stock.shortShares);
-                    stock.shares = 0;
-                    ns.print(`WARN ${stock.summary} SHORT SOLD for ${ns.formatNumber(saleProfit, 1)} profit`);
+                    sellOrders.set(stock.sym, stock.shortShares);
                 }
             }
         }
     }
 
-    for (const stock of stocks) {
-        var money = ns.getServerMoneyAvailable("home") - reserveCash;
-        //ns.print(`INFO ${stock.summary}`);
-        if (stock.forecast > BUY_LONG_THRESHOLD) {
-            //ns.print(`INFO ${stock.summary}`);
-            if (money > 500 * commission) {
-                const sharesToBuy = Math.min(stock.maxShares, Math.floor((money - commission) / stock.askPrice));
-                buyOrders.set(stock.sym, {
-                    sharesToBuy: (buyOrders.get(stock.sym)?.sharesToBuy ?? 0) + sharesToBuy,
-                    type: "Long",
-                });
-            }
-        } else if (stock.forecast < BUY_SHORT_THRESHOLD && shortAvailable) {
-            //ns.print(`INFO ${stock.summary}`);
-            if (money > 500 * commission) {
-                const sharesToBuy = Math.min(stock.maxShares, Math.floor((money - commission) / stock.bidPrice));
-                buyOrders.set(stock.sym, {
-                    sharesToBuy: (buyOrders.get(stock.sym)?.sharesToBuy ?? 0) + sharesToBuy,
-                    type: "Short",
-                });
-            }
-        }
-    }
-
-    // Rebalance portfolio
+    // Rebalance portfolio or buy more stocks
     const ownedStocks = stocks.filter((stock) => stock.longShares > 0 || stock.shortShares > 0).reverse();
     for (const stock of shouldOwnStocks) {
-        if (stock.forecast > BUY_LONG_THRESHOLD) {
+        if (stock.forecast > BUY_LONG_THRESHOLD && stock.longShares < stock.maxShares) {
             const sharesToBuy = stock.maxShares - stock.longShares - (buyOrders.get(stock.sym)?.sharesToBuy ?? 0);
             if (sharesToBuy > 0) {
                 purchaseDemands.set(stock.sym, {
@@ -147,7 +115,7 @@ function tendStocks(ns) {
                     type: "Long",
                 });
             }
-        } else if (stock.forecast < BUY_SHORT_THRESHOLD) {
+        } else if (stock.forecast < BUY_SHORT_THRESHOLD && stock.shortShares < stock.maxShares) {
             const sharesToBuy = stock.maxShares - stock.shortShares - (buyOrders.get(stock.sym)?.sharesToBuy ?? 0);
             if (sharesToBuy > 0) {
                 purchaseDemands.set(stock.sym, {
@@ -159,6 +127,20 @@ function tendStocks(ns) {
         }
     }
 
+    let money =
+        ns.getServerMoneyAvailable("home") -
+        reserveCash +
+        Array.from(sellOrders.keys()).reduce(
+            (acc, sym) =>
+                acc +
+                ns.stock.getSaleGain(
+                    sym,
+                    sellOrders.get(sym),
+                    stocks.find((stock) => stock.sym === sym).longShares > 0 ? "Long" : "Short",
+                ),
+            0,
+        );
+
     for (const demand of purchaseDemands.values()) {
         let stock = demand.stock;
         let remainingSharesToBuy = demand.sharesToBuy;
@@ -168,15 +150,32 @@ function tendStocks(ns) {
 
         let idx = 0;
 
-        while (remainingSharesToBuy > 0 && idx < ownedStocks.length) {
+        while (remainingSharesToBuy > 0) {
+            const existingBuyOrders = buyOrders.get(stock.sym)?.sharesToBuy ?? 0;
+
+            // See if we have enough cash to buy this stock
+            if (money > 500 * commission) {
+                const sharesToBuy = Math.min(remainingSharesToBuy, Math.floor((money - commission) / costPerShare));
+                buyOrders.set(stock.sym, {
+                    sharesToBuy: existingBuyOrders + sharesToBuy,
+                    type: purchaseType,
+                });
+                money -= ns.stock.getPurchaseCost(stock.sym, sharesToBuy, purchaseType);
+                remainingSharesToBuy -= sharesToBuy;
+                remainingDemand = ns.stock.getPurchaseCost(stock.sym, remainingSharesToBuy, purchaseType);
+                continue;
+            }
+
+            if (idx >= ownedStocks.length) {
+                break;
+            }
+
             // See if we can sell something lower profit to buy this stock
             const otherStock = ownedStocks[idx];
             if (otherStock.profitPotential < stock.profitPotential - 0.2) {
                 const lowerProfitStock = otherStock;
 
                 const existingSellOrders = sellOrders.get(lowerProfitStock.sym) ?? 0;
-                const existingBuyOrders = buyOrders.get(stock.sym)?.sharesToBuy ?? 0;
-
                 const lowerProfitStockType = lowerProfitStock.longShares > 0 ? "Long" : "Short";
                 const saleGainPerShare =
                     ns.stock.getSaleGain(lowerProfitStock.sym, 1, lowerProfitStockType) + commission;
@@ -208,13 +207,10 @@ function tendStocks(ns) {
         const stock = stocks.find((stock) => stock.sym === stockSym);
         if (stock) {
             const sellType = stock.longShares > 0 ? "Long" : "Short";
-            const salePrice =
-                sellType === "Long"
-                    ? ns.stock.sellStock(stock.sym, sharesToSell)
-                    : ns.stock.sellShort(stock.sym, sharesToSell);
-            const saleTotal = salePrice * sharesToSell;
-            const saleCost = sellType === "Long" ? stock.longPrice * sharesToSell : stock.shortPrice * sharesToSell;
-            const saleProfit = saleTotal - saleCost - commission;
+            const saleProfit = ns.stock.getSaleGain(stock.sym, sharesToSell, sellType);
+            sellType === "Long"
+                ? ns.stock.sellStock(stock.sym, sharesToSell)
+                : ns.stock.sellShort(stock.sym, sharesToSell, saleProfit);
             stock.shares -= sharesToSell;
             ns.print(
                 `WARN ${stock.summary} ${sellType.toUpperCase()} SOLD for ${ns.formatNumber(saleProfit, 1)} profit`,
@@ -228,10 +224,14 @@ function tendStocks(ns) {
         const purchaseType = buyOrder.type;
         const sharesToBuy = buyOrder.sharesToBuy;
         if (stock) {
-            if (purchaseType === "Long" && ns.stock.buyStock(stock.sym, sharesToBuy) > 0) {
+            if (purchaseType === "Long" && sharesToBuy > 0 && ns.stock.buyStock(stock.sym, sharesToBuy) > 0) {
                 ns.print(`WARN ${stock.summary} LONG BOUGHT ${ns.formatNumber(sharesToBuy, 1)}`);
-            } else if (purchaseType === "Short" && ns.stock.buyShort(stock.sym, sharesToBuy) > 0) {
+            } else if (purchaseType === "Short" && sharesToBuy > 0 && ns.stock.buyShort(stock.sym, sharesToBuy) > 0) {
                 ns.print(`WARN ${stock.summary} SHORT BOUGHT ${ns.formatNumber(sharesToBuy, 1)}`);
+            } else {
+                ns.print(
+                    `WARN ${stock.summary} ${purchaseType.toUpperCase()} BUY ${ns.formatNumber(sharesToBuy, 1)} PURCHASE FAILED`,
+                );
             }
         }
     }
