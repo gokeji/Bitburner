@@ -179,6 +179,6 @@ export async function main(ns) {
             ns.print("📊 No positions held");
         }
 
-        await ns.sleep(2000);
+        await ns.stock.nextUpdate();
     }
 }

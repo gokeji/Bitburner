@@ -24,7 +24,7 @@ export async function main(ns) {
 
     let ALLOW_HASH_UPGRADES = false;
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.02; // Use extra grow and weak threads to correct for out of sync HGW batches
-    let PARTIAL_PREP_THRESHOLD = 0.1;
+    let PARTIAL_PREP_THRESHOLD = 0;
 
     let serversToHack = []; // ["clarkinc"];
 
@@ -2218,7 +2218,8 @@ export async function main(ns) {
         for (const [server, { originalWeakenTime }] of serverBatchTimings.entries()) {
             const serverStats = globalPrioritiesMap.get(server);
             if (!serverStats) {
-                ns.print(`WARN: No server stats found for ${server}`);
+                ns.print(`WARN: No longer hacking ${server}`);
+                serverBatchTimings.delete(server);
                 continue;
             }
 

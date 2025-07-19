@@ -8,7 +8,8 @@ const shortAvailable = true;
 
 const commission = 100000;
 const samplingLength = 30;
-const minSamplingLength = 10;
+const minSamplingLength = 15;
+const ONLY_TRACK_STOCKS = ["JGN", "SGC"]; // Only track stocks we can manipulate early game
 
 function predictState(samples) {
     const limits = [
@@ -106,8 +107,6 @@ export async function main(ns) {
     }
 
     while (true) {
-        await ns.stock.nextUpdate();
-
         var longStocks = new Set();
         var shortStocks = new Set();
 
@@ -123,10 +122,11 @@ export async function main(ns) {
         // Print in log when waiting for sampling to complete
         if (symChanges["FSIG"].length < minSamplingLength) {
             ns.print(`Sampling ${symChanges["FSIG"].length} of ${samplingLength}`);
+            await ns.stock.nextUpdate();
             continue;
         }
 
-        const stocks = ns.stock.getSymbols().map((sym) => {
+        let stocks = ns.stock.getSymbols().map((sym) => {
             const positions = ns.stock.getPosition(sym);
             const stock = {
                 sym: sym,
@@ -135,11 +135,18 @@ export async function main(ns) {
                 shortShares: positions[2],
                 shortPrice: positions[3],
                 volatility: getVolatility(symChanges[sym]),
+                trendStrength: posNegDiff(symChanges[sym]),
+                ratio: posNegRatio(symChanges[sym]),
+                state: predictState(symChanges[sym]),
             };
-            const predictionStrength = Math.abs(posNegRatio(symChanges[sym]) / 100);
-            stock.profitPotential = predictionStrength * (stock.volatility * 100) ** 2;
+            const predictionStrength = Math.abs(stock.ratio / 100);
+            stock.profitPotential = predictionStrength * stock.trendStrength;
             return stock;
         });
+
+        if (ONLY_TRACK_STOCKS.length > 0) {
+            stocks = stocks.filter((stock) => ONLY_TRACK_STOCKS.includes(stock.sym));
+        }
 
         stocks.sort((a, b) => b.profitPotential - a.profitPotential);
 
@@ -147,13 +154,11 @@ export async function main(ns) {
         // only consider the first most profitable stocks for buying
         var sold = false;
         for (const stock of stocks) {
-            const { sym, longShares, longPrice, shortShares, shortPrice } = stock;
-            const ratio = posNegRatio(symChanges[sym]);
-            stock.summary = `${sym} (${ratio}% ±${ns.formatPercent(stock.volatility)} p:${ns.formatNumber(
-                stock.profitPotential,
-            )})`;
+            const { sym, longShares, longPrice, shortShares, shortPrice, ratio, state } = stock;
 
-            const state = predictState(symChanges[sym]);
+            const stateDisplay = state === 1 ? "⬆︎" : state === -1 ? "⬇︎" : "➡︎";
+
+            stock.summary = `${sym} (${ratio}% ±${ns.formatPercent(stock.volatility)} p:${ns.formatNumber(stock.profitPotential)} t:${stock.trendStrength}) ${stateDisplay}`;
             const bidPrice = ns.stock.getBidPrice(sym);
             const askPrice = ns.stock.getAskPrice(sym);
 
@@ -214,6 +219,15 @@ export async function main(ns) {
                     }
                 }
             }
+
+            if (ONLY_TRACK_STOCKS.length > 0) {
+                // Always try to manipulate the stocks in one direction or another
+                if (stock.ratio > 0 && state >= 0) {
+                    longStocks.add(sym);
+                } else if (stock.ratio < 0 && state <= 0) {
+                    shortStocks.add(sym);
+                }
+            }
         }
 
         // send stock market manipulation orders to hack manager
@@ -223,14 +237,14 @@ export async function main(ns) {
             // only write to ports if empty
             for (const sym of longStocks) {
                 const stock = stocks.find((s) => s.sym === sym);
-                if (stock && stock.value) {
-                    growStockPort.write(`${getSymServer(sym)}:${stock.value * stock.volatility * 100}`);
+                if (stock && stock.profitPotential) {
+                    growStockPort.write(`${getSymServer(sym)}:${stock.profitPotential * 100}`);
                 }
             }
             for (const sym of shortStocks) {
                 const stock = stocks.find((s) => s.sym === sym);
-                if (stock && stock.value) {
-                    hackStockPort.write(`${getSymServer(sym)}:${stock.value * stock.volatility * 100}`);
+                if (stock && stock.profitPotential) {
+                    hackStockPort.write(`${getSymServer(sym)}:${stock.profitPotential * 100}`);
                 }
             }
         }
@@ -248,7 +262,7 @@ export async function main(ns) {
                         Math.round((stock.profit / stock.cost) * 10000) / 100
                     }%)`,
                 );
-            } else {
+            } else if (stock.state !== 0) {
                 ns.print(`INFO ${stock.summary}`);
             }
         }
@@ -260,6 +274,8 @@ export async function main(ns) {
         // in my experience actively manipulating "low hack skill" stocks is less effective than trading megacorps
         // It has more impact starting mid-game where access to 4s is there (use a trader with 4s data)
         // main use case is the BN8 challenge
+
+        await ns.stock.nextUpdate();
     }
 }
 
