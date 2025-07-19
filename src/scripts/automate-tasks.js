@@ -1,13 +1,13 @@
 import { NS } from "@ns";
 
+const IGNORE_AUGMENTS_IN_GANG = false; // If true, do not work for faction repuatation to get augments that exist in gang, assuming those are easier to get later on.
+
 /** @param {NS} ns **/
 export async function main(ns) {
     ns.ui.openTail();
 
     ns.disableLog("sleep");
     ns.disableLog("singularity.commitCrime");
-
-    const IGNORE_AUGMENTS_IN_GANG = false; // If true, do not work for faction repuatation to get augments that exist in gang, assuming those are easier to get later on.
 
     /**
      * @typedef {
@@ -58,7 +58,7 @@ export async function main(ns) {
         //     target: "SPTN-97 Gene Modification",
         // },
 
-        { type: "augmentation", target: "Bionic Arms" }, // Tetrads 62500
+        // { type: "augmentation", target: "Bionic Arms" }, // Tetrads 62500
 
         // { type: "reset" },
         { type: "augmentation", target: "The Black Hand" }, // The Black Hand 100000
@@ -141,6 +141,8 @@ function canWorkOnTask(ns, task) {
             const graftCost = ns.grafting.getAugmentationGraftPrice(task.target);
             const travelCost = ns.getPlayer().city === "New Tokyo" ? 0 : 200000;
             return ns.getPlayer().money > graftCost + travelCost;
+        case "augmentation":
+            return true;
         case "faction":
             return ns.getPlayer().factions.includes(task.target); // Must be in faction
         case "homicide":
@@ -157,6 +159,16 @@ function isTaskComplete(ns, task) {
     switch (task.type) {
         case "graft":
             return ns.singularity.getOwnedAugmentations(false).includes(task.target);
+        case "augmentation":
+            return (
+                ns.getResetInfo().ownedAugs.has(task.target) ||
+                ns.singularity
+                    .getAugmentationFactions(task.target)
+                    .some(
+                        (faction) =>
+                            ns.singularity.getFactionRep(faction) >= ns.singularity.getAugmentationRepReq(task.target),
+                    )
+            );
         case "faction":
             if (!ns.getPlayer().factions.includes(task.target)) return false;
             let goalReputation = task.goal;
@@ -202,6 +214,7 @@ async function executeTask(ns, task, isFirstTime = false) {
 
             // Find fastest faction to work for to get it
             let bestFaction;
+            let bestFactionWorkType;
             let fastestCyclesToRep = Infinity;
 
             const playerGang = ns.gang.inGang ? ns.gang.getGangInformation().faction : null;
@@ -213,12 +226,13 @@ async function executeTask(ns, task, isFirstTime = false) {
 
                 let reputationGap = augmentationRepReq - ns.singularity.getFactionRep(faction);
 
-                const { bestWorkGains } = getBestFactionWorkType(ns, faction);
+                const { bestWorkType, bestWorkGains } = getBestFactionWorkType(ns, faction);
 
                 const cyclesToRep = Math.ceil(reputationGap / bestWorkGains);
                 if (cyclesToRep < fastestCyclesToRep) {
                     fastestCyclesToRep = cyclesToRep;
                     bestFaction = faction;
+                    bestFactionWorkType = bestWorkType;
                 }
             }
 
@@ -231,10 +245,11 @@ async function executeTask(ns, task, isFirstTime = false) {
                 startWorkForFactionIfNeeded(
                     ns,
                     bestFaction,
-                    bestWorkType,
+                    bestFactionWorkType,
                     augmentationRepReq,
                     currentWork,
                     isFirstTime,
+                    task.target,
                 );
                 return true;
             }
@@ -252,7 +267,15 @@ async function executeTask(ns, task, isFirstTime = false) {
 
             const { bestWorkType } = getBestFactionWorkType(ns, task.target);
 
-            startWorkForFactionIfNeeded(ns, task.target, bestWorkType, goalReputation, currentWork, isFirstTime);
+            startWorkForFactionIfNeeded(
+                ns,
+                task.target,
+                bestWorkType,
+                goalReputation,
+                currentWork,
+                isFirstTime,
+                task.goal,
+            );
 
             return true;
 
@@ -280,26 +303,27 @@ async function executeTask(ns, task, isFirstTime = false) {
     }
 }
 
+/** @param {NS} ns **/
 function getBestFactionWorkType(ns, faction) {
     const workTypes = ns.singularity.getFactionWorkTypes(faction);
     let bestWorkType = workTypes[0];
     let bestWorkGains = 0;
     for (const workType of workTypes) {
-        const workGains = ns.formulas.work.factionGains(
+        const workStats = ns.formulas.work.factionGains(
             ns.getPlayer(),
             workType,
             ns.singularity.getFactionFavor(faction),
         );
-        if (workGains > bestWorkGains) {
+        if (workStats.reputation > bestWorkGains) {
             bestWorkType = workType;
-            bestWorkGains = workGains;
+            bestWorkGains = workStats.reputation;
         }
     }
 
     return { bestWorkType, bestWorkGains };
 }
 
-function startWorkForFactionIfNeeded(ns, faction, workType, goalReputation, currentWork, isFirstTime) {
+function startWorkForFactionIfNeeded(ns, faction, workType, goalReputation, currentWork, isFirstTime, purpose) {
     const currentReputation = ns.singularity.getFactionRep(faction);
     if (
         !currentWork ||
@@ -310,7 +334,7 @@ function startWorkForFactionIfNeeded(ns, faction, workType, goalReputation, curr
         const success = ns.singularity.workForFaction(faction, workType, true);
         if (success && isFirstTime) {
             ns.print(
-                `${new Date().toLocaleTimeString()} Starting work for ${faction}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)}`,
+                `${new Date().toLocaleTimeString()} Starting work for ${faction}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)} (${purpose})`,
             );
         }
         if (!success) {
@@ -319,7 +343,7 @@ function startWorkForFactionIfNeeded(ns, faction, workType, goalReputation, curr
         }
     } else if (isFirstTime) {
         ns.print(
-            `${new Date().toLocaleTimeString()} Currently working for ${faction}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)}`,
+            `${new Date().toLocaleTimeString()} Currently working for ${faction}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)} (${purpose})`,
         );
     }
 }
