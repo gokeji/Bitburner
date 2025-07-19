@@ -25,6 +25,12 @@ export async function main(ns) {
     }
 }
 
+/** @param {NS} ns */
+function customPrint(ns, message) {
+    ns.print(`INFO ${message}`);
+}
+
+/** @param {NS} ns */
 function tendStocks(ns) {
     ns.print("");
     var stocks = getAllStocks(ns);
@@ -36,18 +42,27 @@ function tendStocks(ns) {
     var overallValue = 0;
     var totalProfit = 0;
 
-    const shouldLongStocks = stocks.filter((stock) => stock.forecast > BUY_LONG_THRESHOLD);
-    const shouldShortStocks = stocks.filter((stock) => stock.forecast < BUY_SHORT_THRESHOLD);
+    const shouldOwnStocks = stocks.filter(
+        (stock) => stock.forecast > BUY_LONG_THRESHOLD || stock.forecast < BUY_SHORT_THRESHOLD,
+    );
+    const ownedStocks = stocks.filter((stock) => stock.longShares > 0 || stock.shortShares > 0);
+    const ownedStocksCount = ownedStocks.length;
 
-    const currentLongStocks = stocks.filter((stock) => stock.longShares > 0);
-    const currentShortStocks = stocks.filter((stock) => stock.shortShares > 0);
+    // Find stocks we should own but don't currently own
+    let shouldBuyStocks = shouldOwnStocks.filter((stock) => !ownedStocks.includes(stock));
+
+    // Only consider the top N stocks where N is the number of stocks we currently own
+    const maxPositionsToConsider = ownedStocksCount;
+    shouldBuyStocks = shouldBuyStocks.slice(0, maxPositionsToConsider);
 
     for (const stock of stocks) {
         if (stock.longShares > 0) {
             if (stock.forecast > BUY_LONG_THRESHOLD) {
                 longStocks.set(stock.sym, stock);
-                ns.print(
-                    `INFO ${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)}`,
+                const shareOwnership = stock.longShares / stock.maxShares;
+                customPrint(
+                    ns,
+                    `${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
                 );
                 overallValue += stock.value;
                 totalProfit += stock.profit;
@@ -67,8 +82,10 @@ function tendStocks(ns) {
         if (stock.shortShares > 0) {
             if (stock.forecast < BUY_SHORT_THRESHOLD) {
                 shortStocks.set(stock.sym, stock);
-                ns.print(
-                    `INFO ${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)}`,
+                const shareOwnership = stock.shortShares / stock.maxShares;
+                customPrint(
+                    ns,
+                    `${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
                 );
                 overallValue += stock.value;
                 totalProfit += stock.profit;
@@ -111,25 +128,9 @@ function tendStocks(ns) {
     ns.print("Stock value: " + ns.formatNumber(overallValue, 1));
     ns.print("Total P&L: " + (totalProfit >= 0 ? "+" : "") + ns.formatNumber(totalProfit, 1));
 
-    // for (const stock of stocks) {
-    //     if (stock.longShares > 0) {
-    //         longStocks.add(stock.sym);
-    //     }
-    //     if (stock.shortShares > 0) {
-    //         shortStocks.add(stock.sym);
-    //     }
-    // }
-
-    // const highestValueStock = stocks.reduce((highest, current) => {
-    //     return current.value > highest.value ? current : highest;
-    // }, stocks[0]);
-
-    // if (highestValueStock.longShares > 0) {
-    //     longStocks.add(highestValueStock.sym);
-    // }
-    // if (highestValueStock.shortShares > 0) {
-    //     shortStocks.add(highestValueStock.sym);
-    // }
+    for (const stock of shouldBuyStocks) {
+        customPrint(ns, `NEED ${stock.summary}`);
+    }
 
     // send stock market manipulation orders to hack manager
     var growStockPort = ns.getPortHandle(1); // port 1 is grow
@@ -156,6 +157,7 @@ function tendStocks(ns) {
     ns.print("shortStocks: " + Array.from(shortStocks.keys()).join(", "));
 }
 
+/** @param {NS} ns */
 export function getAllStocks(ns) {
     // make a lookup table of all stocks and all their properties
     const stockSymbols = ns.stock.getSymbols();
@@ -183,10 +185,10 @@ export function getAllStocks(ns) {
 
         // profit potential as chance for profit * effect of profit
         var profitChance = 2 * Math.abs(stock.forecast - 0.5);
-        var profitPotential = profitChance * stock.volatility ** 2;
+        var profitPotential = profitChance * (stock.volatility * 100) ** 2;
         stock.profitPotential = profitPotential;
 
-        stock.summary = `${stock.sym}: ${stock.forecast.toFixed(3)} ± ${stock.volatility.toFixed(3)}`;
+        stock.summary = `${stock.sym}: ${ns.formatPercent(stock.forecast)} ±${ns.formatPercent(stock.volatility)} p${ns.formatNumber(stock.profitPotential, 2)}`;
         stocks.push(stock);
     }
     return stocks;
