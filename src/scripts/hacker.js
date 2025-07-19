@@ -991,8 +991,6 @@ export async function main(ns) {
             serverMaxPriorities.set(server, maxPriorityForServer);
         }
 
-        // ns.write("allConfigurations.txt", JSON.stringify(allConfigurations, null, 2), "w");
-
         if (ONLY_MANIPULATE_STOCKS) {
             // Only evaluate servers that are in the growStocks or hackStocks sets. Priority is calculated based on stock manipulation strength
             allConfigurations = [];
@@ -1020,6 +1018,8 @@ export async function main(ns) {
                 }
             }
         }
+
+        // ns.write("allConfigurations.txt", JSON.stringify(allConfigurations, null, 2), "w");
 
         ns.print(`DEBUG: allConfigurations: ${allConfigurations.length}`);
 
@@ -1050,14 +1050,8 @@ export async function main(ns) {
     }
 
     function knapsackGreedy(configurations, weightLimit) {
-        // Calculate value/weight ratio for each configuration
-        const configsWithRatio = configurations.map((config) => ({
-            ...config,
-            ratio: config.throughput / config.ramUsageForSustainedThroughput,
-        }));
-
-        // Sort by value/weight ratio (descending)
-        configsWithRatio.sort((a, b) => b.ratio - a.ratio);
+        // Sort by throughput (descending)
+        const sortedConfigsWithThroughput = configurations.sort((a, b) => b.throughput - a.throughput);
 
         let remainingWeight = weightLimit;
         const selected = [];
@@ -1066,7 +1060,7 @@ export async function main(ns) {
         let totalWeight = 0;
 
         // Greedily select configurations
-        for (const config of configsWithRatio) {
+        for (const config of sortedConfigsWithThroughput) {
             // Skip if server already used or doesn't fit
             if (usedServers.has(config.server) || config.ramUsageForSustainedThroughput > remainingWeight) {
                 continue;
@@ -1088,64 +1082,64 @@ export async function main(ns) {
      * Only one configuration per server allowed.
      */
     function knapsackBucketed(configurations, weightLimit, numBuckets = 100) {
-        // Find unique servers and their best configuration (highest priority per server)
-        const serverBestConfigs = new Map();
-
+        // Group configurations by server.
+        const configsByServer = new Map();
         for (const config of configurations) {
-            const existing = serverBestConfigs.get(config.server);
-            if (!existing || config.throughput > existing.throughput) {
-                serverBestConfigs.set(config.server, config);
+            if (!configsByServer.has(config.server)) {
+                configsByServer.set(config.server, []);
             }
+            configsByServer.get(config.server).push(config);
         }
+        const serverGroups = Array.from(configsByServer.values());
 
-        // Use only the best configuration per server
-        const uniqueConfigs = Array.from(serverBestConfigs.values());
-
-        // Use smaller bucket size for better precision
         const bucketSize = Math.max(1, Math.ceil(weightLimit / numBuckets));
 
-        // Convert weights to bucket indices
-        const bucketedConfigs = uniqueConfigs.map((config) => ({
-            ...config,
-            bucketWeight: Math.ceil(config.ramUsageForSustainedThroughput / bucketSize),
-            originalWeight: config.ramUsageForSustainedThroughput,
+        // dp[w] will be an object { maxValue, selectedConfigs, actualWeight }
+        let dp = new Array(numBuckets + 1).fill(null).map(() => ({
+            maxValue: 0,
+            selectedConfigs: [],
+            actualWeight: 0,
         }));
 
-        // Initialize DP table: dp[bucket][item] = {maxValue, selectedConfigs}
-        const dp = new Array(numBuckets + 1).fill(0).map(() =>
-            new Array(uniqueConfigs.length + 1).fill(0).map(() => ({
-                maxValue: 0,
-                selectedConfigs: [],
-            })),
-        );
+        for (const group of serverGroups) {
+            const nextDp = dp.map((item) => ({ ...item, selectedConfigs: [...item.selectedConfigs] }));
 
-        // Fill the DP table
-        for (let i = 1; i <= uniqueConfigs.length; i++) {
-            const config = bucketedConfigs[i - 1];
-            for (let w = 1; w <= numBuckets; w++) {
-                // Option 1: Don't include current item
-                dp[w][i] = {
-                    maxValue: dp[w][i - 1].maxValue,
-                    selectedConfigs: [...dp[w][i - 1].selectedConfigs],
-                };
+            const bucketedGroup = group.map((config) => ({
+                ...config,
+                bucketWeight: Math.floor(config.ramUsageForSustainedThroughput / bucketSize),
+                originalWeight: config.ramUsageForSustainedThroughput,
+            }));
 
-                // Option 2: Include current item (if it fits)
-                if (config.bucketWeight <= w) {
-                    const valueWithItem = dp[w - config.bucketWeight][i - 1].maxValue + config.throughput;
-                    if (valueWithItem > dp[w][i].maxValue) {
-                        dp[w][i] = {
-                            maxValue: valueWithItem,
-                            selectedConfigs: [...dp[w - config.bucketWeight][i - 1].selectedConfigs, config],
-                        };
+            for (let w = numBuckets; w >= 0; w--) {
+                // The value if we don't select any configuration from the current group
+                let bestForW = dp[w];
+
+                for (const config of bucketedGroup) {
+                    if (config.bucketWeight <= w) {
+                        const remainingState = dp[w - config.bucketWeight];
+                        const newActualWeight = remainingState.actualWeight + config.originalWeight;
+
+                        if (newActualWeight <= weightLimit) {
+                            const newValue = remainingState.maxValue + config.throughput;
+                            if (newValue > bestForW.maxValue) {
+                                bestForW = {
+                                    maxValue: newValue,
+                                    selectedConfigs: [...remainingState.selectedConfigs, config],
+                                    actualWeight: newActualWeight,
+                                };
+                            }
+                        }
                     }
                 }
+                nextDp[w] = bestForW;
             }
+            dp = nextDp;
         }
 
-        // Find the actual total weight
-        const selected = dp[numBuckets][uniqueConfigs.length].selectedConfigs;
+        const result = dp[numBuckets];
+        const { selectedConfigs } = result;
 
-        return selected;
+        return selectedConfigs;
     }
 
     /**

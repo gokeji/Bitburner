@@ -10,9 +10,9 @@ const shortAvailable = true;
 const commission = 100000;
 const reserveCash = 0.5e9;
 
-const BUY_LONG_THRESHOLD = 0.6;
+const BUY_LONG_THRESHOLD = 0.53;
 const SELL_LONG_THRESHOLD = 0.55;
-const BUY_SHORT_THRESHOLD = 0.4;
+const BUY_SHORT_THRESHOLD = 0.43;
 const SELL_SHORT_THRESHOLD = 0.45;
 
 /** @param {NS} ns */
@@ -42,28 +42,19 @@ function tendStocks(ns) {
     var overallValue = 0;
     var totalProfit = 0;
 
-    const shouldOwnStocks = stocks.filter(
-        (stock) => stock.forecast > BUY_LONG_THRESHOLD || stock.forecast < BUY_SHORT_THRESHOLD,
-    );
-    const ownedStocks = stocks.filter((stock) => stock.longShares > 0 || stock.shortShares > 0);
-    const ownedStocksCount = ownedStocks.length;
-
-    // Find stocks we should own but don't currently own
-    let shouldBuyStocks = shouldOwnStocks.filter((stock) => !ownedStocks.includes(stock));
-
-    // Only consider the top N stocks where N is the number of stocks we currently own
-    const maxPositionsToConsider = ownedStocksCount;
-    shouldBuyStocks = shouldBuyStocks.slice(0, maxPositionsToConsider);
+    const purchaseDemands = new Map();
+    const buyOrders = new Map();
+    const sellOrders = new Map();
 
     for (const stock of stocks) {
         if (stock.longShares > 0) {
+            const shareOwnership = stock.longShares / stock.maxShares;
+            customPrint(
+                ns,
+                `${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
+            );
             if (stock.forecast > BUY_LONG_THRESHOLD) {
                 longStocks.set(stock.sym, stock);
-                const shareOwnership = stock.longShares / stock.maxShares;
-                customPrint(
-                    ns,
-                    `${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
-                );
                 overallValue += stock.value;
                 totalProfit += stock.profit;
             } else {
@@ -73,20 +64,20 @@ function tendStocks(ns) {
                     const salePrice = ns.stock.sellStock(stock.sym, stock.longShares);
                     const saleTotal = salePrice * stock.longShares;
                     const saleCost = stock.longPrice * stock.longShares;
-                    const saleProfit = saleTotal - saleCost - 2 * commission;
+                    const saleProfit = saleTotal - saleCost - commission;
                     stock.shares = 0;
                     ns.print(`WARN ${stock.summary} SOLD for ${ns.formatNumber(saleProfit, 1)} profit`);
                 }
             }
         }
         if (stock.shortShares > 0) {
+            const shareOwnership = stock.shortShares / stock.maxShares;
+            customPrint(
+                ns,
+                `${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
+            );
             if (stock.forecast < BUY_SHORT_THRESHOLD) {
                 shortStocks.set(stock.sym, stock);
-                const shareOwnership = stock.shortShares / stock.maxShares;
-                customPrint(
-                    ns,
-                    `${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
-                );
                 overallValue += stock.value;
                 totalProfit += stock.profit;
             } else {
@@ -96,7 +87,7 @@ function tendStocks(ns) {
                     const salePrice = ns.stock.sellShort(stock.sym, stock.shortShares);
                     const saleTotal = salePrice * stock.shortShares;
                     const saleCost = stock.shortPrice * stock.shortShares;
-                    const saleProfit = saleTotal - saleCost - 2 * commission;
+                    const saleProfit = saleTotal - saleCost - commission;
                     stock.shares = 0;
                     ns.print(`WARN ${stock.summary} SHORT SOLD for ${ns.formatNumber(saleProfit, 1)} profit`);
                 }
@@ -111,26 +102,139 @@ function tendStocks(ns) {
             //ns.print(`INFO ${stock.summary}`);
             if (money > 500 * commission) {
                 const sharesToBuy = Math.min(stock.maxShares, Math.floor((money - commission) / stock.askPrice));
-                if (ns.stock.buyStock(stock.sym, sharesToBuy) > 0) {
-                    ns.print(`WARN ${stock.summary} LONG BOUGHT ${ns.formatNumber(sharesToBuy, 1)}`);
-                }
+                buyOrders.set(stock.sym, {
+                    sharesToBuy: (buyOrders.get(stock.sym)?.sharesToBuy ?? 0) + sharesToBuy,
+                    type: "Long",
+                });
             }
         } else if (stock.forecast < BUY_SHORT_THRESHOLD && shortAvailable) {
             //ns.print(`INFO ${stock.summary}`);
             if (money > 500 * commission) {
                 const sharesToBuy = Math.min(stock.maxShares, Math.floor((money - commission) / stock.bidPrice));
-                if (ns.stock.buyShort(stock.sym, sharesToBuy) > 0) {
-                    ns.print(`WARN ${stock.summary} SHORT BOUGHT ${ns.formatNumber(sharesToBuy, 1)}`);
-                }
+                buyOrders.set(stock.sym, {
+                    sharesToBuy: (buyOrders.get(stock.sym)?.sharesToBuy ?? 0) + sharesToBuy,
+                    type: "Short",
+                });
             }
         }
     }
-    ns.print("Stock value: " + ns.formatNumber(overallValue, 1));
-    ns.print("Total P&L: " + (totalProfit >= 0 ? "+" : "") + ns.formatNumber(totalProfit, 1));
+
+    // Rebalance portfolio
+    const shouldOwnStocks = stocks.filter(
+        (stock) => stock.forecast > BUY_LONG_THRESHOLD || stock.forecast < BUY_SHORT_THRESHOLD,
+    );
+    const ownedStocks = stocks.filter((stock) => stock.longShares > 0 || stock.shortShares > 0);
+    const ownedStocksCount = ownedStocks.length;
+    let shouldBuyStocks = shouldOwnStocks.filter((stock) => !ownedStocks.includes(stock));
+
+    // Only consider the top N stocks where N is the number of stocks we currently own
+    const maxPositionsToConsider = ownedStocksCount;
+    shouldBuyStocks = shouldBuyStocks.slice(0, maxPositionsToConsider);
 
     for (const stock of shouldBuyStocks) {
         customPrint(ns, `NEED ${stock.summary}`);
     }
+
+    for (const stock of shouldBuyStocks) {
+        if (stock.longShares > 0 && stock.longShares + (buyOrders.get(stock.sym)?.sharesToBuy ?? 0) < stock.maxShares) {
+            const sharesToBuy = stock.maxShares - stock.longShares - (buyOrders.get(stock.sym)?.sharesToBuy ?? 0);
+            purchaseDemands.set(stock.sym, {
+                stock: stock,
+                sharesToBuy: sharesToBuy,
+                type: "Long",
+            });
+        } else if (
+            stock.shortShares > 0 &&
+            stock.shortShares + (buyOrders.get(stock.sym)?.sharesToBuy ?? 0) < stock.maxShares
+        ) {
+            const sharesToBuy = stock.maxShares - stock.shortShares - (buyOrders.get(stock.sym)?.sharesToBuy ?? 0);
+            purchaseDemands.set(stock.sym, {
+                stock: stock,
+                sharesToBuy: sharesToBuy,
+                type: "Short",
+            });
+        }
+    }
+
+    for (const demand of purchaseDemands.values()) {
+        let stock = demand.stock;
+        let remainingSharesToBuy = demand.sharesToBuy;
+        let remainingDemand = ns.stock.getPurchaseCost(stock.sym, remainingSharesToBuy, demand.type);
+        let purchaseType = demand.type;
+        const costPerShare = ns.stock.getPurchaseCost(stock.sym, 1, purchaseType) - commission;
+
+        let idx = 0;
+
+        while (remainingSharesToBuy > 0 && idx < ownedStocks.length) {
+            // See if we can sell something lower profit to buy this stock
+            const otherStock = ownedStocks[idx];
+            if (otherStock.profitPotential < stock.profitPotential - 0.1) {
+                const lowerProfitStock = otherStock;
+
+                const existingSellOrders = sellOrders.get(lowerProfitStock.sym) ?? 0;
+                const existingBuyOrders = buyOrders.get(stock.sym)?.sharesToBuy ?? 0;
+
+                const lowerProfitStockType = lowerProfitStock.longShares > 0 ? "Long" : "Short";
+                const saleGainPerShare =
+                    ns.stock.getSaleGain(lowerProfitStock.sym, 1, lowerProfitStockType) + commission;
+                const totalSharesToSell =
+                    lowerProfitStock.longShares + lowerProfitStock.shortShares - existingSellOrders;
+                const sharesToSell = Math.min(
+                    totalSharesToSell,
+                    Math.ceil((remainingDemand + commission) / saleGainPerShare),
+                );
+
+                const saleProfit = ns.stock.getSaleGain(lowerProfitStock.sym, sharesToSell, lowerProfitStockType);
+                const sharesToBuyWithSaleProfit = Math.floor(saleProfit / costPerShare);
+
+                sellOrders.set(lowerProfitStock.sym, existingSellOrders + sharesToSell);
+                buyOrders.set(stock.sym, {
+                    sharesToBuy: existingBuyOrders + sharesToBuyWithSaleProfit,
+                    type: purchaseType,
+                });
+
+                remainingSharesToBuy -= sharesToBuyWithSaleProfit;
+                remainingDemand = ns.stock.getPurchaseCost(stock.sym, remainingSharesToBuy, purchaseType);
+            }
+            idx++;
+        }
+    }
+
+    // Execute sell orders
+    for (const [stockSym, sharesToSell] of sellOrders.entries()) {
+        const stock = stocks.find((stock) => stock.sym === stockSym);
+        if (stock) {
+            const sellType = stock.longShares > 0 ? "Long" : "Short";
+            const salePrice =
+                sellType === "Long"
+                    ? ns.stock.sellStock(stock.sym, sharesToSell)
+                    : ns.stock.sellShort(stock.sym, sharesToSell);
+            const saleTotal = salePrice * sharesToSell;
+            const saleCost = sellType === "Long" ? stock.longPrice * sharesToSell : stock.shortPrice * sharesToSell;
+            const saleProfit = saleTotal - saleCost - commission;
+            stock.shares -= sharesToSell;
+            ns.print(
+                `WARN ${stock.summary} ${sellType.toUpperCase()} SOLD for ${ns.formatNumber(saleProfit, 1)} profit`,
+            );
+        }
+    }
+
+    // Execute buy orders
+    for (const [stockSym, buyOrder] of buyOrders.entries()) {
+        const stock = stocks.find((stock) => stock.sym === stockSym);
+        const purchaseType = buyOrder.type;
+        const sharesToBuy = buyOrder.sharesToBuy;
+        if (stock) {
+            if (purchaseType === "Long" && ns.stock.buyStock(stock.sym, sharesToBuy) > 0) {
+                ns.print(`WARN ${stock.summary} LONG BOUGHT ${ns.formatNumber(sharesToBuy, 1)}`);
+            } else if (purchaseType === "Short" && ns.stock.buyShort(stock.sym, sharesToBuy) > 0) {
+                ns.print(`WARN ${stock.summary} SHORT BOUGHT ${ns.formatNumber(sharesToBuy, 1)}`);
+            }
+        }
+    }
+
+    ns.print("Stock value: " + ns.formatNumber(overallValue, 1));
+    ns.print("Total P&L: " + (totalProfit >= 0 ? "+" : "") + ns.formatNumber(totalProfit, 1));
 
     // send stock market manipulation orders to hack manager
     var growStockPort = ns.getPortHandle(1); // port 1 is grow
@@ -177,8 +281,8 @@ export function getAllStocks(ns) {
             maxShares: ns.stock.getMaxShares(sym),
         };
 
-        var longProfit = stock.longShares * (stock.bidPrice - stock.longPrice) - 2 * commission;
-        var shortProfit = stock.shortShares * (stock.shortPrice - stock.askPrice) - 2 * commission;
+        var longProfit = stock.longShares * (stock.bidPrice - stock.longPrice) - commission;
+        var shortProfit = stock.shortShares * (stock.shortPrice - stock.askPrice) - commission;
         stock.profit = longProfit + shortProfit;
         stock.cost = stock.longShares * stock.longPrice + stock.shortShares * stock.shortPrice;
         stock.value = stock.cost + stock.profit;
