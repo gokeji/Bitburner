@@ -1,12 +1,14 @@
 // file: early-stock-trader.js
 
 // does not require 4s Market Data TIX API Access
+import { NS } from "@ns";
 
 // defines if stocks can be shorted (see BitNode 8)
-const shortAvailable = false;
+const shortAvailable = true;
 
 const commission = 100000;
 const samplingLength = 30;
+const minSamplingLength = 10;
 
 function predictState(samples) {
     const limits = [
@@ -84,6 +86,16 @@ function posNegRatio(samples) {
     return Math.round(100 * ((2 * pos) / samples.length - 1));
 }
 
+function getVolatility(samples) {
+    if (samples.length < 2) {
+        return 0;
+    }
+    const mean = samples.reduce((a, b) => a + b, 0) / samples.length;
+    const variance = samples.reduce((a, b) => a + (b - mean) ** 2, 0) / samples.length;
+    return Math.sqrt(variance);
+}
+
+/** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog("ALL");
     let symLastPrice = {};
@@ -94,11 +106,7 @@ export async function main(ns) {
     }
 
     while (true) {
-        await ns.sleep(2000);
-
-        if (symLastPrice["FSIG"] === ns.stock.getPrice("FSIG")) {
-            continue;
-        }
+        await ns.stock.nextUpdate();
 
         var longStocks = new Set();
         var shortStocks = new Set();
@@ -113,74 +121,76 @@ export async function main(ns) {
         }
 
         // Print in log when waiting for sampling to complete
-        if (symChanges["FSIG"].length < samplingLength) {
+        if (symChanges["FSIG"].length < minSamplingLength) {
             ns.print(`Sampling ${symChanges["FSIG"].length} of ${samplingLength}`);
             continue;
         }
 
-        const prioritizedSymbols = [...ns.stock.getSymbols()];
-        prioritizedSymbols.sort((a, b) => posNegDiff(symChanges[b]) - posNegDiff(symChanges[a]));
+        const stocks = ns.stock.getSymbols().map((sym) => {
+            const positions = ns.stock.getPosition(sym);
+            const stock = {
+                sym: sym,
+                longShares: positions[0],
+                longPrice: positions[1],
+                shortShares: positions[2],
+                shortPrice: positions[3],
+                volatility: getVolatility(symChanges[sym]),
+            };
+            const predictionStrength = Math.abs(posNegRatio(symChanges[sym]) / 100);
+            stock.profitPotential = predictionStrength * (stock.volatility * 100) ** 2;
+            return stock;
+        });
+
+        stocks.sort((a, b) => b.profitPotential - a.profitPotential);
 
         ns.print("");
-        const maxStocksToConsider = 5;
         // only consider the first most profitable stocks for buying
-        var stocksConsidered = 0;
         var sold = false;
-        for (const sym of prioritizedSymbols) {
-            const positions = ns.stock.getPosition(sym);
-            const longShares = positions[0];
-            const longPrice = positions[1];
-            const shortShares = positions[2];
-            const shortPrice = positions[3];
-
-            if (
-                longShares <= 0 &&
-                shortShares <= 0 &&
-                (ns.stock.getPrice(sym) < 20000 || stocksConsidered >= maxStocksToConsider)
-            ) {
-                continue;
-            }
-            stocksConsidered++;
+        for (const stock of stocks) {
+            const { sym, longShares, longPrice, shortShares, shortPrice } = stock;
+            const ratio = posNegRatio(symChanges[sym]);
+            stock.summary = `${sym} (${ratio}% ±${ns.formatPercent(stock.volatility)} p:${ns.formatNumber(
+                stock.profitPotential,
+            )})`;
 
             const state = predictState(symChanges[sym]);
-            const ratio = posNegRatio(symChanges[sym]);
             const bidPrice = ns.stock.getBidPrice(sym);
             const askPrice = ns.stock.getAskPrice(sym);
 
             if (longShares > 0) {
                 const cost = longShares * longPrice;
-                const profit = longShares * (bidPrice - longPrice) - 2 * commission;
+                const value = longShares * bidPrice;
+                const profit = value - cost - commission;
+                stock.cost = cost;
+                stock.value = value;
+                stock.profit = profit;
+
                 if (state < 0) {
                     const sellPrice = ns.stock.sellStock(sym, longShares);
                     if (sellPrice > 0) {
                         sold = true;
-                        ns.print(`INFO SOLD (long) ${sym}. Profit: ${format(profit)}`);
+                        ns.print(`WARN SOLD (long) ${sym}. Profit: ${format(profit)}`);
                     }
                 } else {
                     longStocks.add(sym);
-                    ns.print(
-                        `${sym} (${ratio}): ${format(profit + cost)} / ${format(profit)} (${Math.round((profit / cost) * 10000) / 100}%)`,
-                    );
                 }
             } else if (shortShares > 0) {
                 const cost = shortShares * shortPrice;
-                const profit = shortShares * (shortPrice - askPrice) - 2 * commission;
+                const profit = shortShares * (shortPrice - askPrice) - commission;
+                const value = cost + profit;
+                stock.cost = cost;
+                stock.value = value;
+                stock.profit = profit;
+
                 if (state > 0) {
                     const sellPrice = ns.stock.sellShort(sym, shortShares);
                     if (sellPrice > 0) {
                         sold = true;
-                        ns.print(`INFO SOLD (short) ${sym}. Profit: ${format(profit)}`);
+                        ns.print(`WARN SOLD (short) ${sym}. Profit: ${format(profit)}`);
                     }
                 } else {
                     shortStocks.add(sym);
-                    ns.print(
-                        `${sym} (${ratio}): ${format(profit + cost)} / ${format(profit)} (${Math.round((profit / cost) * 10000) / 100}%)`,
-                    );
                 }
-            } else if (state > 0) {
-                longStocks.add(sym);
-            } else if (state < 0) {
-                shortStocks.add(sym);
             }
             const money = ns.getServerMoneyAvailable("home");
             if (money >= commission * 1000) {
@@ -191,7 +201,7 @@ export async function main(ns) {
                     );
                     if (ns.stock.buyStock(sym, sharesToBuy) > 0) {
                         longStocks.add(sym);
-                        ns.print(`INFO BOUGHT (long) ${sym}.`);
+                        ns.print(`WARN BOUGHT (long) ${sym}.`);
                     }
                 } else if (state < 0 && !sold && shortAvailable) {
                     const sharesToBuy = Math.min(
@@ -200,7 +210,7 @@ export async function main(ns) {
                     );
                     if (ns.stock.buyShort(sym, sharesToBuy) > 0) {
                         shortStocks.add(sym);
-                        ns.print(`INFO BOUGHT (short) ${sym}.`);
+                        ns.print(`WARN BOUGHT (short) ${sym}.`);
                     }
                 }
             }
@@ -212,14 +222,39 @@ export async function main(ns) {
         if (growStockPort.empty() && hackStockPort.empty()) {
             // only write to ports if empty
             for (const sym of longStocks) {
-                //ns.print("INFO grow " + sym);
-                growStockPort.write(getSymServer(sym));
+                const stock = stocks.find((s) => s.sym === sym);
+                if (stock && stock.value) {
+                    growStockPort.write(`${getSymServer(sym)}:${stock.value * stock.volatility * 100}`);
+                }
             }
             for (const sym of shortStocks) {
-                //ns.print("INFO hack " + sym);
-                hackStockPort.write(getSymServer(sym));
+                const stock = stocks.find((s) => s.sym === sym);
+                if (stock && stock.value) {
+                    hackStockPort.write(`${getSymServer(sym)}:${stock.value * stock.volatility * 100}`);
+                }
             }
         }
+
+        for (const stock of stocks) {
+            if (stock.longShares > 0) {
+                ns.print(
+                    `INFO ${stock.summary} LONG: ${format(stock.value)} / ${format(stock.profit)} (${
+                        Math.round((stock.profit / stock.cost) * 10000) / 100
+                    }%)`,
+                );
+            } else if (stock.shortShares > 0) {
+                ns.print(
+                    `INFO ${stock.summary} SHORT: ${format(stock.value)} / ${format(stock.profit)} (${
+                        Math.round((stock.profit / stock.cost) * 10000) / 100
+                    }%)`,
+                );
+            } else {
+                ns.print(`INFO ${stock.summary}`);
+            }
+        }
+
+        ns.print(`long stocks: ${Array.from(longStocks).join(", ")}`);
+        ns.print(`short stocks: ${Array.from(shortStocks).join(", ")}`);
         // while manipulating the stock market is nice, the early game effect is negligible
         // since "interesting" stocks can typically not be attacked yet due to low hacking skill
         // in my experience actively manipulating "low hack skill" stocks is less effective than trading megacorps

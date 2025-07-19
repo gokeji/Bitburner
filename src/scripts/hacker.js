@@ -969,7 +969,7 @@ export async function main(ns) {
             for (let hackThreads = 1; hackThreads <= 200; hackThreads++) {
                 const config = getServerHackStats(ns, server, hackThreads);
 
-                if (config === null || config.batchSustainRatio < 0.7) {
+                if (config === null || config.batchSustainRatio < 0.8) {
                     continue;
                 }
 

@@ -109,7 +109,7 @@ function knapsackBucketed(configurations, weightLimit, numBuckets = 100) {
     };
 }
 
-const configsToTest = testConfigs3;
+const configsToTest = testConfigs3.filter((c) => c.batchSustainRatio >= 1);
 const weightLimit = 510e3;
 console.log("Number of configurations:", configsToTest.length);
 console.log("Weight limit:", weightLimit);
