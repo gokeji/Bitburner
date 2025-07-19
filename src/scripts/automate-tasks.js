@@ -7,6 +7,8 @@ export async function main(ns) {
     ns.disableLog("sleep");
     ns.disableLog("singularity.commitCrime");
 
+    const IGNORE_AUGMENTS_IN_GANG = false; // If true, do not work for faction repuatation to get augments that exist in gang, assuming those are easier to get later on.
+
     /**
      * @typedef {
      *     { type: "faction", target: string, goal: string } |
@@ -19,7 +21,7 @@ export async function main(ns) {
 
     /** @type {Task[]} */
     let taskQueue = [
-        { type: "faction", target: "Daedalus", goal: "250000000" },
+        { type: "faction", target: "Daedalus", goal: "250000000" }, // The Red Pill
         { type: "faction", target: "Daedalus", goal: "100000" },
         { type: "faction", target: "Daedalus", goal: "favor" },
         { type: "homicide" },
@@ -31,13 +33,17 @@ export async function main(ns) {
         //     type: "graft",
         //     target: "ADR-V2 Pheromone Gene",
         // },
-        { type: "faction", target: "CyberSec", goal: "2000" }, // Synaptic Enhancement Implant
-        { type: "faction", target: "Tian Di Hui", goal: "6250" }, // Social Negotiation Assistant (S.N.A)
+
+        { type: "augmentation", target: "Synaptic Enhancement Implant" }, // CyberSec 2000
+
+        { type: "augmentation", target: "Social Negotiation Assistant (S.N.A)" }, // Tian Di Hui 6250
+
         // { type: "faction", target: "Netburners", goal: "7500" },
         // { type: "faction", target: "Netburners", goal: "12500" },
         // { type: "reset" },
 
-        { type: "faction", target: "NiteSec", goal: "45000" }, // CRTX42-AA Gene Modification
+        { type: "augmentation", target: "CRTX42-AA Gene Modification" }, // NiteSec 45000
+
         // { type: "graft", target: "QLink" },
         // {
         //     type: "graft",
@@ -52,18 +58,26 @@ export async function main(ns) {
         //     target: "SPTN-97 Gene Modification",
         // },
 
-        // { type: "faction", target: "Tetrads", goal: "62500" }, // Bionic Arms
+        { type: "augmentation", target: "Bionic Arms" }, // Tetrads 62500
+
         // { type: "reset" },
-        { type: "faction", target: "The Black Hand", goal: "100000" }, // The Black Hand
-        { type: "faction", target: "Chongqing", goal: "37500" }, // Neuregen Gene Modification
-        { type: "faction", target: "Tian Di Hui", goal: "75000" }, // Neuroreceptor Management Implant
-        { type: "faction", target: "BitRunners", goal: "100000" }, // Embedded Netburner Module Core V3 Upgrade
+        { type: "augmentation", target: "The Black Hand" }, // The Black Hand 100000
+
+        { type: "augmentation", target: "Neuregen Gene Modification" }, // Chongqing 37500
+
+        { type: "augmentation", target: "Neuroreceptor Management Implant" }, // Tian Di Hui 75000
+
+        { type: "augmentation", target: "Enhanced Myelin Sheathing" }, // BitRunners 100000
 
         // { type: "faction", target: "NiteSec", goal: "favor" },
 
-        { type: "faction", target: "BitRunners", goal: "250000" },
+        { type: "augmentation", target: "Neural Accelerator" }, // BitRunners 200000
+
+        { type: "augmentation", target: "Cranial Signal Processors - Gen V" }, // BitRunners 250000
+
+        { type: "augmentation", target: "BitRunners Neurolink" }, // BitRunners 875000
+
         { type: "faction", target: "BitRunners", goal: "favor" },
-        { type: "faction", target: "BitRunners", goal: "250000000" },
     ];
 
     ns.print("\n\n\n\n\n\n");
@@ -99,7 +113,6 @@ export async function main(ns) {
                 if (success) {
                     break;
                 } else {
-                    // Should not happen but move on to next task if previous one fails for some reason
                     continue;
                 }
             }
@@ -180,9 +193,56 @@ async function executeTask(ns, task, isFirstTime = false) {
                 return false;
             }
 
+        case "augmentation":
+            const factionsWithAugmentation = ns.singularity
+                .getAugmentationFactions(task.target)
+                .filter((faction) => ns.getPlayer().factions.includes(faction));
+
+            const augmentationRepReq = ns.singularity.getAugmentationRepReq(task.target);
+
+            // Find fastest faction to work for to get it
+            let bestFaction;
+            let fastestCyclesToRep = Infinity;
+
+            const playerGang = ns.gang.inGang ? ns.gang.getGangInformation().faction : null;
+
+            for (const faction of factionsWithAugmentation) {
+                if (playerGang === faction) {
+                    continue;
+                }
+
+                let reputationGap = augmentationRepReq - ns.singularity.getFactionRep(faction);
+
+                const { bestWorkGains } = getBestFactionWorkType(ns, faction);
+
+                const cyclesToRep = Math.ceil(reputationGap / bestWorkGains);
+                if (cyclesToRep < fastestCyclesToRep) {
+                    fastestCyclesToRep = cyclesToRep;
+                    bestFaction = faction;
+                }
+            }
+
+            // If gang faction has it, do nothing
+            if (IGNORE_AUGMENTS_IN_GANG && factionsWithAugmentation.includes(playerGang)) {
+                return false;
+            }
+
+            if (bestFaction) {
+                startWorkForFactionIfNeeded(
+                    ns,
+                    bestFaction,
+                    bestWorkType,
+                    augmentationRepReq,
+                    currentWork,
+                    isFirstTime,
+                );
+                return true;
+            }
+
+            return false;
+
         case "faction":
             let goalReputation = task.goal;
-            const currentReputation = ns.singularity.getFactionRep(task.target);
             if (task.goal === "favor") {
                 const currentFavor = ns.singularity.getFactionFavor(task.target);
                 goalReputation =
@@ -190,42 +250,10 @@ async function executeTask(ns, task, isFirstTime = false) {
                     ns.formulas.reputation.calculateFavorToRep(currentFavor);
             }
 
-            const workTypes = ns.singularity.getFactionWorkTypes(task.target);
-            let bestWorkType = workTypes[0];
-            let bestWorkGains = 0;
-            for (const workType of workTypes) {
-                const workGains = ns.formulas.work.factionGains(
-                    ns.getPlayer(),
-                    workType,
-                    ns.singularity.getFactionFavor(task.target),
-                );
-                if (workGains > bestWorkGains) {
-                    bestWorkType = workType;
-                    bestWorkGains = workGains;
-                }
-            }
+            const { bestWorkType } = getBestFactionWorkType(ns, task.target);
 
-            if (
-                !currentWork ||
-                currentWork.type !== "FACTION" ||
-                currentWork.factionName !== task.target ||
-                currentWork.factionWorkType !== bestWorkType
-            ) {
-                const success = ns.singularity.workForFaction(task.target, bestWorkType, true);
-                if (success && isFirstTime) {
-                    ns.print(
-                        `${new Date().toLocaleTimeString()} Starting work for ${task.target}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)}`,
-                    );
-                }
-                if (!success) {
-                    ns.print(`ERROR: ${new Date().toLocaleTimeString()} Failed to work for ${task.target}`);
-                    return false;
-                }
-            } else if (isFirstTime) {
-                ns.print(
-                    `${new Date().toLocaleTimeString()} Currently working for ${task.target}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)}`,
-                );
-            }
+            startWorkForFactionIfNeeded(ns, task.target, bestWorkType, goalReputation, currentWork, isFirstTime);
+
             return true;
 
         case "homicide":
@@ -249,6 +277,50 @@ async function executeTask(ns, task, isFirstTime = false) {
         case "reset":
             ns.run("scripts/reset.js");
             return true;
+    }
+}
+
+function getBestFactionWorkType(ns, faction) {
+    const workTypes = ns.singularity.getFactionWorkTypes(faction);
+    let bestWorkType = workTypes[0];
+    let bestWorkGains = 0;
+    for (const workType of workTypes) {
+        const workGains = ns.formulas.work.factionGains(
+            ns.getPlayer(),
+            workType,
+            ns.singularity.getFactionFavor(faction),
+        );
+        if (workGains > bestWorkGains) {
+            bestWorkType = workType;
+            bestWorkGains = workGains;
+        }
+    }
+
+    return { bestWorkType, bestWorkGains };
+}
+
+function startWorkForFactionIfNeeded(ns, faction, workType, goalReputation, currentWork, isFirstTime) {
+    const currentReputation = ns.singularity.getFactionRep(faction);
+    if (
+        !currentWork ||
+        currentWork.type !== "FACTION" ||
+        currentWork.factionName !== faction ||
+        currentWork.factionWorkType !== workType
+    ) {
+        const success = ns.singularity.workForFaction(faction, workType, true);
+        if (success && isFirstTime) {
+            ns.print(
+                `${new Date().toLocaleTimeString()} Starting work for ${faction}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)}`,
+            );
+        }
+        if (!success) {
+            ns.print(`ERROR: ${new Date().toLocaleTimeString()} Failed to work for ${faction}`);
+            return false;
+        }
+    } else if (isFirstTime) {
+        ns.print(
+            `${new Date().toLocaleTimeString()} Currently working for ${faction}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)}`,
+        );
     }
 }
 
