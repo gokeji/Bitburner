@@ -171,7 +171,7 @@ export async function main(ns) {
             }
 
             if (!hasResized) {
-                ns.ui.resizeTail(350, (9 + portfolio.positions.length) * 28);
+                ns.ui.resizeTail(360, (9 + portfolio.positions.length) * 28);
                 hasResized = true;
             }
         } else {

@@ -57,15 +57,19 @@ function tendStocks(ns) {
     for (const stock of shouldOwnStocks) {
         if (stock.longShares > 0) {
             const shareOwnership = stock.longShares / stock.maxShares;
+            const profitPercent = (stock.value - stock.cost) / stock.cost;
+            const profitPercentStr = (profitPercent >= 0 ? "+" : "") + ns.formatPercent(profitPercent, 1);
             customPrint(
                 ns,
-                `${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
+                `${stock.summary} LONG ${ns.formatNumber(stock.value, 1)} ${profitPercentStr} (${ns.formatPercent(shareOwnership, 1)})`,
             );
         } else if (stock.shortShares > 0) {
             const shareOwnership = stock.shortShares / stock.maxShares;
+            const profitPercent = (stock.value - stock.cost) / stock.cost;
+            const profitPercentStr = (profitPercent >= 0 ? "+" : "") + ns.formatPercent(profitPercent, 1);
             customPrint(
                 ns,
-                `${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${ns.formatPercent(stock.value / stock.cost, 2)} {${ns.formatPercent(shareOwnership, 2)}}`,
+                `${stock.summary} SHORT ${ns.formatNumber(stock.value, 1)} ${profitPercentStr} (${ns.formatPercent(shareOwnership, 1)})`,
             );
         } else {
             customPrint(ns, `${stock.summary}`);
@@ -229,11 +233,27 @@ function tendStocks(ns) {
         const stock = stocks.find((stock) => stock.sym === stockSym);
         const purchaseType = buyOrder.type;
         const sharesToBuy = buyOrder.sharesToBuy;
+        let purchasePrice;
         if (stock) {
-            if (purchaseType === "Long" && sharesToBuy > 0 && ns.stock.buyStock(stock.sym, sharesToBuy) > 0) {
-                ns.print(`WARN ${stock.summary} LONG BOUGHT ${ns.formatNumber(sharesToBuy, 1)}`);
-            } else if (purchaseType === "Short" && sharesToBuy > 0 && ns.stock.buyShort(stock.sym, sharesToBuy) > 0) {
-                ns.print(`WARN ${stock.summary} SHORT BOUGHT ${ns.formatNumber(sharesToBuy, 1)}`);
+            if (
+                purchaseType === "Long" &&
+                sharesToBuy > 0 &&
+                (purchasePrice = ns.stock.buyStock(stock.sym, sharesToBuy)) > 0
+            ) {
+                ns.print(
+                    `WARN ${stock.summary} LONG BOUGHT ${ns.formatNumber(sharesToBuy, 1)} - ${ns.formatNumber(purchasePrice * sharesToBuy, 1)}`,
+                );
+            } else if (
+                purchaseType === "Short" &&
+                sharesToBuy > 0 &&
+                (purchasePrice = ns.stock.buyShort(stock.sym, sharesToBuy)) > 0
+            ) {
+                ns.print(
+                    `WARN ${stock.summary} SHORT BOUGHT ${ns.formatNumber(sharesToBuy, 1)} - ${ns.formatNumber(
+                        purchasePrice * sharesToBuy,
+                        1,
+                    )}`,
+                );
             } else {
                 ns.print(
                     `WARN ${stock.summary} ${purchaseType.toUpperCase()} BUY ${ns.formatNumber(sharesToBuy, 1)} PURCHASE FAILED`,
@@ -302,7 +322,7 @@ export function getAllStocks(ns) {
         var profitPotential = profitChance * (stock.volatility * 100) ** 3;
         stock.profitPotential = profitPotential;
 
-        stock.summary = `${stock.sym}: ${ns.formatPercent(stock.forecast)} ±${ns.formatPercent(stock.volatility)} p${ns.formatNumber(stock.profitPotential, 2)}`;
+        stock.summary = `${stock.sym.padStart(5)}: ${ns.formatPercent(stock.forecast).padEnd(6)} ±${ns.formatPercent(stock.volatility)} p${ns.formatNumber(stock.profitPotential, 2)}`;
         stocks.push(stock);
     }
     return stocks;

@@ -1,6 +1,9 @@
 import { NS } from "@ns";
 
-const argsSchema = [["faction", false]];
+const argsSchema = [
+    ["faction", false],
+    ["fuzzy", false],
+];
 
 export function autocomplete(data, args) {
     data.flags(argsSchema);
@@ -21,8 +24,9 @@ export async function main(ns) {
         return;
     }
 
-    const serverQuery = ns.args[0];
+    const serverQuery = ns.args.find((arg) => !arg.startsWith("-"));
     const printFactionServerPaths = flags["faction"];
+    const fuzzy = flags["fuzzy"];
 
     // Function to find path to target server using BFS
     function findPathToServer(ns, query) {
@@ -33,7 +37,7 @@ export async function main(ns) {
             const { server, path } = queue.shift();
 
             // If we found the target server, return the path
-            if (server.toLowerCase().includes(query.toLowerCase())) {
+            if (fuzzy ? server.toLowerCase().includes(query.toLowerCase()) : server === query) {
                 return { server, path };
             }
 
