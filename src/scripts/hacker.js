@@ -20,7 +20,7 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    let MAX_WEAKEN_TIME = 5 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
     let ALLOW_HASH_UPGRADES = true;
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.05; // Use extra grow and weak threads to correct for out of sync HGW batches
@@ -35,7 +35,7 @@ export async function main(ns) {
     const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
-    const ALWAYS_XP_FARM = true;
+    const ALWAYS_XP_FARM = false;
     const XP_FARM_SERVER = "foodnstuff";
     const ALLOW_PARTIAL_PREP = true;
     const SHOULD_INFLUENCE_STOCKS = true;
@@ -123,11 +123,17 @@ export async function main(ns) {
         XP_FARM: "XP_FARM",
         LOG_MESSAGE: "LOG_MESSAGE",
     };
+    let lastTickTime = 0;
 
     // === Main State Machine Loop ===
     while (true) {
         tickCounter++;
         ns.print(`\n=== Tick ${tickCounter} ===`);
+        const tickTime = performance.now();
+        if (lastTickTime !== 0) {
+            ns.print(`Tick ${tickCounter - 1} took ${tickTime - lastTickTime}ms`);
+        }
+        lastTickTime = tickTime;
 
         // === INFRASTRUCTURE PHASE ===
         await setupServers(ns);
@@ -619,12 +625,12 @@ export async function main(ns) {
             });
         }
 
-        if (serverInfo.hackDifficulty > 10 && serverInfo.hackDifficulty === serverInfo.minDifficulty) {
-            actions.push({
-                type: ActionType.UPGRADE_HASH_MIN_SECURITY,
-                server: highestPriorityServer,
-            });
-        }
+        // if (serverInfo.hackDifficulty > 10 && serverInfo.hackDifficulty === serverInfo.minDifficulty) {
+        //     actions.push({
+        //         type: ActionType.UPGRADE_HASH_MIN_SECURITY,
+        //         server: highestPriorityServer,
+        //     });
+        // }
 
         return actions;
     }
@@ -2220,7 +2226,7 @@ export async function main(ns) {
         let totalMsChange = 0;
         let totalCurrentTime = 0;
 
-        const DRIFT_THRESHOLD_PERCENT = 0.01; // 1% drift threshold for holding HGW and resuming on new weaken time
+        const DRIFT_THRESHOLD_PERCENT = 0.5; // 5% drift threshold for holding HGW and resuming on new weaken time
         const HOLD_BUFFER_MS = DELAY_BETWEEN_BATCHES * 4;
 
         for (const [server, { originalWeakenTime }] of serverBatchTimings.entries()) {

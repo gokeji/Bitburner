@@ -99,7 +99,7 @@ export async function main(ns) {
     // Max amount of total money existing servers are worth
     // This is to prevent us from maxing out servers in Bitnodes where hacking value is lower and you want to save money for other things
     // If not provided, we will use -1 which means no limit
-    const MAX_CURRENT_RAM_TOTAL_PURCHASE_VALUE = ns.args[0] || -1;
+    const MAX_CURRENT_RAM_TOTAL_PURCHASE_VALUE = parseInt(ns.args[0]) === NaN ? -1 : parseInt(ns.args[0]);
 
     ns.print(
         `Starting upgrade servers script with max current ram total purchase value: ${ns.formatNumber(MAX_CURRENT_RAM_TOTAL_PURCHASE_VALUE)}`,
@@ -131,7 +131,7 @@ export async function main(ns) {
                 (total, server) => total + ns.getPurchasedServerCost(ns.getServerMaxRam(server)),
                 0,
             );
-            if (currentRamTotalPurchaseValue > MAX_CURRENT_RAM_TOTAL_PURCHASE_VALUE) {
+            if (currentRamTotalPurchaseValue >= MAX_CURRENT_RAM_TOTAL_PURCHASE_VALUE) {
                 ns.tprint(
                     "Current ram total purchase value is over the max of " +
                         ns.formatNumber(MAX_CURRENT_RAM_TOTAL_PURCHASE_VALUE, 2) +

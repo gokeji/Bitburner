@@ -117,10 +117,10 @@ export async function main(ns) {
             }
             if (canWorkOnTask(ns, task)) {
                 const isFirstTime = currentTaskId !== taskId;
-                currentTaskId = taskId;
 
                 const success = await executeTask(ns, task, isFirstTime);
                 if (success) {
+                    currentTaskId = taskId;
                     break;
                 } else {
                     continue;

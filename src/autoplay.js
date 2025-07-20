@@ -265,7 +265,7 @@ function startSleeveIfNeeded(ns) {
 }
 
 function startGangIfNeeded(ns) {
-    const result = startScriptIfNotRunning(ns, "gangs.js", HOST_NAME, 1);
+    const result = startScriptIfNotRunning(ns, "gangs.js", HOST_NAME, 1, "--reputation-focus");
     // if (result.success) {
     //     ns.ui.openTail(result.pid, HOST_NAME);
     // }
