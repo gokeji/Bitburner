@@ -23,7 +23,7 @@ export async function main(ns) {
     let MAX_WEAKEN_TIME = 5 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
     let ALLOW_HASH_UPGRADES = true;
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.4; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.05; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0;
 
     let serversToHack = []; // ["clarkinc"];
@@ -99,6 +99,7 @@ export async function main(ns) {
     // Global counters for server success tracking
     let totalServersAttempted = 0;
     let totalServersNotDiscarded = 0;
+    let totalServerTickTimes = 0;
 
     // === PERFORMANCE MONITORING ===
     let performanceStats = {
@@ -194,6 +195,8 @@ export async function main(ns) {
     let serverStatsCache = new Map(); // Map<serverName, CachedServerStats>
     let globalCalculationCache = null; // Cache player, bitnode multipliers etc.
 
+    let ramOverestimation = 1;
+
     // === MAIN STATE MACHINE LOOP ===
     while (true) {
         const tickStartTime = performance.now();
@@ -206,6 +209,7 @@ export async function main(ns) {
 
         if (lastTickTime !== 0) {
             const actualTickTime = tickStartTime - lastTickTime;
+            totalServerTickTimes += actualTickTime;
             ns.print(`Previous tick took ${actualTickTime.toFixed(1)}ms`);
         }
 
@@ -367,11 +371,6 @@ export async function main(ns) {
         return {
             scriptInfoByTarget,
             serversByPriority,
-            globalPrioritiesMap,
-            serversOnHold: new Map(serversOnHold), // Copy for immutability
-            serverBatchTimings: new Map(serverBatchTimings),
-            serverBaselineSecurityLevels: new Map(serverBaselineSecurityLevels),
-            tickCounter,
         };
     }
 
@@ -464,7 +463,7 @@ export async function main(ns) {
                     break;
 
                 case ServerState.BATCHING:
-                    const serverStats = gameState.globalPrioritiesMap.get(server);
+                    const serverStats = globalPrioritiesMap.get(server);
                     // Determine server drift recovery conditions
                     const securityThreshold = Math.max(
                         serverInfo.minDifficulty + 15,
@@ -520,8 +519,8 @@ export async function main(ns) {
 
                         if (batchesToSchedule > 0) {
                             let timeDriftDelay = 0;
-                            if (gameState.serverBatchTimings.has(server)) {
-                                const originalTimings = gameState.serverBatchTimings.get(server);
+                            if (serverBatchTimings.has(server)) {
+                                const originalTimings = serverBatchTimings.get(server);
                                 timeDriftDelay = originalTimings.originalWeakenTime - serverStats.weakenTime;
                                 if (timeDriftDelay < 0) {
                                     timeDriftDelay = 0;
@@ -539,7 +538,7 @@ export async function main(ns) {
                             });
 
                             // Store timings if not already stored
-                            if (!gameState.serverBatchTimings.has(server)) {
+                            if (!serverBatchTimings.has(server)) {
                                 serverActions.push({
                                     type: ActionType.STORE_TIMINGS,
                                     server,
@@ -562,11 +561,11 @@ export async function main(ns) {
 
                 case ServerState.ON_HOLD:
                     // calculateOnHoldActions
-                    const resumeTime = gameState.serversOnHold.get(server);
+                    const resumeTime = serversOnHold.get(server);
                     const timeLeft = Math.max(0, resumeTime - Date.now());
 
                     // Only log occasionally to avoid spam
-                    if (gameState.tickCounter % 10 === 0) {
+                    if (tickCounter % 10 === 0) {
                         serverActions = [
                             {
                                 type: ActionType.LOG_MESSAGE,
@@ -634,11 +633,11 @@ export async function main(ns) {
         //     return ServerState.EXCLUDED;
         // }
 
-        if (gameState.serversOnHold.has(server)) {
+        if (serversOnHold.has(server)) {
             return ServerState.ON_HOLD;
         }
 
-        const serverStats = gameState.globalPrioritiesMap.get(server);
+        const serverStats = globalPrioritiesMap.get(server);
         if (!serverStats) {
             return ServerState.EXCLUDED;
         }
@@ -867,7 +866,7 @@ export async function main(ns) {
         let baselineToUse = originalBaselineSecurity;
 
         if (serverInfo.hackDifficulty < originalBaselineSecurity) {
-            ns.print(
+            ns.tprint(
                 `INFO: ${server} new baseline security: ${ns.formatNumber(originalBaselineSecurity, 2)} -> ${ns.formatNumber(serverInfo.hackDifficulty, 2)}`,
             );
             baselineToUse = serverInfo.hackDifficulty;
@@ -890,10 +889,12 @@ export async function main(ns) {
         const serverSuccessRate = totalServersAttempted > 0 ? totalServersNotDiscarded / totalServersAttempted : 1;
 
         const { avgPercentChange, avgMsChange, avgCurrentWeakenTime } = getWeakenTimeDrift(ns);
-        const weakenTimeDriftMessage = `Weaken Time Drift: ${ns.formatNumber(avgMsChange, 2)}ms (${ns.formatPercent(avgPercentChange, 2)}) | Avg Weaken: ${ns.formatNumber(avgCurrentWeakenTime / 1000, 1)}s`;
+        const weakenTimeDriftMessage = `Drift: ${ns.formatNumber(avgMsChange, 1)}ms / ${ns.formatNumber(avgCurrentWeakenTime / 1000, 1)}s (${ns.formatPercent(avgPercentChange, 1)})`;
+
+        const averageTickTime = tickCounter > 1 ? totalServerTickTimes / (tickCounter - 1) : 0;
 
         ns.print(
-            `INFO: RAM: ${ns.formatPercent(ramUtilization)} - ${ns.formatRam(freeRamAfterTick)} free | Batch Success: ${ns.formatPercent(serverSuccessRate)} ${ns.formatNumber(totalServersNotDiscarded)}/${ns.formatNumber(totalServersAttempted)} | ${weakenTimeDriftMessage}`,
+            `INFO: RAM: ${ns.formatPercent(ramUtilization)} (${ns.formatRam(freeRamAfterTick)}+) | Batch: ${ns.formatPercent(serverSuccessRate, 2)} ${ns.formatNumber(totalServersNotDiscarded)}/${ns.formatNumber(totalServersAttempted)} | ${weakenTimeDriftMessage} | Ticks: ${ns.formatNumber(averageTickTime, 1)}ms | Overestimation: ${ns.formatNumber(ramOverestimation, 2)}x`,
         );
 
         // Note: XP farming is now handled by the reducer via XP_FARM actions
@@ -1080,17 +1081,10 @@ export async function main(ns) {
     function calculateTargetServerPriorities(ns) {
         // Check if we can use cached priorities
         if (prioritiesCacheData && tickCounter < prioritiesCacheValidUntilTick) {
-            if (tickCounter % 10 === 0) {
-                const ticksRemaining = prioritiesCacheValidUntilTick - tickCounter;
-                ns.print(`PERF: Using cached priorities (${ticksRemaining} ticks remaining)`);
-            }
             return prioritiesCacheData;
         }
 
-        // Need to recalculate priorities
-        if (tickCounter % 10 === 0) {
-            ns.print(`PERF: Recalculating priorities (cache expired)`);
-        }
+        ns.print(`PERF: Recalculating priorities (cache expired)`);
 
         const configGenStart = performance.now();
 
@@ -1172,13 +1166,24 @@ export async function main(ns) {
         const configGenTime = performance.now() - configGenStart;
 
         ns.print(`DEBUG: allConfigurations: ${allConfigurations.length} (generated in ${configGenTime.toFixed(1)}ms)`);
-        if (tickCounter % 10 === 0) {
-            ns.print(`PERF: Server cache efficiency: ${serverStatsCache.size} servers cached`);
-        }
 
         // Step 2: Apply knapsack algorithm
         const knapsackStart = performance.now();
-        const selectedConfigs = knapsackBucketed(allConfigurations, maxRamAvailableForHacking);
+
+        // Target is around 95%
+        if (tickCounter > 1) {
+            const ramUtilization = (maxRamAvailableForHacking - totalFreeRam) / maxRamAvailableForHacking;
+
+            if (ramUtilization < 0.9) {
+                // increase overestimation to hit 95%
+                ramOverestimation = Math.max(1, ramOverestimation * (0.95 / ramUtilization));
+            } else if (ramUtilization > 0.95) {
+                // decrease overestimation slowly
+                ramOverestimation = ramOverestimation * (0.95 / ramUtilization);
+            }
+        }
+
+        const selectedConfigs = knapsackBucketed(allConfigurations, maxRamAvailableForHacking * ramOverestimation);
         const knapsackTime = performance.now() - knapsackStart;
         logPerformance("knapsack", knapsackTime);
 
