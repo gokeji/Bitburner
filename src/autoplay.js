@@ -1,15 +1,15 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = 0; //-1; //120 * 10 ** 9; // 12 B max server value
+const MAX_SERVER_VALUE = 120 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
 const SERVER_TO_STANEK = null; // "b-01";
 
 let IPVGO_OPPONENTS = [
-    // "Netburners", // increased hacknet production
+    "Netburners", // increased hacknet production
     // "Slum Snakes", // crime success rate
-    // "The Black Hand", // hacking money
+    "The Black Hand", // hacking money
     // "Tetrads", // strength, defense, dexterity, and agility levels
     "Daedalus", // reputation gain
     "Illuminati", // faster hack(), grow(), and weaken()
@@ -40,7 +40,7 @@ export async function main(ns) {
             }
         });
 
-    // startUpgradeHnetIfNeeded(ns);
+    startUpgradeHnetIfNeeded(ns);
 
     // After unlocking gangs, sleeves should be assigned manually
     // if (ns.heart.break() > -54000) {
@@ -49,11 +49,11 @@ export async function main(ns) {
 
     startGangIfNeeded(ns);
 
-    // restartUpgradeServers(ns);
+    restartUpgradeServers(ns);
 
     restartIpvgo(ns);
 
-    // startUpgradeHomeRamIfNeeded(ns);
+    startUpgradeHomeRamIfNeeded(ns);
 
     // Start TOR and program managers
     startTorManagerIfNotRunning(ns);
@@ -98,7 +98,7 @@ export async function main(ns) {
     //     await ns.sleep(1000);
     // }
 
-    // // Start stanek charging without blocking
+    // Start stanek charging without blocking
     // if (!ranInitialStanek) {
     //     startStanekIfNotRunning(ns);
     //     ranInitialStanek = true;
@@ -127,10 +127,10 @@ export async function main(ns) {
     // Start hacker immediately - it will automatically avoid home RAM when stanek is running
     startDistributedHackIfNotRunning(ns);
 
-    // if (ns.corporation.hasCorporation()) {
-    //     startScriptIfNotRunning(ns, "cat/corporation.js", HOST_NAME, 1, "--improveAllDivisions");
-    //     startScriptIfNotRunning(ns, "cat/daemon.js", HOST_NAME, 1, "--maintainCorporation");
-    // }
+    if (ns.corporation.hasCorporation()) {
+        startScriptIfNotRunning(ns, "cat/corporation.js", HOST_NAME, 1, "--improveAllDivisions");
+        startScriptIfNotRunning(ns, "cat/daemon.js", HOST_NAME, 1, "--maintainCorporation");
+    }
 
     while (
         !startedStockTrader ||
@@ -265,7 +265,7 @@ function startSleeveIfNeeded(ns) {
 }
 
 function startGangIfNeeded(ns) {
-    const result = startScriptIfNotRunning(ns, "gangs.js", HOST_NAME, 1, "--reputation-focus");
+    const result = startScriptIfNotRunning(ns, "gangs.js", HOST_NAME, 1);
     // if (result.success) {
     //     ns.ui.openTail(result.pid, HOST_NAME);
     // }

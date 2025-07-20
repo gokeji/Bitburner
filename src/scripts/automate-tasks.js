@@ -1,6 +1,6 @@
 import { NS } from "@ns";
 
-const IGNORE_AUGMENTS_IN_GANG = false; // If true, do not work for faction repuatation to get augments that exist in gang, assuming those are easier to get later on.
+const IGNORE_AUGMENTS_IN_GANG = true; // If true, do not work for faction repuatation to get augments that exist in gang, assuming those are easier to get later on.
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -24,10 +24,10 @@ export async function main(ns) {
         { type: "faction", target: "Daedalus", goal: "favor" },
         { type: "augmentation", target: "The Red Pill" }, // Daedalus 2.5m
         { type: "homicide" },
-        {
-            type: "graft",
-            target: "OmniTek InfoLoad",
-        },
+        // {
+        //     type: "graft",
+        //     target: "OmniTek InfoLoad",
+        // },
         // {
         //     type: "graft",
         //     target: "ADR-V2 Pheromone Gene",
@@ -37,17 +37,17 @@ export async function main(ns) {
 
         { type: "augmentation", target: "Social Negotiation Assistant (S.N.A)" }, // Tian Di Hui 6250
 
-        // { type: "faction", target: "Netburners", goal: "7500" },
-        // { type: "faction", target: "Netburners", goal: "12500" },
+        { type: "augmentation", target: "Hacknet Node Kernel Direct-Neural Interface" }, // Netburners 7.5k
+        { type: "augmentation", target: "Hacknet Node Core Direct-Neural Interface" }, // Netburners 12.5k
         // { type: "reset" },
 
         { type: "augmentation", target: "CRTX42-AA Gene Modification" }, // NiteSec 45000
 
         // { type: "graft", target: "QLink" },
-        {
-            type: "graft",
-            target: "Neuronal Densification",
-        },
+        // {
+        //     type: "graft",
+        //     target: "Neuronal Densification",
+        // },
         // {
         //     type: "graft",
         //     target: "PC Direct-Neural Interface", // 8% hacking skill, 43 min graft
@@ -153,7 +153,11 @@ function canWorkOnTask(ns, task) {
             const travelCost = ns.getPlayer().city === "New Tokyo" ? 0 : 200000;
             return ns.getPlayer().money > graftCost + travelCost;
         case "augmentation":
-            return true;
+            const playerGang = ns.gang.inGang ? ns.gang.getGangInformation().faction : null;
+            const factionsWithAugmentation = ns.singularity
+                .getAugmentationFactions(task.target)
+                .filter((faction) => ns.getPlayer().factions.includes(faction) && faction !== playerGang);
+            return factionsWithAugmentation.length > 0;
         case "faction":
             return ns.getPlayer().factions.includes(task.target); // Must be in faction
         case "homicide":
@@ -191,7 +195,7 @@ function isTaskComplete(ns, task) {
             }
             return ns.singularity.getFactionRep(task.target) >= goalReputation;
         case "homicide":
-            return ns.heart.break() <= -54000;
+            return ns.heart.break() <= -54000 || ns.gang.inGang();
         case "reset":
             return false; // Always execute reset when reached
     }

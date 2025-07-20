@@ -1,7 +1,8 @@
 // import { configurations as stockConfigs } from "../examples/testStockInfluenceConfigurations.js";
 // import { testConfigs } from "../examples/testServerHackConfigurations.js";
 // import { testConfigs2 } from "../examples/testServerHackConfigurations2.js";
-import { testConfigs3 } from "../examples/testServerHackConfigurations3.js";
+// import { testConfigs3 } from "../examples/testServerHackConfigurations3.js";
+import { testConfig4 } from "../examples/testServerHackConfigurations4.js";
 
 /**
  * Fast greedy solution for the knapsack problem.
@@ -10,7 +11,7 @@ import { testConfigs3 } from "../examples/testServerHackConfigurations3.js";
  */
 function knapsackGreedy(configurations, weightLimit) {
     // Sort by throughput (descending)
-    const sortedConfigsWithThroughput = configurations.sort((a, b) => b.throughput - a.throughput);
+    const sortedConfigsWithThroughput = [...configurations].sort((a, b) => b.throughput - a.throughput);
 
     let remainingWeight = weightLimit;
     const selected = [];
@@ -40,7 +41,7 @@ function knapsackGreedy(configurations, weightLimit) {
  * Only one configuration per server allowed.
  */
 function knapsackBucketed(configurations, weightLimit, numBuckets = 100) {
-    // Group configurations by server.
+    /// Group configurations by server first (O(n))
     const configsByServer = new Map();
     for (const config of configurations) {
         if (!configsByServer.has(config.server)) {
@@ -48,8 +49,16 @@ function knapsackBucketed(configurations, weightLimit, numBuckets = 100) {
         }
         configsByServer.get(config.server).push(config);
     }
-    const serverGroups = Array.from(configsByServer.values());
 
+    // Sort configurations within each server group by throughput (O(Σ(ki log ki)))
+    // This is more efficient than sorting all configurations at once when we have many servers
+    for (const serverConfigs of configsByServer.values()) {
+        serverConfigs.sort((a, b) => b.throughput - a.throughput);
+    }
+
+    // Sort server groups by their best (first) configuration's throughput
+    // This ensures high-value servers are considered first in the DP algorithm
+    const serverGroups = Array.from(configsByServer.values()).sort((a, b) => b[0].throughput - a[0].throughput);
     const bucketSize = Math.max(1, Math.ceil(weightLimit / numBuckets));
 
     // dp[w] will be an object { maxValue, selectedConfigs, actualWeight }
@@ -109,8 +118,8 @@ function knapsackBucketed(configurations, weightLimit, numBuckets = 100) {
     };
 }
 
-const configsToTest = testConfigs3.filter((c) => c.batchSustainRatio >= 1);
-const weightLimit = 510e3;
+const configsToTest = testConfig4;
+const weightLimit = 217.28e3;
 console.log("Number of configurations:", configsToTest.length);
 console.log("Weight limit:", weightLimit);
 

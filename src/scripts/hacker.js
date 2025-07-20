@@ -20,10 +20,10 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let MAX_WEAKEN_TIME = 15 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
-    let ALLOW_HASH_UPGRADES = false;
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.02; // Use extra grow and weak threads to correct for out of sync HGW batches
+    let ALLOW_HASH_UPGRADES = true;
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.05; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0;
 
     let serversToHack = []; // ["clarkinc"];
@@ -39,7 +39,7 @@ export async function main(ns) {
     const XP_FARM_SERVER = "foodnstuff";
     const ALLOW_PARTIAL_PREP = true;
     const SHOULD_INFLUENCE_STOCKS = true;
-    const ONLY_MANIPULATE_STOCKS = true;
+    const ONLY_MANIPULATE_STOCKS = false;
 
     let growStocks = new Map();
     let hackStocks = new Map();
@@ -612,7 +612,7 @@ export async function main(ns) {
         const serverInfo = ns.getServer(highestPriorityServer);
 
         // Generate upgrade actions
-        if (serverInfo.moneyMax < 10e12 && CORRECTIVE_GROW_WEAK_MULTIPLIER > 1.1) {
+        if (serverInfo.moneyMax < 10e12 && CORRECTIVE_GROW_WEAK_MULTIPLIER > 1) {
             actions.push({
                 type: ActionType.UPGRADE_HASH_MAX_MONEY,
                 server: highestPriorityServer,
@@ -966,7 +966,7 @@ export async function main(ns) {
             let maxPriorityForServer = 0;
 
             // Generate configurations for 1-100 hack threads
-            for (let hackThreads = 1; hackThreads <= 200; hackThreads++) {
+            for (let hackThreads = 1; hackThreads <= 400; hackThreads++) {
                 const config = getServerHackStats(ns, server, hackThreads);
 
                 if (config === null || config.batchSustainRatio < 0.8) {
@@ -1050,8 +1050,8 @@ export async function main(ns) {
     }
 
     function knapsackGreedy(configurations, weightLimit) {
-        // Sort by throughput (descending)
-        const sortedConfigsWithThroughput = configurations.sort((a, b) => b.throughput - a.throughput);
+        // Sort by throughput (descending) - create a copy to avoid mutating the original array
+        const sortedConfigsWithThroughput = [...configurations].sort((a, b) => b.throughput - a.throughput);
 
         let remainingWeight = weightLimit;
         const selected = [];
@@ -1082,7 +1082,7 @@ export async function main(ns) {
      * Only one configuration per server allowed.
      */
     function knapsackBucketed(configurations, weightLimit, numBuckets = 100) {
-        // Group configurations by server.
+        // Group configurations by server first (O(n))
         const configsByServer = new Map();
         for (const config of configurations) {
             if (!configsByServer.has(config.server)) {
@@ -1090,8 +1090,16 @@ export async function main(ns) {
             }
             configsByServer.get(config.server).push(config);
         }
-        const serverGroups = Array.from(configsByServer.values());
 
+        // Sort configurations within each server group by throughput (O(Σ(ki log ki)))
+        // This is more efficient than sorting all configurations at once when we have many servers
+        for (const serverConfigs of configsByServer.values()) {
+            serverConfigs.sort((a, b) => b.throughput - a.throughput);
+        }
+
+        // Sort server groups by their best (first) configuration's throughput
+        // This ensures high-value servers are considered first in the DP algorithm
+        const serverGroups = Array.from(configsByServer.values()).sort((a, b) => b[0].throughput - a[0].throughput);
         const bucketSize = Math.max(1, Math.ceil(weightLimit / numBuckets));
 
         // dp[w] will be an object { maxValue, selectedConfigs, actualWeight }
