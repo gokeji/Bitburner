@@ -1,32 +1,18 @@
 import { NS } from "@ns";
-import { calculatePortfolioValue } from "./stock-market.js";
+import { findStatsForCrimeSuccessChance } from "./automate-tasks.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    // while (true) {
-    //     const daedalusFavor =
-    //         ns.singularity.getFactionFavor("Daedalus") + ns.singularity.getFactionFavorGain("Daedalus");
-    //     if (daedalusFavor >= 150) {
-    //         ns.singularity.workForFaction("Illuminati", "hacking");
-    //     }
-    //     await ns.sleep(10000);
-    // }
-    // ns.print(ns.getServerMaxMoney("ecorp"));
-    // const newlyPurchasedAugmentations = ns.singularity.getOwnedAugmentations(true);
-    // ns.print(JSON.stringify(newlyPurchasedAugmentations, null, 2));
-    // ns.print(JSON.stringify(ns.singularity.getAugmentationStats("NeuroFlux Governor"), null, 2));
+    const stats = findStatsForCrimeSuccessChance(ns, "Homicide", 1);
+    ns.print(JSON.stringify(stats, null, 2));
 
-    // ns.print(ns.getPlayer().mults.hacking_money);
-    // ns.print(ns.getBitNodeMultipliers().ScriptHackMoney);
-    // ns.print(ns.getBitNodeMultipliers().ScriptHackMoneyGain);
-
-    while (calculatePortfolioValue(ns).totalValue + ns.getPlayer().money < 101e9) {
-        await ns.sleep(1000);
-    }
-    ns.run("scripts/liquidate.js");
-
-    // ns.scriptKill("kamu/early-stock-trader.js", "home");
-    // ns.run("kamu/stock-trader.js");
+    const newPlayer = ns.getPlayer();
+    newPlayer.skills.strength = 105;
+    newPlayer.skills.defense = 105;
+    newPlayer.skills.dexterity = 47;
+    newPlayer.skills.agility = 47;
+    const successChance = ns.formulas.work.crimeSuccessChance(newPlayer, "Homicide");
+    ns.print(successChance);
 }
 
 export const MaxFavor = 35331;

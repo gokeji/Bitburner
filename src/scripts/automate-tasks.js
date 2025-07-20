@@ -41,6 +41,8 @@ export async function main(ns) {
         // { type: "reset" },
 
         { type: "augmentation", target: "CRTX42-AA Gene Modification" }, // NiteSec 45000
+        { type: "train", target: "homicide", goal: 1.0 },
+        { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
         { type: "homicide" },
 
         // { type: "graft", target: "QLink" },
@@ -110,7 +112,7 @@ export async function main(ns) {
                     completedTasks.push(taskId);
                     const completedDesc = currentTaskId === taskId ? "Completed" : "Ready";
                     ns.print(
-                        `${new Date().toLocaleTimeString()} ${completedDesc}: ${task.type} ${task.target || ""} ${task.goal || ""}`,
+                        `${new Date().toLocaleTimeString()} ${completedDesc}: ${task.type} ${task.target || ""} ${JSON.stringify(task.goal) || ""}`,
                     );
                 }
                 continue;
@@ -160,6 +162,8 @@ function canWorkOnTask(ns, task) {
             return factionsWithAugmentation.length > 0;
         case "faction":
             return ns.getPlayer().factions.includes(task.target); // Must be in faction
+        case "train":
+            return ns.getPlayer().money > ns.getPlayer().city === "Sector-12" ? 0 : 200000;
         case "homicide":
             return true; // Can always attempt homicide
         case "reset":
@@ -194,6 +198,18 @@ function isTaskComplete(ns, task) {
                     ns.formulas.reputation.calculateFavorToRep(currentFavor);
             }
             return ns.singularity.getFactionRep(task.target) >= goalReputation;
+        case "train":
+            if (task.target === "homicide") {
+                return ns.formulas.work.crimeSuccessChance(ns.getPlayer(), "Homicide") >= task.goal;
+            } else if (task.target === "stats") {
+                return (
+                    ns.getPlayer().skills.strength >= task.goal.strength &&
+                    ns.getPlayer().skills.defense >= task.goal.defense &&
+                    ns.getPlayer().skills.dexterity >= task.goal.dexterity &&
+                    ns.getPlayer().skills.agility >= task.goal.agility
+                );
+            }
+            return false;
         case "homicide":
             return ns.heart.break() <= -54000 || ns.gang.inGang();
         case "reset":
@@ -294,6 +310,22 @@ async function executeTask(ns, task, isFirstTime = false) {
 
             return true;
 
+        case "train":
+            if (ns.getPlayer().city !== "Sector-12") {
+                ns.singularity.travelToCity("Sector-12");
+            }
+            if (task.target === "homicide") {
+                const stats = findStatsForCrimeSuccessChance(ns, "Homicide", task.goal);
+                if (stats) {
+                    return trainStats(ns, stats);
+                }
+                ns.print(`ERROR: ${new Date().toLocaleTimeString()} Failed to find stats for homicide`);
+                return false;
+            } else if (task.target === "stats") {
+                return trainStats(ns, task.goal);
+            }
+            return false;
+
         case "homicide":
             if (!currentWork || currentWork.type !== "CRIME" || currentWork.crimeType !== "Homicide") {
                 const success = ns.singularity.commitCrime("homicide", true);
@@ -361,6 +393,59 @@ function startWorkForFactionIfNeeded(ns, faction, workType, goalReputation, curr
             `${new Date().toLocaleTimeString()} Currently working for ${faction}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)} (${purpose})`,
         );
     }
+}
+
+function trainStats(ns, stats) {
+    const { strength: goalStrength, defense: goalDefense, dexterity: goalDexterity, agility: goalAgility } = stats;
+    const { strength, defense, dexterity, agility } = ns.getPlayer().skills;
+
+    const statsToTrain = [];
+
+    if (strength < goalStrength) {
+        statsToTrain.push({ stat: "str", level: strength });
+    }
+    if (defense < goalDefense) {
+        statsToTrain.push({ stat: "def", level: defense });
+    }
+    if (dexterity < goalDexterity) {
+        statsToTrain.push({ stat: "dex", level: dexterity });
+    }
+    if (agility < goalAgility) {
+        statsToTrain.push({ stat: "agi", level: agility });
+    }
+
+    const lowestLevel = Math.min(...statsToTrain.map((stat) => stat.level));
+    const lowestStat = statsToTrain.find((stat) => stat.level === lowestLevel);
+
+    if (lowestStat) {
+        ns.singularity.gymWorkout("Powerhouse Gym", lowestStat.stat, false);
+
+        ns.print(
+            `${new Date().toLocaleTimeString()} Training: str ${stats.strength} | def ${stats.defense} | dex ${stats.dexterity} | agi ${stats.agility}`,
+        );
+
+        return true;
+    } else {
+        return false;
+    }
+}
+
+/** @param {NS} ns **/
+export function findStatsForCrimeSuccessChance(ns, crimeType, goal) {
+    for (let i = 0; i < 100; i++) {
+        const newPlayer = ns.getPlayer();
+        const { strength, defense, dexterity, agility } = newPlayer.skills;
+        newPlayer.skills.strength += i;
+        newPlayer.skills.defense += i;
+        newPlayer.skills.dexterity += i;
+        newPlayer.skills.agility += i;
+
+        const successChance = ns.formulas.work.crimeSuccessChance(newPlayer, crimeType);
+        if (successChance >= goal) {
+            return { strength: strength + i, defense: defense + i, dexterity: dexterity + i, agility: agility + i };
+        }
+    }
+    return null;
 }
 
 // "NeuroFlux Governor", "Augmented Targeting I", "Augmented Targeting II", "Augmented Targeting III", "Synthetic Heart", "Synfibril Muscle", "Combat Rib I", "Combat Rib II", "Combat Rib III", "Nanofiber Weave", "NEMEAN Subdermal Weave", "Wired Reflexes", "Graphene Bone Lacings", "Bionic Spine", "Graphene Bionic Spine Upgrade", "Bionic Legs", "Graphene Bionic Legs Upgrade", "Speech Processor Implant", "TITN-41 Gene-Modification Injection", "Enhanced Social Interaction Implant", "BitWire", "Artificial Bio-neural Network Implant", "Artificial Synaptic Potentiation", "Enhanced Myelin Sheathing", "Synaptic Enhancement Implant", "Neural-Retention Enhancement", "DataJack", "Embedded Netburner Module", "Embedded Netburner Module Core Implant", "Embedded Netburner Module Core V2 Upgrade", "Embedded Netburner Module Core V3 Upgrade", "Embedded Netburner Module Analyze Engine", "Embedded Netburner Module Direct Memory Access Upgrade", "Neuralstimulator", "Neural Accelerator", "Cranial Signal Processors - Gen I", "Cranial Signal Processors - Gen II", "Cranial Signal Processors - Gen III", "Cranial Signal Processors - Gen IV", "Cranial Signal Processors - Gen V", "Neuronal Densification", "Neuroreceptor Management Implant", "Nuoptimal Nootropic Injector Implant", "Speech Enhancement", "FocusWire", "PC Direct-Neural Interface", "PC Direct-Neural Interface Optimization Submodule", "PC Direct-Neural Interface NeuroNet Injector", "PCMatrix", "ADR-V1 Pheromone Gene", "ADR-V2 Pheromone Gene", "The Shadow's Simulacrum", "Hacknet Node CPU Architecture Neural-Upload", "Hacknet Node Cache Architecture Neural-Upload", "Hacknet Node NIC Architecture Neural-Upload", "Hacknet Node Kernel Direct-Neural Interface", "Hacknet Node Core Direct-Neural Interface", "Neurotrainer I", "Neurotrainer II", "Neurotrainer III", "HyperSight Corneal Implant", "LuminCloaking-V1 Skin Implant", "LuminCloaking-V2 Skin Implant", "HemoRecirculator", "SmartSonar Implant", "Power Recirculation Core", "QLink", "The Red Pill", "SPTN-97 Gene Modification", "ECorp HVMind Implant", "CordiARC Fusion Reactor", "SmartJaw", "Neotra", "Xanipher", "nextSENS Gene Modification", "OmniTek InfoLoad", "Photosynthetic Cells", "BitRunners Neurolink", "The Black Hand", "Unstable Circadian Modulator", "CRTX42-AA Gene Modification", "Neuregen Gene Modification", "CashRoot Starter Kit", "NutriGen Implant", "INFRARET Enhancement", "DermaForce Particle Barrier", "Graphene BrachiBlades Upgrade", "Graphene Bionic Arms Upgrade", "BrachiBlades", "Bionic Arms", "Social Negotiation Assistant (S.N.A)", "violet Congruity Implant", "Hydroflame Left Arm", "BigD's Big ... Brain", "Z.O.Ë.", "EsperTech Bladeburner Eyewear", "EMS-4 Recombination", "ORION-MKIV Shoulder", "Hyperion Plasma Cannon V1", "Hyperion Plasma Cannon V2", "GOLEM Serum", "Vangelis Virus", "Vangelis Virus 3.0", "I.N.T.E.R.L.I.N.K.E.D", "Blade's Runners", "BLADE-51b Tesla Armor", "BLADE-51b Tesla Armor: Power Cells Upgrade", "BLADE-51b Tesla Armor: Energy Shielding Upgrade", "BLADE-51b Tesla Armor: Unibeam Upgrade", "BLADE-51b Tesla Armor: Omnibeam Upgrade", "BLADE-51b Tesla Armor: IPU Upgrade", "The Blade's Simulacrum", "Stanek's Gift - Genesis", "Stanek's Gift - Awakening", "Stanek's Gift - Serenity", "SoA - Might of Ares", "SoA - Wisdom of Athena", "SoA - Trickery of Hermes", "SoA - Beauty of Aphrodite", "SoA - Chaos of Dionysus", "SoA - Flood of Poseidon", "SoA - Hunt of Artemis", "SoA - Knowledge of Apollo", "SoA - phyzical WKS harmonizer"
