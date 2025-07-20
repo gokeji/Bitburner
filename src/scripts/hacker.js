@@ -23,7 +23,7 @@ export async function main(ns) {
     let MAX_WEAKEN_TIME = 5 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
     let ALLOW_HASH_UPGRADES = true;
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.05; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.4; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0;
 
     let serversToHack = []; // ["clarkinc"];
@@ -100,6 +100,65 @@ export async function main(ns) {
     let totalServersAttempted = 0;
     let totalServersNotDiscarded = 0;
 
+    // === PERFORMANCE MONITORING ===
+    let performanceStats = {
+        infrastructure: [],
+        dataGathering: [],
+        stateMachine: [],
+        actionExecution: [],
+        cleanup: [],
+        total: [],
+        // Detailed breakdown for bottleneck identification
+        getServers: [],
+        scriptInfo: [],
+        stockPorts: [],
+        priorities: [],
+        knapsack: [],
+        allocations: [],
+    };
+
+    function logPerformance(category, duration, details = "") {
+        performanceStats[category].push(duration);
+        // Keep only last 10 measurements to prevent memory growth
+        if (performanceStats[category].length > 10) {
+            performanceStats[category].shift();
+        }
+    }
+
+    function getPerformanceAverage(category) {
+        const stats = performanceStats[category];
+        if (stats.length === 0) return 0;
+        return stats.reduce((a, b) => a + b, 0) / stats.length;
+    }
+
+    let didPrintPerformanceReport = false;
+    function printPerformanceReport() {
+        if (tickCounter % 20 === 0 && !didPrintPerformanceReport) {
+            // Report every 5 ticks
+            ns.tprint(`\n=== PERFORMANCE REPORT (Tick ${tickCounter}) ===`);
+            ns.tprint(`Infrastructure: ${getPerformanceAverage("infrastructure").toFixed(1)}ms`);
+            ns.tprint(`Data Gathering: ${getPerformanceAverage("dataGathering").toFixed(1)}ms`);
+            ns.tprint(`  - getServers: ${getPerformanceAverage("getServers").toFixed(1)}ms`);
+            ns.tprint(`  - scriptInfo: ${getPerformanceAverage("scriptInfo").toFixed(1)}ms`);
+            ns.tprint(`  - stockPorts: ${getPerformanceAverage("stockPorts").toFixed(1)}ms`);
+            ns.tprint(`  - priorities: ${getPerformanceAverage("priorities").toFixed(1)}ms`);
+            ns.tprint(`    - knapsack: ${getPerformanceAverage("knapsack").toFixed(1)}ms`);
+            ns.tprint(`State Machine: ${getPerformanceAverage("stateMachine").toFixed(1)}ms`);
+            ns.tprint(`Action Execution: ${getPerformanceAverage("actionExecution").toFixed(1)}ms`);
+            ns.tprint(`  - allocations: ${getPerformanceAverage("allocations").toFixed(1)}ms`);
+            ns.tprint(`Cleanup: ${getPerformanceAverage("cleanup").toFixed(1)}ms`);
+            ns.tprint(`TOTAL TICK TIME: ${getPerformanceAverage("total").toFixed(1)}ms (target: 0ms)`);
+
+            const totalAvg = getPerformanceAverage("total");
+            if (totalAvg > 800) {
+                ns.tprint(
+                    `WARNING: Tick time ${totalAvg.toFixed(1)}ms exceeds target 800ms by ${(totalAvg - 800).toFixed(1)}ms`,
+                );
+            }
+            didPrintPerformanceReport = true;
+        }
+    }
+
     // Server States for State Machine
     const ServerState = {
         NEEDS_PREP: "NEEDS_PREP",
@@ -125,30 +184,69 @@ export async function main(ns) {
     };
     let lastTickTime = 0;
 
-    // === Main State Machine Loop ===
+    // === SIMPLE TICK-BASED PRIORITY CACHE ===
+    let prioritiesCacheData = null;
+    let prioritiesCacheValidUntilTick = 0;
+    const CACHE_DURATION_TICKS = 30; // Cache priorities for 30 ticks
+
+    // === PERFORMANCE OPTIMIZATION: Server Stats Cache ===
+    // Cache expensive calculations that don't change between thread counts for the same server
+    let serverStatsCache = new Map(); // Map<serverName, CachedServerStats>
+    let globalCalculationCache = null; // Cache player, bitnode multipliers etc.
+
+    // === MAIN STATE MACHINE LOOP ===
     while (true) {
+        const tickStartTime = performance.now();
         tickCounter++;
         ns.print(`\n=== Tick ${tickCounter} ===`);
-        const tickTime = performance.now();
+
+        // Clear optimization caches at start of each tick
+        serverStatsCache.clear();
+        globalCalculationCache = null;
+
         if (lastTickTime !== 0) {
-            ns.print(`Tick ${tickCounter - 1} took ${tickTime - lastTickTime}ms`);
+            const actualTickTime = tickStartTime - lastTickTime;
+            ns.print(`Previous tick took ${actualTickTime.toFixed(1)}ms`);
         }
-        lastTickTime = tickTime;
 
         // === INFRASTRUCTURE PHASE ===
+        const infraStart = performance.now();
         await setupServers(ns);
+        logPerformance("infrastructure", performance.now() - infraStart);
 
         // === DATA GATHERING PHASE ===
+        const dataStart = performance.now();
         const gameState = gatherGameState(ns);
+        logPerformance("dataGathering", performance.now() - dataStart);
 
         // === STATE MACHINE PHASE (Pure Reducer) ===
+        const stateStart = performance.now();
         const actions = calculateActions(gameState);
+        logPerformance("stateMachine", performance.now() - stateStart);
 
         // === ACTION EXECUTION PHASE ===
+        const execStart = performance.now();
         const executionResults = await executeActions(ns, actions);
+        logPerformance("actionExecution", performance.now() - execStart);
 
         // === CLEANUP PHASE ===
+        const cleanupStart = performance.now();
         performEndOfTickOperations(ns, executionResults);
+        logPerformance("cleanup", performance.now() - cleanupStart);
+
+        const tickEndTime = performance.now();
+        const totalTickTime = tickEndTime - tickStartTime;
+        logPerformance("total", totalTickTime);
+        lastTickTime = tickStartTime;
+
+        // Print performance report
+        printPerformanceReport();
+
+        // Log severe performance warnings immediately
+        const totalAvg = getPerformanceAverage("total");
+        if (totalAvg > 1200) {
+            ns.tprint(`CRITICAL: Tick time ${totalAvg.toFixed(1)}ms severely exceeds target! Check performance log.`);
+        }
 
         await ns.sleep(TICK_DELAY);
     }
@@ -162,10 +260,12 @@ export async function main(ns) {
         }
 
         // Get all servers
+        const getServersStart = performance.now();
         executableServers = getServers(ns, "executableOnly");
         hackableServers = getServers(ns, "hackableOnly").filter((server) => {
             return true;
         });
+        logPerformance("getServers", performance.now() - getServersStart);
 
         maxRamAvailable = executableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
         totalFreeRam = getTotalFreeRam(ns);
@@ -186,7 +286,9 @@ export async function main(ns) {
     // === DATA GATHERING PHASE ===
     function gatherGameState(ns) {
         // Gather all required data for decision making
+        const scriptInfoStart = performance.now();
         const { scriptInfoByTarget, scriptInfoByHost } = getRunningScriptInfo(ns);
+        logPerformance("scriptInfo", performance.now() - scriptInfoStart);
 
         maxRamAvailableForHacking = executableServers.reduce(
             (acc, server) => acc + scriptInfoByHost.get(server).ramUsed,
@@ -196,6 +298,7 @@ export async function main(ns) {
         ns.print(`DEBUG: maxRamAvailableForHacking: ${ns.formatRam(maxRamAvailableForHacking)}`);
 
         // Gather stocks to grow/short
+        const stockStart = performance.now();
         if (SHOULD_INFLUENCE_STOCKS) {
             /** @param {NS} ns
              * @param {number} portNumber
@@ -225,31 +328,20 @@ export async function main(ns) {
 
             growStocks = getStockPortContent(ns, 1, growStocks); // port 1 is grow
             hackStocks = getStockPortContent(ns, 2, hackStocks); // port 2 is hack
-
-            ns.print(
-                `DEBUG: growStocks: ${Array.from(growStocks.entries())
-                    .map(([server, value]) => `${server}:${ns.formatNumber(value, 1)}`)
-                    .join(", ")}`,
-            );
-            ns.print(
-                `DEBUG: hackStocks: ${Array.from(hackStocks.entries())
-                    .map(([server, value]) => `${server}:${ns.formatNumber(value, 1)}`)
-                    .join(", ")}`,
-            );
         }
+        logPerformance("stockPorts", performance.now() - stockStart);
 
         // Calculate global priorities map once per tick (without excluding any servers)
+        const prioritiesStart = performance.now();
         const { prioritiesMap, serverMaxPriorities } = calculateTargetServerPriorities(ns);
         globalPrioritiesMap = prioritiesMap;
 
-        ns.print(
-            `Selected Servers: ${Array.from(globalPrioritiesMap.entries())
-                .map(
-                    ([server, config]) =>
-                        `${server}(${config.hackThreads}H) ${ns.formatPercent(config.actualHackPercentage)}`,
-                )
-                .join(", ")}`,
-        );
+        for (const [server, config] of globalPrioritiesMap.entries()) {
+            ns.print(
+                `MAX HACK: ${config.server} | ${config.hackThreads}H (${ns.formatPercent(config.hackPercentage)}) | ${ns.formatRam(config.ramPerBatch, 1)} x ${config.batchLimitForSustainedThroughput} = ${ns.formatRam(config.ramUsageForSustainedThroughput, 1)} (${ns.formatPercent(config.batchSustainRatio)}) p${ns.formatNumber(config.priority, 1)}`,
+            );
+        }
+        logPerformance("priorities", performance.now() - prioritiesStart);
 
         // Process servers on hold and check if any can resume
         processServersOnHold(ns);
@@ -415,7 +507,7 @@ export async function main(ns) {
                         }
 
                         // Single server optimization - continuously add batches every tick
-                        const { batchLimitForSustainedThroughput, ramNeededPerBatch } = serverStats;
+                        const { batchLimitForSustainedThroughput, ramPerBatch } = serverStats;
                         const maxBatchesThisTick = Math.floor(TICK_DELAY / TIME_PER_BATCH);
 
                         // Schedule up to the maximum batches per tick
@@ -425,10 +517,6 @@ export async function main(ns) {
                         if (serverStats.weakenTime < TIME_PER_BATCH) {
                             batchesToSchedule = maxBatchesThisTick;
                         }
-
-                        // ns.print(
-                        //     `MAX HACK ${server}: Scheduling ${batchesToSchedule} batches (sustained=${batchLimitForSustainedThroughput}, tick_max=${maxBatchesThisTick})`,
-                        // );
 
                         if (batchesToSchedule > 0) {
                             let timeDriftDelay = 0;
@@ -447,7 +535,7 @@ export async function main(ns) {
                                 batchesToSchedule,
                                 serverStats,
                                 timeDriftDelay,
-                                ramUsed: batchesToSchedule * ramNeededPerBatch,
+                                ramUsed: batchesToSchedule * ramPerBatch,
                             });
 
                             // Store timings if not already stored
@@ -625,12 +713,12 @@ export async function main(ns) {
             });
         }
 
-        // if (serverInfo.hackDifficulty > 10 && serverInfo.hackDifficulty === serverInfo.minDifficulty) {
-        //     actions.push({
-        //         type: ActionType.UPGRADE_HASH_MIN_SECURITY,
-        //         server: highestPriorityServer,
-        //     });
-        // }
+        if (serverInfo.hackDifficulty > 10 && serverInfo.hackDifficulty === serverInfo.minDifficulty) {
+            actions.push({
+                type: ActionType.UPGRADE_HASH_MIN_SECURITY,
+                server: highestPriorityServer,
+            });
+        }
 
         return actions;
     }
@@ -744,7 +832,10 @@ export async function main(ns) {
     }
 
     async function executePrepServer(ns, action) {
+        const allocStart = performance.now();
         const prepRamUsed = prepServer(ns, action.server, action.serverIndex, action.allowPartial);
+        logPerformance("allocations", performance.now() - allocStart);
+
         if (prepRamUsed !== false && prepRamUsed > 0) {
             const currentPrepStats = getServerPrepStats(ns, action.server);
             serverPrepTimings.set(action.server, {
@@ -757,7 +848,8 @@ export async function main(ns) {
     }
 
     async function executeScheduleBatches(ns, action) {
-        return scheduleBatchHackCycles(
+        const allocStart = performance.now();
+        const result = scheduleBatchHackCycles(
             ns,
             action.server,
             action.batchesToSchedule,
@@ -765,6 +857,8 @@ export async function main(ns) {
             action.serverStats,
             action.timeDriftDelay,
         );
+        logPerformance("allocations", performance.now() - allocStart);
+        return result;
     }
 
     function updateBaselineSecurityLevel(ns, server) {
@@ -807,6 +901,7 @@ export async function main(ns) {
 
     /**
      * Calculates the hack stats given current security, hacking to hackingPercentage, and growing back to 100% money.
+     * OPTIMIZED VERSION: Caches expensive calculations that don't change between thread counts
      * @param {NS} ns
      * @param {string} server
      * @param {number} hackThreads - Number of hack threads to use
@@ -814,48 +909,94 @@ export async function main(ns) {
      * @returns {Object} - Standardized server configuration object
      */
     function getServerHackStats(ns, server, hackThreads, useFormulas = true) {
-        const cpuCores = 1;
-        const serverInfo = ns.getServer(server);
-
-        let calcServer, player;
-        if (useFormulas) {
-            // Create optimal server state for formulas API calculations
-            calcServer = {
-                ...serverInfo,
-                hackDifficulty: serverInfo.minDifficulty,
-                moneyAvailable: serverInfo.moneyMax,
+        // Initialize global cache once per tick
+        if (!globalCalculationCache) {
+            globalCalculationCache = {
+                player: ns.getPlayer(),
+                bitnodeMultipliers: ns.getBitNodeMultipliers(),
+                cpuCores: 1,
+                weakenAmount: ns.weakenAnalyze(1, 1),
             };
-            player = ns.getPlayer();
         }
 
-        const weakenAmount = ns.weakenAnalyze(1, cpuCores);
+        // Get or create server-specific cache
+        let serverCache = serverStatsCache.get(server);
+        if (!serverCache) {
+            const serverInfo = ns.getServer(server);
 
-        let weakenTime, growthTime, hackTime, hackChance, hackPercentageFromOneThread;
+            let calcServer;
+            if (useFormulas) {
+                // Create optimal server state for formulas API calculations
+                calcServer = {
+                    ...serverInfo,
+                    hackDifficulty: serverInfo.minDifficulty,
+                    moneyAvailable: serverInfo.moneyMax,
+                };
+            }
 
-        if (useFormulas) {
-            // Use formulas API with optimal server conditions
-            weakenTime = ns.formulas.hacking.weakenTime(calcServer, player);
-            growthTime = ns.formulas.hacking.growTime(calcServer, player);
-            hackTime = ns.formulas.hacking.hackTime(calcServer, player);
-            hackChance = ns.formulas.hacking.hackChance(calcServer, player);
-            hackPercentageFromOneThread = ns.formulas.hacking.hackPercent(calcServer, player);
-        } else {
-            // Use existing ns functions with current server state
-            weakenTime = ns.getWeakenTime(server);
-            growthTime = ns.getGrowTime(server);
-            hackTime = ns.getHackTime(server);
-            hackChance = ns.hackAnalyzeChance(server);
-            hackPercentageFromOneThread = ns.hackAnalyze(server);
+            // Cache expensive calculations that are constant for this server
+            serverCache = {
+                serverInfo,
+                calcServer,
+                // Timing calculations (constant for all thread counts)
+                weakenTime: useFormulas
+                    ? ns.formulas.hacking.weakenTime(calcServer, globalCalculationCache.player)
+                    : ns.getWeakenTime(server),
+                growthTime: useFormulas
+                    ? ns.formulas.hacking.growTime(calcServer, globalCalculationCache.player)
+                    : ns.getGrowTime(server),
+                hackTime: useFormulas
+                    ? ns.formulas.hacking.hackTime(calcServer, globalCalculationCache.player)
+                    : ns.getHackTime(server),
+                hackChance: useFormulas
+                    ? ns.formulas.hacking.hackChance(calcServer, globalCalculationCache.player)
+                    : ns.hackAnalyzeChance(server),
+                hackPercentageFromOneThread: useFormulas
+                    ? ns.formulas.hacking.hackPercent(calcServer, globalCalculationCache.player)
+                    : ns.hackAnalyze(server),
+
+                // Pre-calculate expensive batch calculations
+                batchesPerTick: Math.floor(TICK_DELAY / TIME_PER_BATCH),
+                moneyMultiplierCache:
+                    serverInfo.moneyMax *
+                    globalCalculationCache.player.mults.hacking_money *
+                    globalCalculationCache.bitnodeMultipliers.ScriptHackMoney *
+                    globalCalculationCache.bitnodeMultipliers.ScriptHackMoneyGain,
+            };
+
+            serverStatsCache.set(server, serverCache);
         }
 
-        const actualHackPercentage = hackThreads * hackPercentageFromOneThread;
+        const {
+            serverInfo,
+            calcServer,
+            weakenTime,
+            growthTime,
+            hackTime,
+            hackChance,
+            hackPercentageFromOneThread,
+            batchesPerTick,
+            moneyMultiplierCache,
+        } = serverCache;
+        const { player, bitnodeMultipliers, cpuCores, weakenAmount } = globalCalculationCache;
+
+        // Fast calculations that depend on hackThreads
+        const hackPercentage = hackThreads * hackPercentageFromOneThread;
+
+        // Early exit for very low hack percentages to avoid expensive growthThreads calculation
+        if (hackPercentage < 0.001 || hackChance < 0.01) {
+            // Less than 0.1% hack percentage or less than 1% hack chance
+            return null;
+        }
+
         const hackSecurityChange = hackThreads * 0.002;
 
+        // Calculate growth threads (this is the expensive operation that varies with hackThreads)
         let growthThreads;
         if (useFormulas) {
             // Use formulas API to calculate threads needed to grow from ACTUAL hack amount back to 100%
             const targetMoney = serverInfo.moneyMax;
-            const currentMoneyAfterHack = serverInfo.moneyMax * (1 - actualHackPercentage);
+            const currentMoneyAfterHack = serverInfo.moneyMax * (1 - hackPercentage);
             const currentSecurityAfterHack = serverInfo.minDifficulty + hackSecurityChange;
             growthThreads = Math.ceil(
                 CORRECTIVE_GROW_WEAK_MULTIPLIER *
@@ -871,7 +1012,7 @@ export async function main(ns) {
                     ),
             );
         } else {
-            const growthMultiplier = 1 / Math.max(1 - actualHackPercentage, 1);
+            const growthMultiplier = 1 / Math.max(1 - hackPercentage, 1);
             growthThreads = Math.ceil(
                 CORRECTIVE_GROW_WEAK_MULTIPLIER * ns.growthAnalyze(server, growthMultiplier, cpuCores),
             );
@@ -881,51 +1022,28 @@ export async function main(ns) {
         const weakenTarget = hackSecurityChange + growthSecurityChange;
         const weakenThreadsNeeded = Math.ceil((CORRECTIVE_GROW_WEAK_MULTIPLIER * weakenTarget) / weakenAmount);
 
-        // Debug logging for clarkinc calculations
-        // if (server === "clarkinc" && hackThreads == 12) {
-        //     ns.print(
-        //         `CALC DEBUG ${hackThreads}H: hackSec=${ns.formatNumber(hackSecurityChange, 4)}, growSec=${ns.formatNumber(growthSecurityChange, 4)}, totalSec=${ns.formatNumber(weakenTarget, 4)}`,
-        //     );
-        //     ns.print(
-        //         `CALC DEBUG ${hackThreads}H: ${growthThreads}G threads, ${weakenThreadsNeeded}W threads, ${ns.formatPercent(actualHackPercentage)} hack`,
-        //     );
-        // }
-
         if (hackThreads <= 0 || growthThreads <= 0 || weakenThreadsNeeded <= 0) {
             return null;
         }
 
-        const ramRequired =
+        const ramPerBatch =
             hackThreads * HACK_SCRIPT_RAM_USAGE +
             growthThreads * GROW_SCRIPT_RAM_USAGE +
             weakenThreadsNeeded * WEAKEN_SCRIPT_RAM_USAGE;
 
         // Calculate actual throughput (money per second) using ACTUAL hack percentage
-        const bitnodeMultipliers = ns.getBitNodeMultipliers();
-        const moneyPerBatch =
-            actualHackPercentage *
-            serverInfo.moneyMax *
-            hackChance *
-            ns.getPlayer().mults.hacking_money *
-            bitnodeMultipliers.ScriptHackMoney *
-            bitnodeMultipliers.ScriptHackMoneyGain;
+        const moneyPerBatch = hackPercentage * hackChance * moneyMultiplierCache;
 
-        const maxConcurrentBatches = Math.floor(maxRamAvailableForHacking / ramRequired);
-
-        const batchesPerTick = Math.floor(TICK_DELAY / TIME_PER_BATCH);
+        const maxConcurrentBatches = Math.floor(maxRamAvailableForHacking / ramPerBatch);
         const theoreticalBatchLimit = Math.floor((weakenTime / TICK_DELAY) * batchesPerTick);
         const batchLimitForSustainedThroughput = Math.min(maxConcurrentBatches, theoreticalBatchLimit);
 
         // Throughput is money per second from sustainable batches
         const throughput = (batchLimitForSustainedThroughput * moneyPerBatch) / (weakenTime / 1000);
-        const ramUsageForSustainedThroughput = batchLimitForSustainedThroughput * ramRequired;
+        const ramUsageForSustainedThroughput = batchLimitForSustainedThroughput * ramPerBatch;
         const priority = throughput / (ramUsageForSustainedThroughput / 10000);
 
         const skippedDueToSecurity = serverInfo.hackDifficulty > serverBaselineSecurityLevels.get(server);
-
-        // ns.print(
-        //     `DEBUG: ${server} | ${hackThreads}H:${growthThreads}G:${weakenThreadsNeeded}W | throughput: ${ns.formatNumber(throughput, 2)} | ramPerBatch: ${ns.formatRam(ramRequired)} | sustained ram: ${ns.formatRam(ramUsageForSustainedThroughput)} | batches: ${batchLimitForSustainedThroughput}`,
-        // );
 
         return {
             // Core properties
@@ -933,7 +1051,7 @@ export async function main(ns) {
             hackThreads,
             growthThreads,
             weakenThreadsNeeded,
-            ramRequired,
+            ramPerBatch,
             throughput,
             priority,
             ramUsageForSustainedThroughput,
@@ -946,7 +1064,7 @@ export async function main(ns) {
 
             // Performance values
             hackChance,
-            actualHackPercentage,
+            hackPercentage,
             totalSecurityIncrease: weakenTarget,
             batchLimitForSustainedThroughput,
             skippedDueToSecurity,
@@ -960,6 +1078,22 @@ export async function main(ns) {
      * @returns {Map<string, Object>} - Map of server names to their optimal configurations.
      */
     function calculateTargetServerPriorities(ns) {
+        // Check if we can use cached priorities
+        if (prioritiesCacheData && tickCounter < prioritiesCacheValidUntilTick) {
+            if (tickCounter % 10 === 0) {
+                const ticksRemaining = prioritiesCacheValidUntilTick - tickCounter;
+                ns.print(`PERF: Using cached priorities (${ticksRemaining} ticks remaining)`);
+            }
+            return prioritiesCacheData;
+        }
+
+        // Need to recalculate priorities
+        if (tickCounter % 10 === 0) {
+            ns.print(`PERF: Recalculating priorities (cache expired)`);
+        }
+
+        const configGenStart = performance.now();
+
         // Step 1: Generate all possible configurations for all servers
         let allConfigurations = [];
         const serverMaxPriorities = new Map(); // Track max throughput per server
@@ -969,14 +1103,16 @@ export async function main(ns) {
         });
 
         for (const server of serversToEvaluate) {
+            const serverStart = performance.now();
             let maxPriorityForServer = 0;
+            let configsForServer = 0;
 
             // Generate configurations for 1-100 hack threads
             for (let hackThreads = 1; hackThreads <= 400; hackThreads++) {
                 const config = getServerHackStats(ns, server, hackThreads);
 
                 if (config === null || config.batchSustainRatio < 0.8) {
-                    continue;
+                    break;
                 }
 
                 // Track the maximum throughput for this server
@@ -987,14 +1123,21 @@ export async function main(ns) {
                     continue;
                 }
                 allConfigurations.push(config);
+                configsForServer++;
 
-                if (config.actualHackPercentage >= 1) {
+                if (config.hackPercentage >= 1) {
                     break;
                 }
             }
 
             // Store the maximum throughput for this server
             serverMaxPriorities.set(server, maxPriorityForServer);
+
+            const serverTime = performance.now() - serverStart;
+            if (serverTime > 100) {
+                // Log servers that take more than 100ms
+                ns.print(`PERF: ${server} took ${serverTime.toFixed(1)}ms to generate ${configsForServer} configs`);
+            }
         }
 
         if (ONLY_MANIPULATE_STOCKS) {
@@ -1015,44 +1158,48 @@ export async function main(ns) {
                     if (config === null) continue;
                     const totalStockValue = (growStocks.get(server) ?? 0) + (hackStocks.get(server) ?? 0);
                     config.throughput =
-                        (config.actualHackPercentage * totalStockValue * config.batchLimitForSustainedThroughput) /
+                        (config.hackPercentage * totalStockValue * config.batchLimitForSustainedThroughput) /
                         config.weakenTime;
                     config.priority = config.throughput / (config.ramUsageForSustainedThroughput / 10000);
                     allConfigurations.push(config);
 
-                    if (config.actualHackPercentage >= 1) break;
+                    if (config.hackPercentage >= 1) break;
                 }
             }
         }
 
         // ns.write("allConfigurations.txt", JSON.stringify(allConfigurations, null, 2), "w");
+        const configGenTime = performance.now() - configGenStart;
 
-        ns.print(`DEBUG: allConfigurations: ${allConfigurations.length}`);
+        ns.print(`DEBUG: allConfigurations: ${allConfigurations.length} (generated in ${configGenTime.toFixed(1)}ms)`);
+        if (tickCounter % 10 === 0) {
+            ns.print(`PERF: Server cache efficiency: ${serverStatsCache.size} servers cached`);
+        }
 
         // Step 2: Apply knapsack algorithm
+        const knapsackStart = performance.now();
         const selectedConfigs = knapsackBucketed(allConfigurations, maxRamAvailableForHacking);
+        const knapsackTime = performance.now() - knapsackStart;
+        logPerformance("knapsack", knapsackTime);
 
         // Step 3: Convert results to prioritiesMap format (keeping compatibility)
         const prioritiesMap = new Map();
 
         for (const config of selectedConfigs) {
-            ns.print(
-                `MAX HACK: ${config.server} - ${config.hackThreads}H (${ns.formatPercent(config.actualHackPercentage)}) - ${ns.formatRam(config.ramRequired)}/batch, max ${config.batchLimitForSustainedThroughput} concurrent = ${ns.formatRam(config.ramUsageForSustainedThroughput)} (${ns.formatPercent(config.batchSustainRatio)}) priority - ${ns.formatNumber(config.priority, 2)}`,
-            );
-
             // Map to existing format for compatibility
-            prioritiesMap.set(config.server, {
-                ...config,
-                ramNeededPerBatch: config.ramRequired,
-                hackPercentage: config.actualHackPercentage,
-            });
+            prioritiesMap.set(config.server, config);
         }
 
         ns.print(
-            `KNAPSACK: Selected ${selectedConfigs.length} configurations across ${serverMaxPriorities.size} total servers`,
+            `KNAPSACK: Selected ${selectedConfigs.length} configurations across ${serverMaxPriorities.size} total servers (${knapsackTime.toFixed(1)}ms)`,
         );
 
-        return { prioritiesMap, serverMaxPriorities };
+        // Cache the results
+        const result = { prioritiesMap, serverMaxPriorities };
+        prioritiesCacheData = result;
+        prioritiesCacheValidUntilTick = tickCounter + CACHE_DURATION_TICKS;
+
+        return result;
     }
 
     function knapsackGreedy(configurations, weightLimit) {
@@ -1164,6 +1311,8 @@ export async function main(ns) {
      * @returns {number} - Total available RAM in GB.
      */
     function getTotalFreeRam(ns) {
+        const ramCalcStart = performance.now();
+
         // Calculate total from the cache
         let totalRam = 0;
         serverRamCache.clear();
@@ -1194,6 +1343,12 @@ export async function main(ns) {
             }
         }
 
+        const ramCalcTime = performance.now() - ramCalcStart;
+        if (ramCalcTime > 10) {
+            // Only log if it takes more than 10ms
+            ns.print(`PERF: getTotalFreeRam took ${ramCalcTime.toFixed(1)}ms`);
+        }
+
         return totalRam;
     }
 
@@ -1203,6 +1358,8 @@ export async function main(ns) {
      * @returns {Map<string, {ramUsed: number, hasHack: boolean, hasGrow: boolean, hasWeaken: boolean, isPrep: boolean}>}
      */
     function getRunningScriptInfo(ns) {
+        const scriptScanStart = performance.now();
+
         const scriptInfoByTarget = new Map();
         const scriptInfoByHost = new Map();
 
@@ -1265,6 +1422,15 @@ export async function main(ns) {
                 }
             }
         }
+
+        const scriptScanTime = performance.now() - scriptScanStart;
+        if (scriptScanTime > 50) {
+            // Only log if it takes more than 50ms
+            ns.print(
+                `PERF: getRunningScriptInfo took ${scriptScanTime.toFixed(1)}ms (scanned ${executableServers.length} servers)`,
+            );
+        }
+
         return { scriptInfoByTarget, scriptInfoByHost };
     }
 
@@ -1531,7 +1697,9 @@ export async function main(ns) {
         );
 
         // Find servers for prep operations with proper RAM accounting
+        const prepAllocStart = performance.now();
         const allocation = allocateServersForOperations(ns, operations);
+        logPerformance("allocations", performance.now() - prepAllocStart);
 
         let finalAllocation = allocation;
         if (!allocation.success && allowPartial) {
@@ -1689,7 +1857,9 @@ export async function main(ns) {
         ];
 
         // Find servers for all three operations with proper RAM accounting
+        const batchAllocStart = performance.now();
         const allocation = allocateServersForOperations(ns, operations);
+        logPerformance("allocations", performance.now() - batchAllocStart);
 
         // If not enough RAM to run H G and W, return failure
         if (!allocation.success) {
