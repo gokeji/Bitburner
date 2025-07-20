@@ -82,14 +82,14 @@ export async function main(ns) {
         const playerFactions = ns.getPlayer().factions;
         const invitations = ns.singularity.checkFactionInvitations();
 
-        // if (
-        //     !playerFactions.includes("Church of the Machine God") &&
-        //     !invitations.includes("Church of the Machine God")
-        // ) {
-        //     ns.singularity.travelToCity("Chongqing");
-        //     await ns.sleep(1000);
-        //     ns.stanek.acceptGift();
-        // }
+        if (
+            !playerFactions.includes("Church of the Machine God") &&
+            !invitations.includes("Church of the Machine God")
+        ) {
+            ns.singularity.travelToCity("Chongqing");
+            await ns.sleep(1000);
+            ns.stanek.acceptGift();
+        }
         if (ns.getPlayer().money > 30e6) {
             if (!playerFactions.includes("New Tokyo") && !invitations.includes("New Tokyo")) {
                 ns.singularity.travelToCity("New Tokyo");

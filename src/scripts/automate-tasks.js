@@ -23,7 +23,6 @@ export async function main(ns) {
     let taskQueue = [
         { type: "faction", target: "Daedalus", goal: "favor" },
         { type: "augmentation", target: "The Red Pill" }, // Daedalus 2.5m
-        { type: "homicide" },
         // {
         //     type: "graft",
         //     target: "OmniTek InfoLoad",
@@ -42,6 +41,7 @@ export async function main(ns) {
         // { type: "reset" },
 
         { type: "augmentation", target: "CRTX42-AA Gene Modification" }, // NiteSec 45000
+        { type: "homicide" },
 
         // { type: "graft", target: "QLink" },
         // {
@@ -153,7 +153,7 @@ function canWorkOnTask(ns, task) {
             const travelCost = ns.getPlayer().city === "New Tokyo" ? 0 : 200000;
             return ns.getPlayer().money > graftCost + travelCost;
         case "augmentation":
-            const playerGang = ns.gang.inGang ? ns.gang.getGangInformation().faction : null;
+            const playerGang = ns.gang.inGang() ? ns.gang.getGangInformation().faction : null;
             const factionsWithAugmentation = ns.singularity
                 .getAugmentationFactions(task.target)
                 .filter((faction) => ns.getPlayer().factions.includes(faction) && faction !== playerGang);
@@ -232,7 +232,7 @@ async function executeTask(ns, task, isFirstTime = false) {
             let bestFactionWorkType;
             let fastestCyclesToRep = Infinity;
 
-            const playerGang = ns.gang.inGang ? ns.gang.getGangInformation().faction : null;
+            const playerGang = ns.gang.inGang() ? ns.gang.getGangInformation().faction : null;
 
             for (const faction of factionsWithAugmentation) {
                 if (playerGang === faction) {

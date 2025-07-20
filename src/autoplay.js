@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = 120 * 10 ** 9; // 12 B max server value
+const MAX_SERVER_VALUE = 12 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
 const SERVER_TO_STANEK = null; // "b-01";
@@ -94,16 +94,16 @@ export async function main(ns) {
     }
 
     // Wait for Church of the Machine God to be unlocked
-    // while (!ns.getPlayer().factions.includes("Church of the Machine God")) {
-    //     await ns.sleep(1000);
-    // }
+    while (!ns.getPlayer().factions.includes("Church of the Machine God")) {
+        await ns.sleep(1000);
+    }
 
     // Start stanek charging without blocking
-    // if (!ranInitialStanek) {
-    //     startStanekIfNotRunning(ns);
-    //     ranInitialStanek = true;
-    //     ns.tprint("INFO Stanek started - hacker will avoid home RAM while it's running");
-    // }
+    if (!ranInitialStanek) {
+        startStanekIfNotRunning(ns);
+        ranInitialStanek = true;
+        ns.tprint("INFO Stanek started - hacker will avoid home RAM while it's running");
+    }
 
     // Study Algorithms until we have 1350 exp to bootstrap early game hacking levels
     while (ns.getPlayer().exp.hacking < 1350) {
@@ -250,6 +250,7 @@ function restartIpvgo(ns) {
 
     let opponents = IPVGO_OPPONENTS;
     if (hasRedPill) {
+        // opponents.push("????????????");
         opponents = ["????????????"]; // Only use ipvgo for hacking levels
     }
 
