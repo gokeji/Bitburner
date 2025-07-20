@@ -1234,7 +1234,8 @@ export async function main(ns) {
 
         ns.print("\n");
         ns.print("=== Liquidating Stocks ===");
-        await ns.exec("./liquidate.js", "home");
+        ns.scriptKill("kamu/stock-trader.js", "home");
+        ns.exec("./liquidate.js", "home");
         await ns.sleep(50);
         ns.print("\n");
         ns.print("=== PURCHASING AUGMENTS ===");
@@ -1275,7 +1276,7 @@ export async function main(ns) {
             const success = ns.singularity.purchaseAugmentation(factionToUse, augmentationName);
             if (success) {
                 ns.print(
-                    `${i + 1}. Purchased ${augmentationName} from ${factionToUse} for $${ns.formatNumber(ns.singularity.getAugmentationPrice(augmentationName))}`,
+                    `${i + 1}. Purchased ${augmentationName} from ${factionToUse} for $${ns.formatNumber(aug.currentCost * 1000000)}`,
                 );
             } else {
                 ns.print(`Failed to purchase ${augmentationName} from ${factionToUse}`);

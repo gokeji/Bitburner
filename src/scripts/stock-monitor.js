@@ -42,7 +42,6 @@ function calculatePortfolioValue(ns) {
                     symbol: sym,
                     type: "LONG",
                     shares: longShares,
-                    currentValue: currentValue,
                     profit: profit,
                     totalValue: costBasis + profit,
                     forecast: forecast,
@@ -61,7 +60,6 @@ function calculatePortfolioValue(ns) {
                     symbol: sym,
                     type: "SHORT",
                     shares: shortShares,
-                    currentValue: costBasis + profit,
                     profit: profit,
                     totalValue: costBasis + profit,
                     forecast: forecast,
@@ -140,39 +138,40 @@ export async function main(ns) {
             var oldest = portfolioHistory[0];
             var timeElapsed = (now - oldest.time) / 1000;
             valueRate = (portfolio.totalValue - oldest.totalValue) / timeElapsed;
-            profitRate = (portfolio.totalProfit - oldest.totalProfit) / timeElapsed;
+            // profitRate = (portfolio.totalProfit - oldest.totalProfit) / timeElapsed;
             // totalStockRate = (totalStockValueSinceInstall - oldest.totalStockValueSinceInstall) / timeElapsed;
         }
         const timeSinceReset = (now - ns.getResetInfo().lastAugReset) / 1000;
         totalStockRate = totalStockValueSinceInstall / timeSinceReset;
 
-        ns.print("💰 Market Cap: " + ns.formatNumber(totalMarketCap));
-        ns.print("🏦 Bitnode Returns: " + ns.formatNumber(totalStockValueSinceInstall));
-        ns.print("🏦 Bitnode Rate: " + (totalStockRate >= 0 ? "+" : "") + ns.formatNumber(totalStockRate) + "/s");
+        ns.print("💰 Market Cap: " + ns.formatNumber(totalMarketCap, 1));
+        ns.print("🏦 Bitnode Returns: " + ns.formatNumber(totalStockValueSinceInstall, 1));
+        ns.print("🏦 Bitnode Rate: " + (totalStockRate >= 0 ? "+" : "") + ns.formatNumber(totalStockRate, 1) + "/s");
         ns.print("\n");
 
         if (portfolio.hasPositions) {
-            ns.print("📊 Portfolio Value: " + ns.formatNumber(portfolio.totalValue));
-            ns.print("📊 Portfolio Change: " + (valueRate >= 0 ? "+" : "") + ns.formatNumber(valueRate) + "/s");
+            ns.print("📊 Portfolio Value: " + ns.formatNumber(portfolio.totalValue, 1));
+            ns.print("📊 Portfolio Change: " + (valueRate >= 0 ? "+" : "") + ns.formatNumber(valueRate, 1) + "/s");
 
             ns.print(
-                "💹 Total P&L: " + (portfolio.totalProfit >= 0 ? "+" : "") + ns.formatNumber(portfolio.totalProfit),
+                "💹 Total P&L: " + (portfolio.totalProfit >= 0 ? "+" : "") + ns.formatNumber(portfolio.totalProfit, 1),
             );
-            ns.print("💹 P&L Change: " + (profitRate >= 0 ? "+" : "") + ns.formatNumber(profitRate) + "/s");
             ns.print("\n");
 
             // Show individual positions (limit to top 3 by value)
             var sortedPositions = portfolio.positions.sort((a, b) => b.totalValue - a.totalValue);
             ns.print("🔹 Top Positions:");
-            for (let i = 0; i < Math.min(3, sortedPositions.length); i++) {
+            for (let i = 0; i < Math.min(4, sortedPositions.length); i++) {
                 var pos = sortedPositions[i];
-                var profitStr = (pos.profit >= 0 ? "+" : "") + ns.formatNumber(pos.profit);
-                var valueStr = ns.formatNumber(pos.currentValue);
-                ns.print(`  ${pos.type} ${pos.symbol}: ${valueStr} (${profitStr})`);
+                var profitStr = (pos.profit >= 0 ? "+" : "") + ns.formatNumber(pos.profit, 1);
+                var profitPercentStr =
+                    (pos.profit >= 0 ? "+" : "") + ns.formatPercent(pos.profit / (pos.totalValue - pos.profit), 1);
+                var valueStr = ns.formatNumber(pos.totalValue, 1);
+                ns.print(`  ${pos.type} ${pos.symbol}: ${valueStr} (${profitStr}) ${profitPercentStr}`);
             }
 
             if (!hasResized) {
-                ns.ui.resizeTail(320, (10 + portfolio.positions.length) * 28);
+                ns.ui.resizeTail(350, (9 + portfolio.positions.length) * 28);
                 hasResized = true;
             }
         } else {

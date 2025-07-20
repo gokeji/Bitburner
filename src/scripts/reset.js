@@ -8,7 +8,7 @@ export async function main(ns) {
     // Kill all other scripts
     ns.killall("home", true);
 
-    const currentNeuroFluxLevel = getCurrentNeuroFluxPurchaseLevel(ns);
+    const currentNeuroFluxLevel = ns.getResetInfo().ownedAugs.get("NeuroFlux Governor") ?? 0;
     ns.tprint(`Current neuroflux level: ${currentNeuroFluxLevel}`);
 
     // Wait for augmentation purchase scripts to complete

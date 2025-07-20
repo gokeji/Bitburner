@@ -21,9 +21,8 @@ export async function main(ns) {
 
     /** @type {Task[]} */
     let taskQueue = [
-        { type: "faction", target: "Daedalus", goal: "250000000" }, // The Red Pill
-        { type: "faction", target: "Daedalus", goal: "100000" },
         { type: "faction", target: "Daedalus", goal: "favor" },
+        { type: "augmentation", target: "The Red Pill" }, // Daedalus 2.5m
         { type: "homicide" },
         {
             type: "graft",
@@ -51,7 +50,12 @@ export async function main(ns) {
         },
         // {
         //     type: "graft",
+        //     target: "PC Direct-Neural Interface", // 8% hacking skill, 43 min graft
+        // },
+        // {
+        //     type: "graft",
         //     target: "Xanipher",
+        //     condition: (ns) => ns.getPlayer().money > 120e9,
         // },
         // {
         //     type: "graft",
@@ -66,12 +70,14 @@ export async function main(ns) {
 
         // { type: "reset" },
         { type: "augmentation", target: "The Black Hand" }, // The Black Hand 100000
+        { type: "augmentation", target: "DataJack" }, // The Black Hand/BitRunners/NiteSec/Chongqing/New Tokyo 112500
+        { type: "augmentation", target: "Cranial Signal Processors - Gen IV" }, // The Black Hand/BitRunners 125000
 
         { type: "augmentation", target: "Neuregen Gene Modification" }, // Chongqing 37500
 
-        { type: "augmentation", target: "Neuroreceptor Management Implant" }, // Tian Di Hui 75000
-
         { type: "augmentation", target: "Enhanced Myelin Sheathing" }, // BitRunners 100000
+
+        { type: "augmentation", target: "Neuroreceptor Management Implant" }, // Tian Di Hui 75000
 
         // { type: "faction", target: "NiteSec", goal: "favor" },
 
@@ -142,6 +148,7 @@ async function waitForOngoingGraft(ns) {
 function canWorkOnTask(ns, task) {
     switch (task.type) {
         case "graft":
+            if (task.condition && !task.condition(ns)) return false;
             const graftCost = ns.grafting.getAugmentationGraftPrice(task.target);
             const travelCost = ns.getPlayer().city === "New Tokyo" ? 0 : 200000;
             return ns.getPlayer().money > graftCost + travelCost;

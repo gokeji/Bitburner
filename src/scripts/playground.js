@@ -1,4 +1,5 @@
 import { NS } from "@ns";
+import { calculatePortfolioValue } from "./stock-market.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -19,26 +20,13 @@ export async function main(ns) {
     // ns.print(ns.getBitNodeMultipliers().ScriptHackMoney);
     // ns.print(ns.getBitNodeMultipliers().ScriptHackMoneyGain);
 
-    // while (!ns.stock.has4SDataTIXAPI()) {
-    //     if (ns.getPlayer().money > 25e9) {
-    //         ns.stock.purchase4SMarketDataTixApi();
-    //     }
-    //     await ns.sleep(500);
-    // }
+    while (calculatePortfolioValue(ns).totalValue + ns.getPlayer().money < 101e9) {
+        await ns.sleep(1000);
+    }
+    ns.run("scripts/liquidate.js");
 
     // ns.scriptKill("kamu/early-stock-trader.js", "home");
     // ns.run("kamu/stock-trader.js");
-
-    /** @param {NS} ns */
-    function customPrint(ns, message, colorCode) {
-        const infoBlue = `\u001b[${colorCode}m`;
-        const reset = "\u001b[0m";
-        ns.print(`${infoBlue}${message}${reset}`);
-    }
-
-    for (let i = 0; i <= 99; i++) {
-        customPrint(ns, `${i}: Testing`, i);
-    }
 }
 
 export const MaxFavor = 35331;

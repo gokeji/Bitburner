@@ -86,8 +86,7 @@ function tendStocks(ns) {
                     sellOrders.set(stock.sym, stock.longShares);
                 }
             }
-        }
-        if (stock.shortShares > 0) {
+        } else if (stock.shortShares > 0) {
             overallValue += stock.value;
             totalProfit += stock.profit;
 
@@ -99,6 +98,13 @@ function tendStocks(ns) {
                 if (stock.forecast > SELL_SHORT_THRESHOLD) {
                     sellOrders.set(stock.sym, stock.shortShares);
                 }
+            }
+        } else if (stock.volatility > 0.02) {
+            // Always try to influence high volatility stocks, so they become more profitable and can be picked up by portfolio
+            if (stock.forecast > 0.5) {
+                longStocks.set(stock.sym, stock);
+            } else {
+                shortStocks.set(stock.sym, stock);
             }
         }
     }
@@ -246,7 +252,7 @@ function tendStocks(ns) {
     for (const stock of longStocks.values()) {
         //ns.print("INFO grow " + sym);
         // Prioritize volatile stocks
-        growStockPort.write(`${getSymServer(stock.sym)}:${stock.value * stock.volatility * 100}`);
+        growStockPort.write(`${getSymServer(stock.sym)}:${stock.marketCap * stock.profitPotential}`);
     }
     if (shortStocks.size === 0) {
         hackStockPort.write("EMPTY");
@@ -254,7 +260,7 @@ function tendStocks(ns) {
     for (const stock of shortStocks.values()) {
         //ns.print("INFO hack " + sym);
         // Prioritize volatile stocks
-        hackStockPort.write(`${getSymServer(stock.sym)}:${stock.value * stock.volatility * 100}`);
+        hackStockPort.write(`${getSymServer(stock.sym)}:${stock.marketCap * stock.profitPotential}`);
     }
     if (longStocks.size === 0) {
         growStockPort.write("EMPTY");
@@ -289,10 +295,11 @@ export function getAllStocks(ns) {
         stock.profit = longProfit + shortProfit;
         stock.cost = stock.longShares * stock.longPrice + stock.shortShares * stock.shortPrice;
         stock.value = stock.cost + stock.profit;
+        stock.marketCap = stock.maxShares * stock.askPrice;
 
         // profit potential as chance for profit * effect of profit
         var profitChance = 2 * Math.abs(stock.forecast - 0.5);
-        var profitPotential = profitChance * (stock.volatility * 100) ** 2;
+        var profitPotential = profitChance * (stock.volatility * 100) ** 3;
         stock.profitPotential = profitPotential;
 
         stock.summary = `${stock.sym}: ${ns.formatPercent(stock.forecast)} ±${ns.formatPercent(stock.volatility)} p${ns.formatNumber(stock.profitPotential, 2)}`;
