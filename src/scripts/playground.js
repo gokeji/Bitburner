@@ -3,13 +3,13 @@ import { findStatsForCrimeSuccessChance } from "./automate-tasks.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const equipmentNames = await ns.gang.getEquipmentNames();
-    ns.print(equipmentNames);
-
-    ns.print(ns.gang.getEquipmentType("Baseball Bat"));
-    ns.print(ns.gang.getEquipmentType("Graphene Bone Lacings"));
-    // const stats = findStatsForCrimeSuccessChance(ns, "Homicide", 1);
-    // ns.print(JSON.stringify(stats, null, 2));
+    const player = ns.getPlayer();
+    player.skills.strength = 130;
+    player.skills.defense = 30;
+    player.skills.dexterity = 30;
+    player.skills.agility = 30;
+    const stats = findStatsForCrimeSuccessChance(ns, "Homicide", 1, player);
+    ns.print(JSON.stringify(stats, null, 2));
 
     // const newPlayer = ns.getPlayer();
     // newPlayer.skills.strength = 105;

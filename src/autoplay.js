@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = 12 * 10 ** 9; // 12 B max server value
+const MAX_SERVER_VALUE = 64 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
 const SERVER_TO_STANEK = null; // "b-01";
@@ -114,7 +114,7 @@ export async function main(ns) {
             }
             ns.singularity.travelToCity("Volhaven");
         }
-        let success = ns.singularity.universityCourse("ZB Institute of Technology", "Algorithms");
+        let success = ns.singularity.universityCourse("ZB Institute of Technology", "Algorithms", false);
         if (!success) {
             ns.tprint("ERROR Failed to start Algorithms course");
             break;

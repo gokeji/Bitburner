@@ -40,10 +40,11 @@ export async function main(ns) {
         { type: "augmentation", target: "Hacknet Node Kernel Direct-Neural Interface" }, // Netburners 7.5k
         { type: "augmentation", target: "Hacknet Node Core Direct-Neural Interface" }, // Netburners 12.5k
         // { type: "reset" },
-
-        { type: "augmentation", target: "CRTX42-AA Gene Modification" }, // NiteSec 45000
-        { type: "train", target: "homicide", goal: 1.0 },
-        { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
+        { type: "augmentation", target: "NeuroFlux Governor" }, // Get closest NFG rep
+        { type: "augmentation", target: "Neural-Retention Enhancement" }, // NiteSec 20k
+        { type: "augmentation", target: "CRTX42-AA Gene Modification" }, // NiteSec 45k
+        // { type: "train", target: "homicide", goal: 1.0 },
+        // { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
         { type: "homicide" },
 
         // { type: "graft", target: "QLink" },
@@ -181,7 +182,7 @@ function isTaskComplete(ns, task) {
             return ns.singularity.getOwnedAugmentations(false).includes(task.target);
         case "augmentation":
             return (
-                ns.getResetInfo().ownedAugs.has(task.target) ||
+                (ns.getResetInfo().ownedAugs.has(task.target) && task.target !== "NeuroFlux Governor") ||
                 ns.singularity
                     .getAugmentationFactions(task.target)
                     .some(
@@ -371,6 +372,7 @@ function getBestFactionWorkType(ns, faction) {
     return { bestWorkType, bestWorkGains };
 }
 
+/** @param {NS} ns **/
 function startWorkForFactionIfNeeded(ns, faction, workType, goalReputation, currentWork, isFirstTime, purpose) {
     const currentReputation = ns.singularity.getFactionRep(faction);
     if (
@@ -379,7 +381,8 @@ function startWorkForFactionIfNeeded(ns, faction, workType, goalReputation, curr
         currentWork.factionName !== faction ||
         currentWork.factionWorkType !== workType
     ) {
-        const success = ns.singularity.workForFaction(faction, workType, true);
+        const hasNeuroreceptorManagementImplant = ns.getResetInfo().ownedAugs.has("Neuroreceptor Management Implant");
+        const success = ns.singularity.workForFaction(faction, workType, !hasNeuroreceptorManagementImplant);
         if (success && isFirstTime) {
             ns.print(
                 `${new Date().toLocaleTimeString()} Starting work for ${faction}, goal: ${ns.formatNumber(currentReputation)}/${ns.formatNumber(goalReputation)} (${purpose})`,
@@ -432,7 +435,62 @@ function trainStats(ns, stats) {
 }
 
 /** @param {NS} ns **/
-export function findStatsForCrimeSuccessChance(ns, crimeType, goal) {
+export function findStatsForCrimeSuccessChance(ns, crimeType, goal, mockPlayer = null) {
+    // Optimized for homicide which has hardcoded stats
+    // Strength and defense are 4X as valuable as dexterity and agility
+    // We want to find the minimum experience required to spread across all stats to reach the goal
+    if (crimeType === "Homicide") {
+        const player = mockPlayer || ns.getPlayer();
+        const bitnodeMults = ns.getBitNodeMultipliers();
+
+        function getSkillMult(stat) {
+            let skillMult;
+            switch (stat) {
+                case "strength":
+                    skillMult = player.mults.strength * bitnodeMults.StrengthLevelMultiplier;
+                    break;
+                case "defense":
+                    skillMult = player.mults.defense * bitnodeMults.DefenseLevelMultiplier;
+                    break;
+                case "dexterity":
+                    skillMult = player.mults.dexterity * bitnodeMults.DexterityLevelMultiplier;
+                    break;
+                case "agility":
+                    skillMult = player.mults.agility * bitnodeMults.AgilityLevelMultiplier;
+                    break;
+            }
+            return skillMult;
+        }
+
+        while (ns.formulas.work.crimeSuccessChance(player, crimeType) < goal) {
+            const { strength, defense, dexterity, agility } = player.skills;
+
+            const strengthExp = ns.formulas.skills.calculateExp(strength, getSkillMult("strength"));
+            const defenseExp = ns.formulas.skills.calculateExp(defense, getSkillMult("defense"));
+            const dexterityExp = ns.formulas.skills.calculateExp(dexterity, getSkillMult("dexterity"));
+            const agilityExp = ns.formulas.skills.calculateExp(agility, getSkillMult("agility"));
+
+            const statsToCompare = [
+                { stat: "strength", exp: strengthExp },
+                { stat: "defense", exp: defenseExp },
+                { stat: "dexterity", exp: dexterityExp * 4 },
+                { stat: "agility", exp: agilityExp * 4 },
+            ];
+
+            const lowestStat = statsToCompare.sort((a, b) => a.exp - b.exp)[0];
+            const lowestStatType = lowestStat.stat;
+
+            player.skills[lowestStatType] += 1;
+        }
+        return {
+            strength: player.skills.strength,
+            defense: player.skills.defense,
+            dexterity: player.skills.dexterity,
+            agility: player.skills.agility,
+            successChance: ns.formulas.work.crimeSuccessChance(player, crimeType),
+        };
+    }
+
     for (let i = 1; i < 130; i++) {
         const newPlayer = ns.getPlayer();
         const { strength, defense, dexterity, agility } = newPlayer.skills;
@@ -448,6 +506,7 @@ export function findStatsForCrimeSuccessChance(ns, crimeType, goal) {
                 defense: newPlayer.skills.defense,
                 dexterity: newPlayer.skills.dexterity,
                 agility: newPlayer.skills.agility,
+                successChance,
             };
         }
     }
