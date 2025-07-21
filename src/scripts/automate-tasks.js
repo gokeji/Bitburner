@@ -92,6 +92,7 @@ export async function main(ns) {
         { type: "augmentation", target: "BitRunners Neurolink" }, // BitRunners 875000
 
         { type: "faction", target: "BitRunners", goal: "favor" },
+        { type: "stop" },
     ];
 
     ns.print("\n\n\n\n\n\n");
@@ -170,6 +171,12 @@ function canWorkOnTask(ns, task) {
             return true; // Can always attempt homicide
         case "reset":
             return true; // Can always attempt reset
+        case "stop":
+            if (!ns.bladeburner.inBladeburner() || ns.getResetInfo().ownedAugs.has("The Blade's Simulacrum")) {
+                // No need to stop if not in bladeburner, or we have The Blade's Simulacrum which allows us to do bladeburner actions while busy
+                return false;
+            }
+            return ns.singularity.getCurrentWork() !== null;
         default:
             return false;
     }
@@ -216,6 +223,8 @@ function isTaskComplete(ns, task) {
             return ns.heart.break() <= -54000 || ns.gang.inGang();
         case "reset":
             return false; // Always execute reset when reached
+        case "stop":
+            return ns.singularity.getCurrentWork() === null;
     }
 }
 
@@ -349,6 +358,9 @@ async function executeTask(ns, task, isFirstTime = false) {
         case "reset":
             ns.run("scripts/reset.js");
             return true;
+
+        case "stop":
+            ns.singularity.stopAction();
     }
 }
 

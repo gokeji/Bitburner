@@ -161,17 +161,19 @@ export async function main(ns) {
             // Show individual positions (limit to top 3 by value)
             var sortedPositions = portfolio.positions.sort((a, b) => b.totalValue - a.totalValue);
             ns.print("🔹 Top Positions:");
-            for (let i = 0; i < Math.min(4, sortedPositions.length); i++) {
-                var pos = sortedPositions[i];
-                var profitStr = (pos.profit >= 0 ? "+" : "") + ns.formatNumber(pos.profit, 1);
-                var profitPercentStr =
+            const showNPositions = 4;
+            for (let i = 0; i < Math.min(showNPositions, sortedPositions.length); i++) {
+                const pos = sortedPositions[i];
+                const typeStr = pos.type === "LONG" ? "🟢" : "🔻";
+                const profitStr = (pos.profit >= 0 ? "+" : "") + ns.formatNumber(pos.profit, 1);
+                const profitPercentStr =
                     (pos.profit >= 0 ? "+" : "") + ns.formatPercent(pos.profit / (pos.totalValue - pos.profit), 1);
-                var valueStr = ns.formatNumber(pos.totalValue, 1);
-                ns.print(`  ${pos.type} ${pos.symbol}: ${valueStr} (${profitStr}) ${profitPercentStr}`);
+                const valueStr = ns.formatNumber(pos.totalValue, 1);
+                ns.print(`  ${typeStr} ${pos.symbol}: ${valueStr} (${profitStr}) ${profitPercentStr}`);
             }
 
             if (!hasResized) {
-                ns.ui.resizeTail(360, (9 + portfolio.positions.length) * 28);
+                ns.ui.resizeTail(340, (9 + showNPositions) * 28);
                 hasResized = true;
             }
         } else {
