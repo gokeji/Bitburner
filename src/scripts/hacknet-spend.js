@@ -22,8 +22,8 @@ const argsSchema = [
     ["studying", false],
     ["gym", false],
     ["corporationResearch", false],
-    // ["bladeburnerRank", false],
-    // ["bladeburnerSP", false],
+    ["bladeburnerRank", false],
+    ["bladeburnerSP", false],
     ["codingContract", false],
     // ["companyFavor", false],
     ["target", null],
@@ -50,8 +50,8 @@ export async function main(ns) {
     const gym = flags["gym"];
     const corporationFunds = flags["corporationFunds"];
     const corporationResearch = flags["corporationResearch"];
-    // const bladeburnerRank = flags["bladeburnerRank"];
-    // const bladeburnerSP = flags["bladeburnerSP"];
+    const bladeburnerRank = flags["bladeburnerRank"];
+    const bladeburnerSP = flags["bladeburnerSP"];
     const codingContract = flags["codingContract"];
     // const companyFavor = flags["companyFavor"];
 
@@ -124,6 +124,22 @@ export async function main(ns) {
             }
         }
 
+        if (bladeburnerRank) {
+            const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.bladeburnerRank, null, limit);
+
+            if (success) {
+                logUpgradeSuccess(ns, "Exchange for Bladeburner Rank", `${ns.formatNumber(level)}`, cost);
+            }
+        }
+
+        if (bladeburnerSP) {
+            const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.bladeburnerSP, null, limit);
+
+            if (success) {
+                logUpgradeSuccess(ns, "Exchange for Bladeburner SP", `${ns.formatNumber(level)}`, cost);
+            }
+        }
+
         if (maxMoney) {
             const startingMoney = ns.getServerMaxMoney(targetServer);
             // Server max money is soft capped at 10t
@@ -166,6 +182,8 @@ export async function main(ns) {
         if (
             studying ||
             gym ||
+            bladeburnerRank ||
+            bladeburnerSP ||
             (corporationFunds && stillNeedCorporationFunds) ||
             (corporationResearch && stillNeedCorporationResearch) ||
             (codingContract && stillNeedCodingContract) ||

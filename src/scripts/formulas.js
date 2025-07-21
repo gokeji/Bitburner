@@ -4,7 +4,7 @@
  * @param {number} intelligence
  * @returns {number}
  */
-function sleeveShockReductionPerSecond(intelligence) {
+export function sleeveShockReductionPerSecond(intelligence) {
     return 0.0002 * calculateIntelligenceBonus(intelligence, 0.75) * 5;
 }
 
@@ -15,7 +15,7 @@ function sleeveShockReductionPerSecond(intelligence) {
  * @param {number} weight
  * @returns {number}
  */
-function calculateIntelligenceBonus(intelligence, weight = 1) {
+export function calculateIntelligenceBonus(intelligence, weight = 1) {
     return 1 + (weight * Math.pow(intelligence, 0.8)) / 600;
 }
 
@@ -27,7 +27,7 @@ function calculateIntelligenceBonus(intelligence, weight = 1) {
  * @param {number} mult
  * @returns {number}
  */
-function calculateSkill(exp, mult = 1) {
+export function calculateSkill(exp, mult = 1) {
     const value = Math.floor(mult * (32 * Math.log(exp + 534.6) - 200));
     return clampNumber(value, 1);
 }
@@ -37,7 +37,7 @@ function calculateSkill(exp, mult = 1) {
  * @param {number} mult
  * @returns {number}
  */
-function calculateExp(skill, mult = 1) {
+export function calculateExp(skill, mult = 1) {
     const value = Math.exp((skill / mult + 200) / 32) - 534.6;
     return clampNumber(value, 0);
 }
@@ -47,7 +47,7 @@ function calculateExp(skill, mult = 1) {
  * @param {number} mult
  * @returns {currentSkill: number, nextSkill: number, baseExperience: number, experience: number, nextExperience: number, currentExperience: number, remainingExperience: number, progress: number}
  */
-function calculateSkillProgress(exp, mult = 1) {
+export function calculateSkillProgress(exp, mult = 1) {
     const currentSkill = calculateSkill(exp, mult);
     const nextSkill = currentSkill + 1;
 
@@ -75,7 +75,7 @@ function calculateSkillProgress(exp, mult = 1) {
 }
 
 // Crime Stats (updated with actual game data)
-const CRIME_STATS = {
+export const CRIME_STATS = {
     Homicide: {
         difficulty: 1,
         strength_success_weight: 2,
@@ -114,7 +114,7 @@ const CRIME_STATS = {
  * @param {number} intelligence - Intelligence level (default: 0)
  * @returns {number} Success probability (0-1)
  */
-function calculateCrimeChance(stats, crimeName, intelligence = 0) {
+export function calculateCrimeChance(stats, crimeName, intelligence = 0) {
     const crime = CRIME_STATS[crimeName];
     if (!crime) return 0;
 
@@ -150,7 +150,7 @@ function calculateCrimeChance(stats, crimeName, intelligence = 0) {
  * @param {number} max Upper bound, defaults to Number.MAX_VALUE
  * @returns {number} Clamped value
  */
-function clampNumber(value, min = -Number.MAX_VALUE, max = Number.MAX_VALUE) {
+export function clampNumber(value, min = -Number.MAX_VALUE, max = Number.MAX_VALUE) {
     if (isNaN(value)) {
         return min;
     }
@@ -159,18 +159,6 @@ function clampNumber(value, min = -Number.MAX_VALUE, max = Number.MAX_VALUE) {
 
 // Constants for crime calculations
 const MAX_SKILL_LEVEL = 975; // Maximum skill level in Bitburner
-
-// CommonJS exports
-module.exports = {
-    sleeveShockReductionPerSecond,
-    calculateIntelligenceBonus,
-    calculateSkill,
-    calculateExp,
-    calculateSkillProgress,
-    calculateCrimeChance,
-    clampNumber,
-    CRIME_STATS,
-};
 
 /**
  * Helper function to easily calculate crime success rate
@@ -183,7 +171,7 @@ module.exports = {
  * @param {number} intelligence - Intelligence level (default: 1)
  * @returns {Object} Success rate and experience info
  */
-function crimeSuccess(str, def, dex, agi, crime = "Homicide", mult = 1, intelligence = 1) {
+export function crimeSuccess(str, def, dex, agi, crime = "Homicide", mult = 1, intelligence = 1) {
     const stats = { strength: str, defense: def, dexterity: dex, agility: agi };
     const chance = calculateCrimeChance(stats, crime, intelligence);
     return {
@@ -201,8 +189,8 @@ function crimeSuccess(str, def, dex, agi, crime = "Homicide", mult = 1, intellig
  * Main function to make all exported functions available in Node.js console
  * Run with: node src/scripts/formulas.js
  */
-function main() {
-    console.log("Bitburner Formulas Console (Node.js Version)");
+async function main() {
+    console.log("Bitburner Formulas Console (ES Module Version)");
     console.log("Available functions:");
     console.log("- sleeveShockReductionPerSecond(intelligence)");
     console.log("- calculateIntelligenceBonus(intelligence, weight = 1)");
@@ -220,18 +208,9 @@ function main() {
     console.log("Parameters: strength, defense, dexterity, agility, crime, multiplier, intelligence");
     console.log("");
 
-    // Make all functions available globally
-    global.sleeveShockReductionPerSecond = sleeveShockReductionPerSecond;
-    global.calculateIntelligenceBonus = calculateIntelligenceBonus;
-    global.calculateSkill = calculateSkill;
-    global.calculateExp = calculateExp;
-    global.calculateSkillProgress = calculateSkillProgress;
-    global.calculateCrimeChance = calculateCrimeChance;
-    global.crimeSuccess = crimeSuccess;
-    global.clampNumber = clampNumber;
-    global.CRIME_STATS = CRIME_STATS;
-
     // Start REPL for interactive use
+    const { createRequire } = await import("module");
+    const require = createRequire(import.meta.url);
     const repl = require("repl");
     const replServer = repl.start("formulas> ");
 
@@ -248,6 +227,6 @@ function main() {
 }
 
 // Run main function if this file is executed directly
-if (require.main === module) {
-    main();
+if (import.meta.url === `file://${process.argv[1]}`) {
+    main().catch(console.error);
 }

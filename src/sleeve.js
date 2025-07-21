@@ -32,7 +32,7 @@ const argsSchema = [
     ["combat-farm", false], // Set to true to have sleeves train combat stats in rotation (strength, defense, dexterity, agility) after shock recovery is complete
     ["training-reserve", null], // Defaults to global reserve.txt. Can be set to a negative number to allow debt. Sleeves will not train if money is below this amount.
     ["training-cap-seconds", 5 * 60 * 60 /* 15 hours */], // Time since the start of the bitnode after which we will no longer attempt to train sleeves to their target "train-to" settings
-    ["disable-spending-hashes-for-gym-upgrades", true], // Set to true to disable spending hashes on gym upgrades when training up sleeves.
+    ["disable-spending-hashes-for-gym-upgrades", false], // Set to true to disable spending hashes on gym upgrades when training up sleeves.
     ["disable-spending-hashes-for-study-upgrades", true], // Set to true to disable spending hashes on study upgrades when smarting up sleeves.
     ["enable-bladeburner-team-building", false], // Set to true to have one sleeve support the main sleeve, and another do recruitment. Otherwise, they will just do more "Infiltrate Synthoids"
     ["disable-bladeburner", false], // Set to true to disable having sleeves workout at the gym (costs money)
