@@ -3,16 +3,21 @@ import { findStatsForCrimeSuccessChance } from "./automate-tasks.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const stats = findStatsForCrimeSuccessChance(ns, "Homicide", 1);
-    ns.print(JSON.stringify(stats, null, 2));
+    const equipmentNames = await ns.gang.getEquipmentNames();
+    ns.print(equipmentNames);
 
-    const newPlayer = ns.getPlayer();
-    newPlayer.skills.strength = 105;
-    newPlayer.skills.defense = 105;
-    newPlayer.skills.dexterity = 47;
-    newPlayer.skills.agility = 47;
-    const successChance = ns.formulas.work.crimeSuccessChance(newPlayer, "Homicide");
-    ns.print(successChance);
+    ns.print(ns.gang.getEquipmentType("Baseball Bat"));
+    ns.print(ns.gang.getEquipmentType("Graphene Bone Lacings"));
+    // const stats = findStatsForCrimeSuccessChance(ns, "Homicide", 1);
+    // ns.print(JSON.stringify(stats, null, 2));
+
+    // const newPlayer = ns.getPlayer();
+    // newPlayer.skills.strength = 105;
+    // newPlayer.skills.defense = 105;
+    // newPlayer.skills.dexterity = 47;
+    // newPlayer.skills.agility = 47;
+    // const successChance = ns.formulas.work.crimeSuccessChance(newPlayer, "Homicide");
+    // ns.print(successChance);
 }
 
 export const MaxFavor = 35331;

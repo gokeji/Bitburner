@@ -83,7 +83,7 @@ const argsSchema = [
     ["training-percentage", 0.1], // Spend this percent of time randomly training gang members versus doing crime
     ["no-training", false], // Don't train unless all other tasks generate no gains or the member ascended recently (--min-training-ticks)
     ["no-auto-ascending", false], // Don't ascend members
-    ["ascend-multi-threshold", 1.1], // Ascend member #12 if a primary stat multi would increase by more than this amount
+    ["ascend-multi-threshold", 1.2], // Ascend member #12 if a primary stat multi would increase by more than this amount
     ["ascend-multi-threshold-spacing", 0.05], // Members will space their acention multis by this amount to ensure they are ascending at different rates
     // Note: given the above two defaults, members would ascend at multis [1.6, 1.55, 1.50, ..., 1.1, 1.05] once you have 12 members.
     ["min-training-ticks", 10], // Require this many ticks of training after ascending or recruiting to rebuild stats
@@ -93,6 +93,7 @@ const argsSchema = [
     ["money-focus", false], // Always optimize gang crimes for maximum monetary gain. Is otherwise balanced.
     ["reputation-focus", false], // Always optimize gang crimes for maximum reputation gain. Is otherwise balanced.
     ["no-toast", false], // Don't toast notifications
+    ["buy-all-before-reset", false], // Set this flag to buy everything that you can afford since we're about to reset
 ];
 
 export function autocomplete(data, _) {
@@ -714,8 +715,15 @@ async function tryUpgradeMembers(ns, dictMembers) {
     //     budget /= 100;
     //     augBudget /= 100;
     // }
+    if (options["buy-all-before-reset"]) {
+        budget = homeMoney;
+        augBudget = homeMoney;
+    }
+    const augmentations = equipments.filter((e) => e.type === "Augmentation");
+    const nonAugmentations = equipments.filter((e) => e.type !== "Augmentation");
+    const allEquipment = [...augmentations, ...nonAugmentations];
     // Find out what outstanding equipment can be bought within our budget
-    for (const equip of equipments) {
+    for (const equip of allEquipment) {
         if (augBudget <= 0) break;
         for (const member of Object.values(dictMembers)) {
             // Get this equip for each member before considering the next most expensive equip
@@ -723,7 +731,8 @@ async function tryUpgradeMembers(ns, dictMembers) {
             // Bit of a hack: Inflate the "cost" of equipment that doesn't contribute to our main stats so that we don't purchase them unless we have ample cash
             let percievedCost =
                 equip.cost *
-                (Object.keys(equip.stats).some((stat) => importantStats.some((i) => stat.includes(i)))
+                (Object.keys(equip.stats).some((stat) => importantStats.some((i) => stat.includes(i))) ||
+                options["buy-all-before-reset"]
                     ? 1
                     : offStatCostPenalty);
             if (percievedCost > augBudget) continue;

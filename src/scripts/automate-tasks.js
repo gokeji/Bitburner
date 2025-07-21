@@ -36,6 +36,7 @@ export async function main(ns) {
 
         { type: "augmentation", target: "Social Negotiation Assistant (S.N.A)" }, // Tian Di Hui 6250
 
+        { type: "augmentation", target: "Hacknet Node NIC Architecture Neural-Upload" }, // Netburners 1.875k
         { type: "augmentation", target: "Hacknet Node Kernel Direct-Neural Interface" }, // Netburners 7.5k
         { type: "augmentation", target: "Hacknet Node Core Direct-Neural Interface" }, // Netburners 12.5k
         // { type: "reset" },
@@ -432,17 +433,22 @@ function trainStats(ns, stats) {
 
 /** @param {NS} ns **/
 export function findStatsForCrimeSuccessChance(ns, crimeType, goal) {
-    for (let i = 0; i < 100; i++) {
+    for (let i = 1; i < 130; i++) {
         const newPlayer = ns.getPlayer();
         const { strength, defense, dexterity, agility } = newPlayer.skills;
-        newPlayer.skills.strength += i;
-        newPlayer.skills.defense += i;
-        newPlayer.skills.dexterity += i;
-        newPlayer.skills.agility += i;
+        newPlayer.skills.strength = Math.max(strength, i);
+        newPlayer.skills.defense = Math.max(defense, i);
+        newPlayer.skills.dexterity = Math.max(dexterity, i);
+        newPlayer.skills.agility = Math.max(agility, i);
 
         const successChance = ns.formulas.work.crimeSuccessChance(newPlayer, crimeType);
         if (successChance >= goal) {
-            return { strength: strength + i, defense: defense + i, dexterity: dexterity + i, agility: agility + i };
+            return {
+                strength: newPlayer.skills.strength,
+                defense: newPlayer.skills.defense,
+                dexterity: newPlayer.skills.dexterity,
+                agility: newPlayer.skills.agility,
+            };
         }
     }
     return null;

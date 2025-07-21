@@ -5,11 +5,13 @@ import { getCurrentNeuroFluxPurchaseLevel } from "./get-augments.js";
 export async function main(ns) {
     let resetLog = [`Reset started at ${new Date().toLocaleString()}\n`];
 
+    ns.tprint(`\n\n\n\n\n\n`);
+    ns.tprint(`Starting reset...`);
+
     // Kill all other scripts
     ns.killall("home", true);
 
     const currentNeuroFluxLevel = ns.getResetInfo().ownedAugs.get("NeuroFlux Governor") ?? 0;
-    ns.tprint(`Current neuroflux level: ${currentNeuroFluxLevel}`);
 
     // Wait for augmentation purchase scripts to complete
     // const pid1 = ns.run("scripts/get-augments.js", 1, "--combat", "--buy", "--force-buy");
@@ -23,7 +25,6 @@ export async function main(ns) {
     }
 
     const newNeuroFluxLevel = getCurrentNeuroFluxPurchaseLevel(ns);
-    ns.tprint(`New neuroflux level: ${newNeuroFluxLevel}`);
 
     const purchasedAugmentations = ns.singularity
         .getOwnedAugmentations(true)
@@ -50,24 +51,27 @@ export async function main(ns) {
         idx++;
     }
 
+    ns.tprint(`🔄 Waiting for augmentations to be installed...`);
     await ns.sleep(3000);
 
+    ns.tprint(`🔄 Upgrading home ram...`);
     // Track RAM upgrades
     let ramUpgrades = 0;
     while (ns.getPlayer().money > ns.singularity.getUpgradeHomeRamCost() && ns.getServer("home").maxRam < 2 ** 30) {
         ns.singularity.upgradeHomeRam();
         ramUpgrades++;
-        const ramMessage = `Upgraded home ram to ${ns.formatRam(ns.getServerMaxRam("home"))}`;
+        const ramMessage = `💾 Upgraded home ram to ${ns.formatRam(ns.getServerMaxRam("home"))}`;
         ns.tprint(ramMessage);
         resetLog.push(ramMessage);
     }
 
+    ns.tprint(`🔄 Upgrading home cores...`);
     // Track core upgrades
     let coreUpgrades = 0;
     while (ns.getPlayer().money > ns.singularity.getUpgradeHomeCoresCost() && ns.getServer("home").cpuCores < 8) {
         ns.singularity.upgradeHomeCores();
         coreUpgrades++;
-        const coreMessage = `Upgraded home cores to ${ns.getServer("home").cpuCores}`;
+        const coreMessage = `🖥️ Upgraded home cores to ${ns.getServer("home").cpuCores}`;
         ns.tprint(coreMessage);
         resetLog.push(coreMessage);
     }
@@ -75,18 +79,12 @@ export async function main(ns) {
     // Restart gangs with higher augmentation budget
     if (ns.scriptRunning("gangs.js", "home")) {
         ns.scriptKill("gangs.js", "home");
-        ns.run("gangs.js", 1, "--augmentations-budget", 1);
-        const gangMessage = "Restarted gangs with augmentations budget";
+        ns.run("gangs.js", 1, "--buy-all-before-reset");
+        const gangMessage = "Restarted gangs to buy all equipment";
         resetLog.push(gangMessage);
     }
-    await ns.sleep(1000);
-    if (ns.scriptRunning("gangs.js", "home")) {
-        ns.scriptKill("gangs.js", "home");
-        ns.run("gangs.js", 1, "--equipment-budget", 1);
-        const gangMessage = "Restarted gangs with equipment budget";
-        resetLog.push(gangMessage);
-    }
-    await ns.sleep(1000);
+    ns.tprint(`🔄 Waiting for gangs to finish buying equipment...`);
+    await ns.sleep(10000); // Wait for a few ticks to ensure gangs are done buying equipment
 
     // Add summary information
     resetLog.push(`\nReset Summary:`);
