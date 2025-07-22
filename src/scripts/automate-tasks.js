@@ -78,7 +78,7 @@ export async function main(ns) {
         //     target: "SPTN-97 Gene Modification",
         // },
 
-        // { type: "augmentation", target: "Bionic Arms" }, // Tetrads 62500
+        { type: "augmentation", target: "Bionic Arms" }, // Tetrads 62500
 
         // { type: "reset" },
         { type: "augmentation", target: "The Black Hand" }, // The Black Hand 100000

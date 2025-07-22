@@ -881,28 +881,28 @@ export function calculateBestSleeveStats(ns, useCurrentStats) {
                 maxExpGainRate = baselineExpGainRate * finalSyncBonus * ((100 - finalShockValue) / 100);
 
                 // Fallback check: if Newton's method failed or gave unreasonable results
-                if (timeTraining <= 0 || timeTraining > 1e6 || !isFinite(timeTraining)) {
-                    // Fallback to quadratic approximation (ignoring sync bonus changes)
-                    const simpleA =
-                        (baselineExpGainRate * standardShockReductionRate * syncBonusFromOtherSleeves) / 200;
-                    const simpleB = (baselineExpGainRate * syncBonusFromOtherSleeves * (100 - shockValue)) / 100;
-                    const simpleC = -stats.totalExpRequired;
+                // if (timeTraining <= 0 || timeTraining > 1e6 || !isFinite(timeTraining)) {
+                //     // Fallback to quadratic approximation (ignoring sync bonus changes)
+                //     const simpleA =
+                //         (baselineExpGainRate * standardShockReductionRate * syncBonusFromOtherSleeves) / 200;
+                //     const simpleB = (baselineExpGainRate * syncBonusFromOtherSleeves * (100 - shockValue)) / 100;
+                //     const simpleC = -stats.totalExpRequired;
 
-                    const discriminant = simpleB * simpleB - 4 * simpleA * simpleC;
+                //     const discriminant = simpleB * simpleB - 4 * simpleA * simpleC;
 
-                    if (discriminant >= 0 && simpleA !== 0) {
-                        timeTraining = (-simpleB + Math.sqrt(discriminant)) / (2 * simpleA);
-                        shockReductionDuringExpTraining = standardShockReductionRate * timeTraining;
-                        const fallbackFinalShock = Math.max(0, shockValue - shockReductionDuringExpTraining);
-                        const fallbackFinalSync = 1 + (numSleeves - 1) * ((100 - fallbackFinalShock) / 100);
-                        maxExpGainRate = baselineExpGainRate * fallbackFinalSync * ((100 - fallbackFinalShock) / 100);
-                    } else {
-                        // Final fallback to simple linear
-                        timeTraining = stats.totalExpRequired / Math.max(expGainRate, 1);
-                        shockReductionDuringExpTraining = standardShockReductionRate * timeTraining;
-                        maxExpGainRate = expGainRate;
-                    }
-                }
+                //     if (discriminant >= 0 && simpleA !== 0) {
+                //         timeTraining = (-simpleB + Math.sqrt(discriminant)) / (2 * simpleA);
+                //         shockReductionDuringExpTraining = standardShockReductionRate * timeTraining;
+                //         const fallbackFinalShock = Math.max(0, shockValue - shockReductionDuringExpTraining);
+                //         const fallbackFinalSync = 1 + (numSleeves - 1) * ((100 - fallbackFinalShock) / 100);
+                //         maxExpGainRate = baselineExpGainRate * fallbackFinalSync * ((100 - fallbackFinalShock) / 100);
+                //     } else {
+                //         // Final fallback to simple linear
+                //         timeTraining = stats.totalExpRequired / Math.max(expGainRate, 1);
+                //         shockReductionDuringExpTraining = standardShockReductionRate * timeTraining;
+                //         maxExpGainRate = expGainRate;
+                //     }
+                // }
             } else {
                 timeTraining = expGainRate > 0 ? stats.totalExpRequired / Math.max(expGainRate, 1) : Infinity;
             }

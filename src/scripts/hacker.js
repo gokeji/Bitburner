@@ -470,7 +470,7 @@ export async function main(ns) {
                     // Determine server drift recovery conditions
                     const securityThreshold = Math.max(
                         serverInfo.minDifficulty,
-                        serverInfo.minDifficulty + serverStats.totalSecurityIncrease,
+                        serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
                     );
 
                     const moneyProtectionThreshold = 1 - serverStats.hackPercentage - 0.25; // TODO: this could be outdated, a new server can become available and the smaller one gets hacked way less
@@ -1763,7 +1763,7 @@ export async function main(ns) {
             if (finalAllocation.initial_weaken) {
                 // Execute weaken on potentially multiple servers
                 for (const [server, threads] of finalAllocation.initial_weaken) {
-                    executeWeaken(ns, server, target, threads, 0, true, weakenTime);
+                    executeWeaken(ns, server, target, threads, 0, true, 0, weakenTime);
                 }
                 totalRamUsed += finalAllocation.scalingFactor * initialWeakenRam;
             } else {
@@ -1782,7 +1782,7 @@ export async function main(ns) {
                 return false;
             }
             for (const [server, threads] of finalAllocation.grow) {
-                executeGrow(ns, server, target, threads, growDelay, true, growthTime);
+                executeGrow(ns, server, target, threads, growDelay, true, 0, growthTime);
             }
             totalRamUsed += finalAllocation.scalingFactor * growRam;
 
@@ -1791,7 +1791,7 @@ export async function main(ns) {
                 ? 2 * BASE_SCRIPT_DELAY
                 : Math.max(0, BASE_SCRIPT_DELAY - growWeakenDiff);
             for (const [server, threads] of finalAllocation.final_weaken) {
-                executeWeaken(ns, server, target, threads, finalWeakenDelay, true, weakenTime);
+                executeWeaken(ns, server, target, threads, finalWeakenDelay, true, 0, weakenTime);
             }
             totalRamUsed += finalAllocation.scalingFactor * finalWeakenRam;
         } else if (shouldGrow) {
@@ -1828,7 +1828,7 @@ export async function main(ns) {
             (TIME_PER_BATCH + (weakenTimeCompletionTarget - weakenTimeFinishOffset)) % TIME_PER_BATCH;
 
         for (let i = 0; i < totalBatches; i++) {
-            const batchResult = runBatchHack(ns, target, TIME_PER_BATCH * i + weakenTimeSyncDelay, serverStats);
+            const batchResult = runBatchHack(ns, target, TIME_PER_BATCH * i + weakenTimeSyncDelay, serverStats, i);
             if (!batchResult.success) {
                 break;
             }
@@ -1856,7 +1856,7 @@ export async function main(ns) {
      * @param {Object} serverStats - Pre-calculated server stats from prioritiesMap
      * @returns {{success: boolean, ramUsed: number}} - Success status and RAM used for this batch
      */
-    function runBatchHack(ns, target, extraDelay, serverStats) {
+    function runBatchHack(ns, target, extraDelay, serverStats, batchIdx) {
         // Use pre-calculated values from serverStats instead of recalculating
         const { hackThreads, growthThreads, weakenThreadsNeeded, weakenTime, growthTime, hackTime } = serverStats;
 
@@ -1897,16 +1897,16 @@ export async function main(ns) {
         if (allocation.hack && allocation.grow && allocation.weaken) {
             // Execute hack operations
             for (const [server, threads] of allocation.hack) {
-                executeHack(ns, server, target, threads, hackDelay, false, hackTime);
+                executeHack(ns, server, target, threads, hackDelay, false, batchIdx, hackTime);
             }
 
             for (const [server, threads] of allocation.grow) {
-                executeGrow(ns, server, target, threads, growDelay, false, growthTime);
+                executeGrow(ns, server, target, threads, growDelay, false, batchIdx, growthTime);
             }
 
             // Execute weaken operations
             for (const [server, threads] of allocation.weaken) {
-                executeWeaken(ns, server, target, threads, weakenDelay, false, weakenTime);
+                executeWeaken(ns, server, target, threads, weakenDelay, false, batchIdx, weakenTime);
             }
         } else {
             ns.print(`ERROR: Allocations were malformed for BATCH ${target}`);
@@ -1925,7 +1925,7 @@ export async function main(ns) {
      * @param {boolean} isPrep - Whether the script is being executed for prep.
      * @param {number} weakenTime - The time the weaken script should finish at.
      */
-    function executeWeaken(ns, host, target, threads, sleepTime, isPrep = false, weakenTime = 0) {
+    function executeWeaken(ns, host, target, threads, sleepTime, isPrep = false, batchIdx, weakenTime = 0) {
         const pid = ns.exec(
             weakenScript,
             host,
@@ -1933,7 +1933,7 @@ export async function main(ns) {
             target,
             sleepTime,
             isPrep ? "prep" : "hgw",
-            tickCounter,
+            `${tickCounter} - ${batchIdx}`,
             `endTime=${Date.now() + sleepTime + weakenTime}`,
         );
         if (!pid) {
@@ -1955,7 +1955,7 @@ export async function main(ns) {
      * @param {boolean} isPrep - Whether the script is being executed for prep.
      * @param {number} growTime - The time the grow script should finish at.
      */
-    function executeGrow(ns, host, target, threads, sleepTime, isPrep = false, growTime = 0) {
+    function executeGrow(ns, host, target, threads, sleepTime, isPrep = false, batchIdx, growTime = 0) {
         const pid = ns.exec(
             growScript,
             host,
@@ -1964,7 +1964,7 @@ export async function main(ns) {
             sleepTime,
             growStocks.has(target),
             isPrep ? "prep" : "hgw",
-            tickCounter,
+            `${tickCounter} - ${batchIdx}`,
             `endTime=${Date.now() + sleepTime + growTime}`,
         );
         if (!pid) {
@@ -1986,7 +1986,7 @@ export async function main(ns) {
      * @param {boolean} isPrep - Whether the script is being executed for prep.
      * @param {number} hackTime - The time the hack script should finish at.
      */
-    function executeHack(ns, host, target, threads, sleepTime, isPrep = false, hackTime = 0) {
+    function executeHack(ns, host, target, threads, sleepTime, isPrep = false, batchIdx, hackTime = 0) {
         const pid = ns.exec(
             hackScript,
             host,
@@ -1995,7 +1995,7 @@ export async function main(ns) {
             sleepTime,
             hackStocks.has(target),
             isPrep ? "prep" : "hgw",
-            tickCounter,
+            `${tickCounter} - ${batchIdx}`,
             `endTime=${Date.now() + sleepTime + hackTime}`,
         );
         if (!pid) {

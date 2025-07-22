@@ -4,24 +4,26 @@ import { findStatsForCrimeSuccessChance } from "./automate-tasks.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const { bestConfig } = calculateBestSleeveStats(ns, true);
+    const { bestConfig } = calculateBestSleeveStats(ns, false);
 
     // Print best configuration
     ns.print("\n=== BEST CONFIGURATION ===");
     ns.print(JSON.stringify(bestConfig.stats, null, 2));
     ns.print(`Shock Value: ${bestConfig.shockValue}`);
     ns.print(`Crime Success Chance: ${bestConfig.crimeChance}`);
-    ns.print(`Total Time: ${bestConfig.totalTime} seconds`);
+    ns.print(`Total Time: ${bestConfig.totalTime} seconds (${(bestConfig.totalTime / 3600).toFixed(2)} hours)`);
     ns.print(`Breakdown:`);
-    ns.print(`  - Shock reduction: ${bestConfig.shockTime} seconds`);
-    ns.print(`  - Combat training: ${bestConfig.expTime} seconds`);
+    ns.print(
+        `  - Shock reduction: ${bestConfig.shockTime} seconds (${(bestConfig.shockTime / 3600).toFixed(2)} hours)`,
+    );
+    ns.print(`  - Combat training: ${bestConfig.expTime} seconds (${(bestConfig.expTime / 3600).toFixed(2)} hours)`);
     ns.print(`  - Training exp gain rate: ${bestConfig.trainingExpGainRate}`);
     ns.print(`  - Shock reduction during exp training: ${bestConfig.shockReductionDuringExpTraining}`);
     ns.print(`  - Final exp gain rate: ${bestConfig.finalExpGainRate}`);
     ns.print(`  - Sync bonus from other sleeves: ${bestConfig.syncBonusFromOtherSleeves}`);
-    ns.print(`  - Karma farming: ${bestConfig.karmaTime} seconds`);
+    ns.print(`  - Karma farming: ${bestConfig.karmaTime} seconds (${(bestConfig.karmaTime / 3600).toFixed(2)} hours)`);
 
-    ns.print(JSON.stringify(findStatsForCrimeSuccessChance(ns, "Homicide", 0.55, ns.sleeve.getSleeve(0)), null, 2));
+    // ns.print(JSON.stringify(findStatsForCrimeSuccessChance(ns, "Homicide", 0.55, ns.sleeve.getSleeve(0)), null, 2));
 }
 
 export const MaxFavor = 35331;
