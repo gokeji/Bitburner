@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = 64 * 10 ** 9; // 12 B max server value
+const MAX_SERVER_VALUE = 0; //640 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
 const SERVER_TO_STANEK = null; // "b-01";
@@ -10,7 +10,7 @@ let IPVGO_OPPONENTS = [
     "Netburners", // increased hacknet production
     // "Slum Snakes", // crime success rate
     "The Black Hand", // hacking money
-    // "Tetrads", // strength, defense, dexterity, and agility levels
+    "Tetrads", // strength, defense, dexterity, and agility levels
     "Daedalus", // reputation gain
     "Illuminati", // faster hack(), grow(), and weaken()
     // "????????????", // w0r1d_d43m0n Hacking Levels - will be dynamically added later
@@ -65,6 +65,9 @@ export async function main(ns) {
     if (showFactionServerPaths) {
         printAllFactionServerPaths(ns);
     }
+
+    startTaskAutomationIfNotRunning(ns);
+    startBladeburnerIfNotRunning(ns);
 
     let startedStockTrader = false;
     let sharedRam = false;
@@ -246,12 +249,12 @@ function restartIpvgo(ns) {
         ns.kill(ipvgoPid);
     }
 
-    const hasRedPill = ns.singularity.getOwnedAugmentations().includes("The Red Pill");
+    const hasRedPill = ns.getResetInfo().ownedAugs.has("The Red Pill");
 
     let opponents = IPVGO_OPPONENTS;
     if (hasRedPill) {
-        // opponents.push("????????????");
-        opponents = ["????????????"]; // Only use ipvgo for hacking levels
+        opponents.push("????????????");
+        // opponents = ["????????????"]; // Only use ipvgo for hacking levels
     }
 
     startScriptIfNotRunning(ns, "ipvgo-smart.js", HOST_NAME, 1, ...opponents);
@@ -259,7 +262,7 @@ function restartIpvgo(ns) {
 }
 
 function startSleeveIfNeeded(ns) {
-    const result = startScriptIfNotRunning(ns, "sleeve.js", HOST_NAME, 1);
+    const result = startScriptIfNotRunning(ns, "sleeve.js", HOST_NAME, 1, "--disable-follow-player");
     // if (result.success) {
     //     ns.ui.openTail(result.pid, HOST_NAME);
     // }
@@ -377,4 +380,12 @@ function restartStanekCharge(ns) {
 
 function startStanekIfNotRunning(ns) {
     startScriptIfNotRunning(ns, "stanek.js", HOST_NAME, 1);
+}
+
+function startTaskAutomationIfNotRunning(ns) {
+    startScriptIfNotRunning(ns, "scripts/automate-tasks.js", HOST_NAME, 1);
+}
+
+function startBladeburnerIfNotRunning(ns) {
+    startScriptIfNotRunning(ns, "bladeburner.js", HOST_NAME, 1);
 }

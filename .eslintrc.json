@@ -16,7 +16,8 @@
         "build/**",
         "dist/**",
         "NetscriptDefinitions.d.ts",
-        "src/scripts/examples/**/*.js"
+        "src/scripts/examples/**/*.js",
+        "src/alain-bitburner-scripts/**/*.js"
     ],
     "rules": {
         "no-constant-condition": "false",

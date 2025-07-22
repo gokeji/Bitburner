@@ -23,10 +23,10 @@ export async function main(ns) {
     let taskQueue = [
         { type: "faction", target: "Daedalus", goal: "favor" },
         { type: "augmentation", target: "The Red Pill" }, // Daedalus 2.5m
-        // {
-        //     type: "graft",
-        //     target: "OmniTek InfoLoad",
-        // },
+        {
+            type: "graft",
+            target: "OmniTek InfoLoad",
+        },
         // {
         //     type: "graft",
         //     target: "ADR-V2 Pheromone Gene",
@@ -40,27 +40,36 @@ export async function main(ns) {
         { type: "augmentation", target: "Hacknet Node Kernel Direct-Neural Interface" }, // Netburners 7.5k
         { type: "augmentation", target: "Hacknet Node Core Direct-Neural Interface" }, // Netburners 12.5k
         // { type: "reset" },
-        { type: "augmentation", target: "NeuroFlux Governor" }, // Get closest NFG rep
+        // { type: "augmentation", target: "NeuroFlux Governor" }, // Get closest NFG rep
         { type: "augmentation", target: "Neural-Retention Enhancement" }, // NiteSec 20k
         { type: "augmentation", target: "CRTX42-AA Gene Modification" }, // NiteSec 45k
+
+        { type: "faction", target: "Illuminati", goal: "120000" },
+        { type: "faction", target: "The Covenant", goal: "120000" },
+        { type: "faction", target: "Illuminati", goal: "favor" },
+        { type: "faction", target: "The Covenant", goal: "favor" },
+        { type: "augmentation", target: "SPTN-97 Gene Modification" }, // The Covenant 1.250m
+        { type: "augmentation", target: "QLink" }, // Illuminati 1.875m
+
         // { type: "train", target: "homicide", goal: 1.0 },
         // { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
+        { type: "train", target: "stats", goal: { strength: 10e5, defense: 10e5, dexterity: 10e5, agility: 10e5 } },
         { type: "homicide" },
 
         // { type: "graft", target: "QLink" },
-        // {
-        //     type: "graft",
-        //     target: "Neuronal Densification",
-        // },
+        {
+            type: "graft",
+            target: "Neuronal Densification",
+        },
         // {
         //     type: "graft",
         //     target: "PC Direct-Neural Interface", // 8% hacking skill, 43 min graft
         // },
-        // {
-        //     type: "graft",
-        //     target: "Xanipher",
-        //     condition: (ns) => ns.getPlayer().money > 120e9,
-        // },
+        {
+            type: "graft",
+            target: "Xanipher",
+            condition: (ns) => ns.getPlayer().money > 120e9,
+        },
         // {
         //     type: "graft",
         //     target: "BitRunners Neurolink",
