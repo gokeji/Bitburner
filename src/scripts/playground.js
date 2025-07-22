@@ -3,7 +3,7 @@ import { findStatsForCrimeSuccessChance } from "./automate-tasks.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    ns.print(ns.singularity.getCurrentWork());
+    ns.print(ns.singularity.getAugmentationStats("NeuroFlux Governor"));
     // const player = ns.getPlayer();
     // player.skills.strength = 130;
     // player.skills.defense = 30;

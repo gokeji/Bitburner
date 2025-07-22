@@ -523,11 +523,13 @@ function addNeuroFluxGovernors(augments, count) {
             faction: highestLevelNeuroFluxGovernor.faction,
             available: true,
             prereqs: [`NeuroFlux Governor - Level ${i - 1}`],
+            repReq: highestLevelNeuroFluxGovernor.repReq * Math.pow(1.14, i - neurofluxCurrentLevel),
             hackingBoost: true,
             repBoost: true,
             combatBoost: true,
             charismaBoost: true,
             hacknetBoost: true,
+            bladeburnerBoost: false,
         });
     }
     return [...augments, ...neuroFluxGovernors];
@@ -632,6 +634,16 @@ function calculateOptimalOrder(augments, maxBudget = null) {
 
         for (let i = 0; i < remainingAugments.length; i++) {
             const aug = remainingAugments[i];
+
+            // Check if this augment has already been purchased (to avoid duplicate prerequisites)
+            const alreadyPurchased = purchaseOrder.some((purchased) => purchased.name === aug.name);
+            if (alreadyPurchased) {
+                // Remove this duplicate from remaining list and continue
+                remainingAugments.splice(i, 1);
+                foundAffordableItem = true;
+                break; // Start over from the beginning of the list
+            }
+
             const actualCost = aug.cost * multiplier;
 
             if (maxBudget === null || totalCost + actualCost <= maxBudget) {

@@ -12,7 +12,9 @@ const argsSchema = [
     ["combat", false], // Set to true to include augments that boost combat
     ["charisma", false], // Set to true to include augments that boost charisma
     ["hacknet", false], // Set to true to include augments that boost hacknet
+    ["bladeburner", false], // Set to true to include augments that boost bladeburner
     ["no-nfg", false], // Set to true to exclude NeuroFlux Governors
+    ["only-nfg", false], // Set to true to only include NeuroFlux Governors
     ["no-gang", false], // Set to true to exclude augments from the gang faction
     ["allow-donation", true], // Set to true to consider donations for reputation (requires 150+ favor)
     ["prefer-no-gang", false], // Set to true to prefer augments that are not from the gang faction
@@ -182,6 +184,12 @@ function calculateTotalStatIncrease(ns, augmentations) {
     let hacknetNodeCoreCostMultiplier = player.mults.hacknet_node_core_cost;
     let hacknetNodeLevelCostMultiplier = player.mults.hacknet_node_level_cost;
 
+    // Bladeburner stats
+    let bladeburnerMaxStaminaMultiplier = player.mults.bladeburner_max_stamina;
+    let bladeburnerStaminaGainMultiplier = player.mults.bladeburner_stamina_gain;
+    let bladeburnerAnalysisMultiplier = player.mults.bladeburner_analysis;
+    let bladeburnerSuccessChanceMultiplier = player.mults.bladeburner_success_chance;
+
     // Apply each augmentation multiplicatively
     for (const aug of augmentations) {
         let augName = aug.name;
@@ -220,6 +228,11 @@ function calculateTotalStatIncrease(ns, augmentations) {
         hacknetNodeRamCostMultiplier *= stats.hacknet_node_ram_cost;
         hacknetNodeCoreCostMultiplier *= stats.hacknet_node_core_cost;
         hacknetNodeLevelCostMultiplier *= stats.hacknet_node_level_cost;
+
+        bladeburnerMaxStaminaMultiplier *= stats.bladeburner_max_stamina;
+        bladeburnerStaminaGainMultiplier *= stats.bladeburner_stamina_gain;
+        bladeburnerAnalysisMultiplier *= stats.bladeburner_analysis;
+        bladeburnerSuccessChanceMultiplier *= stats.bladeburner_success_chance;
     }
 
     // Apply BitNode multipliers to the final augmented stats
@@ -244,7 +257,7 @@ function calculateTotalStatIncrease(ns, augmentations) {
     charismaExpMultiplier *= bitnodeMultiplier.ClassGymExpGain;
 
     hacknetNodeMoneyMultiplier *= bitnodeMultiplier.HacknetNodeMoney;
-    // Note: BitNode multipliers don't directly affect hacknet cost multipliers,
+    // Note: BitNode multipliers don't directly affect hacknet cost multipliers or bladeburner stats
     // but we keep them as-is since they represent cost reductions from augments
 
     // Calculate average multipliers
@@ -341,6 +354,12 @@ function calculateTotalStatIncrease(ns, augmentations) {
             hacknetNodeCoreCost: hacknetNodeCoreCostMultiplier,
             hacknetNodeLevelCost: hacknetNodeLevelCostMultiplier,
         },
+        totalBladeburner: {
+            bladeburnerMaxStamina: bladeburnerMaxStaminaMultiplier,
+            bladeburnerStaminaGain: bladeburnerStaminaGainMultiplier,
+            bladeburnerAnalysis: bladeburnerAnalysisMultiplier,
+            bladeburnerSuccessChance: bladeburnerSuccessChanceMultiplier,
+        },
         // Average boost calculations
         averageHackingBoost: averageHackingBoost,
         averageCombatBoost: averageCombatBoost,
@@ -384,6 +403,12 @@ function calculateTotalStatIncrease(ns, augmentations) {
             hacknetNodeRamCost: player.mults.hacknet_node_ram_cost,
             hacknetNodeCoreCost: player.mults.hacknet_node_core_cost,
             hacknetNodeLevelCost: player.mults.hacknet_node_level_cost,
+        },
+        originalBladeburner: {
+            bladeburnerMaxStamina: player.mults.bladeburner_max_stamina,
+            bladeburnerStaminaGain: player.mults.bladeburner_stamina_gain,
+            bladeburnerAnalysis: player.mults.bladeburner_analysis,
+            bladeburnerSuccessChance: player.mults.bladeburner_success_chance,
         },
     };
 }
@@ -586,6 +611,39 @@ function displayStatIncreases(ns, statIncrease) {
         ns.print(`  ${stat.name.padEnd(14)}: ${displayText}`);
     }
 
+    // Bladeburner Stats Section
+    ns.print("\n🦾 BLADEBURNER STATS:");
+    const bladeburnerStats = [
+        {
+            name: "Max Stamina",
+            original: statIncrease.originalBladeburner.bladeburnerMaxStamina,
+            final: statIncrease.totalBladeburner.bladeburnerMaxStamina,
+        },
+        {
+            name: "Stamina Gain",
+            original: statIncrease.originalBladeburner.bladeburnerStaminaGain,
+            final: statIncrease.totalBladeburner.bladeburnerStaminaGain,
+        },
+        {
+            name: "Analysis",
+            original: statIncrease.originalBladeburner.bladeburnerAnalysis,
+            final: statIncrease.totalBladeburner.bladeburnerAnalysis,
+        },
+        {
+            name: "Success Chance",
+            original: statIncrease.originalBladeburner.bladeburnerSuccessChance,
+            final: statIncrease.totalBladeburner.bladeburnerSuccessChance,
+        },
+    ];
+
+    for (const stat of bladeburnerStats) {
+        const increase = stat.final / stat.original;
+        const percentIncrease = (increase - 1) * 100;
+        ns.print(
+            `  ${stat.name.padEnd(14)}: ${ns.formatPercent(stat.original)} -> ${ns.formatPercent(stat.final)} (+${percentIncrease.toFixed(1)}%, ${increase.toFixed(2)}X)`,
+        );
+    }
+
     if (statIncrease.neurofluxLevels > 0) {
         ns.print("");
         ns.print(`🔋 NeuroFlux Levels: ${statIncrease.neurofluxLevels} (1% boost each to all stats)`);
@@ -712,11 +770,13 @@ export async function main(ns) {
     const combat = flags["combat"];
     const charisma = flags["charisma"];
     const hacknetServer = flags["hacknet"];
+    const bladeburner = flags["bladeburner"];
     const forceBuy = flags["force-buy"];
     const noNFG = flags["no-nfg"];
     const noGang = flags["no-gang"];
     const allowDonation = flags["allow-donation"];
     const preferNoGang = flags["prefer-no-gang"];
+    const onlyNFG = flags["only-nfg"];
 
     ns.ui.openTail(); // Open tail because there's a lot of good output
     ns.ui.resizeTail(1200, 800);
@@ -751,6 +811,10 @@ export async function main(ns) {
 
     if (noNFG) {
         availableAugmentations = availableAugmentations.filter((aug) => aug !== "NeuroFlux Governor");
+    }
+
+    if (onlyNFG) {
+        availableAugmentations = availableAugmentations.filter((aug) => aug === "NeuroFlux Governor");
     }
 
     // Helper function to check if an augmentation has hacking boost
@@ -799,6 +863,15 @@ export async function main(ns) {
         );
     }
 
+    function hasBladeburnerBoost(stats) {
+        return (
+            stats.bladeburner_max_stamina > 1 ||
+            stats.bladeburner_stamina_gain > 1 ||
+            stats.bladeburner_analysis > 1 ||
+            stats.bladeburner_success_chance > 1
+        );
+    }
+
     // Check which augmentations we can afford (both price and reputation) - separate entry for each qualifying faction
     const affordableAugmentations = [];
     let unaffordableAugmentations = [];
@@ -839,6 +912,7 @@ export async function main(ns) {
                 const combatBoost = hasCombatBoost(stats);
                 const charismaBoost = hasCharismaBoost(stats);
                 const hacknetBoost = hasHacknetBoost(stats);
+                const bladeburnerBoost = hasBladeburnerBoost(stats);
 
                 const favor = ns.singularity.getFactionFavor(faction);
                 const canAffordRep =
@@ -854,6 +928,7 @@ export async function main(ns) {
                     combatBoost: combatBoost,
                     charismaBoost: charismaBoost,
                     hacknetBoost: hacknetBoost,
+                    bladeburnerBoost: bladeburnerBoost,
                     repReq: repReq,
                     stats: stats,
                 };
@@ -866,14 +941,17 @@ export async function main(ns) {
                     const anyFilterActive = hacking || rep || combat || charisma || hacknetServer;
 
                     // If filtering is active, check if this augment matches any selected criteria
-                    if (anyFilterActive && !alwaysIncludeList.includes(augmentation)) {
+                    if (anyFilterActive) {
                         let matchesFilter = false;
+
+                        if (alwaysIncludeList.includes(augmentation)) matchesFilter = true;
 
                         if (hacking && hackingBoost) matchesFilter = true;
                         if (rep && repBoost) matchesFilter = true;
                         if (combat && combatBoost) matchesFilter = true;
                         if (charisma && charismaBoost) matchesFilter = true;
                         if (hacknetServer && hacknetBoost) matchesFilter = true;
+                        if (bladeburner && bladeburnerBoost) matchesFilter = true;
 
                         if (!matchesFilter) {
                             affordableButFilteredOut.push(aug);
@@ -976,6 +1054,7 @@ export async function main(ns) {
         combatBoost: aug.combatBoost,
         charismaBoost: aug.charismaBoost,
         hacknetBoost: aug.hacknetBoost,
+        bladeburnerBoost: aug.bladeburnerBoost,
         available: true,
     }));
 
@@ -1021,15 +1100,12 @@ export async function main(ns) {
     }
 
     // Calculate donation costs only for purchased augmentations
-    let totalDonationCosts = 0;
     const factionDonationCosts = new Map(); // faction -> donation cost
+    const augmentationDonationFactions = new Map(); // augmentation -> faction
+    let totalDonationCosts = 0;
 
     if (allowDonation && result.purchaseOrder.length > 0) {
-        // Find the highest reputation requirement among all purchased augments
-        let maxRepNeeded = 0;
-        let bestFactionForDonation = null;
-        let bestFactionCurrentRep = 0;
-
+        // Gather all the factions with highest rep for each augmentation (highest rep means lowest donation cost)
         for (const aug of result.purchaseOrder) {
             const faction = aug.faction;
             const favor = ns.singularity.getFactionFavor(faction);
@@ -1053,33 +1129,34 @@ export async function main(ns) {
                 repReq = aug.repReq || ns.singularity.getAugmentationRepReq(aug.name);
             }
 
-            // Track the highest reputation requirement
-            if (repReq > maxRepNeeded) {
-                maxRepNeeded = repReq;
-            }
-
             // Find the faction with the highest current reputation (best candidate for donation)
             const currentRep = ns.singularity.getFactionRep(faction);
-            if (currentRep > bestFactionCurrentRep) {
-                bestFactionCurrentRep = currentRep;
-                bestFactionForDonation = faction;
+            if (!augmentationDonationFactions.has(aug.name)) {
+                augmentationDonationFactions.set(aug.name, { faction, factionRep: currentRep, augRepReq: repReq });
+            } else {
+                const { factionRep } = augmentationDonationFactions.get(aug.name);
+                if (currentRep > factionRep) {
+                    augmentationDonationFactions.set(aug.name, { faction, factionRep: currentRep, augRepReq: repReq });
+                }
             }
         }
 
-        // If we need to donate, calculate the cost for the best faction
-        if (maxRepNeeded > 0 && bestFactionForDonation) {
-            const currentRep = ns.singularity.getFactionRep(bestFactionForDonation);
-            const repShortfall = maxRepNeeded - currentRep;
-
+        // From the factions with highest rep for each augmentation, calculate the highest donation cost for each faction
+        for (const { faction, factionRep, augRepReq } of augmentationDonationFactions.values()) {
+            const repShortfall = augRepReq - factionRep;
             if (repShortfall > 0) {
                 const donationCost = ns.formulas.reputation.donationForRep(repShortfall, ns.getPlayer());
-                ns.print(
-                    `Donating $${ns.formatNumber(donationCost)} to ${bestFactionForDonation}, need ${repShortfall} more rep`,
-                );
-                factionDonationCosts.set(bestFactionForDonation, donationCost);
-                totalDonationCosts += donationCost;
+                if (factionDonationCosts.has(faction)) {
+                    if (donationCost > factionDonationCosts.get(faction)) {
+                        factionDonationCosts.set(faction, donationCost);
+                    }
+                } else {
+                    factionDonationCosts.set(faction, donationCost);
+                }
             }
         }
+
+        totalDonationCosts = Array.from(factionDonationCosts.values()).reduce((acc, cost) => acc + cost, 0);
     }
 
     // The donation costs are now calculated correctly in the main loop above
@@ -1123,10 +1200,11 @@ export async function main(ns) {
         const combatMark = aug.combatBoost ? " 💪" : "";
         const charismaMark = aug.charismaBoost ? " 🗣️" : "";
         const hacknetMark = aug.hacknetBoost ? " 🖥️" : "";
+        const bladeburnerMark = aug.bladeburnerBoost ? " 🦾" : "";
         const prereqInfo = aug.prereqs.length > 0 ? `\n      - Requires: ${aug.prereqs.join(", ")}` : "";
 
         ns.print(
-            `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} - ${aug.name}${hackingMark}${repMark}${combatMark}${charismaMark}${hacknetMark}${prereqInfo}`,
+            `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} (${ns.formatNumber(aug.repReq)}) - ${aug.name}${hackingMark}${repMark}${combatMark}${charismaMark}${hacknetMark}${bladeburnerMark}${prereqInfo}`,
         );
     }
 
@@ -1141,10 +1219,11 @@ export async function main(ns) {
             const combatMark = aug.combatBoost ? " 💪" : "";
             const charismaMark = aug.charismaBoost ? " 🗣️" : "";
             const hacknetMark = aug.hacknetBoost ? " 🖥️" : "";
+            const bladeburnerMark = aug.bladeburnerBoost ? " 🦾" : "";
             const prereqInfo = aug.prereqs.length > 0 ? `\n      - Requires: ${aug.prereqs.join(", ")}` : "";
 
             ns.print(
-                `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} - ${aug.name}${hackingMark}${repMark}${combatMark}${charismaMark}${hacknetMark}${prereqInfo}`,
+                `${i + 1}. [${aug.faction}] $${ns.formatNumber(aug.currentCost * 1000000)} (${ns.formatNumber(aug.repReq)}) - ${aug.name}${hackingMark}${repMark}${combatMark}${charismaMark}${hacknetMark}${bladeburnerMark}${prereqInfo}`,
             );
         }
     }
@@ -1154,23 +1233,21 @@ export async function main(ns) {
     ns.print(`Current cash: $${ns.formatNumber(player.money)}`);
     if (portfolio.hasPositions) {
         ns.print(`Stock portfolio value: $${ns.formatNumber(portfolio.totalValue)}`);
-        ns.print(
-            `Stock portfolio P&L: ${portfolio.totalProfit >= 0 ? "+" : ""}$${ns.formatNumber(portfolio.totalProfit)}`,
-        );
     } else {
         ns.print(`Stock portfolio value: $0 (no positions)`);
     }
-    ns.print(`Total available budget: $${ns.formatNumber(totalBudget)}`);
     if (allowDonation && totalDonationCosts > 0) {
         ns.print(`Total donation costs: $${ns.formatNumber(totalDonationCosts)}`);
-        ns.print(`Budget after donations: $${ns.formatNumber(totalBudget - totalDonationCosts)}`);
 
         // Show donations per faction
         ns.print("  Donation breakdown:");
         for (const [faction, cost] of factionDonationCosts) {
-            ns.print(`    - ${faction}: $${ns.formatNumber(cost)}`);
+            const repGained = ns.formulas.reputation.repFromDonation(cost, ns.getPlayer());
+            ns.print(`    - ${faction}: $${ns.formatNumber(cost)} (${ns.formatNumber(repGained)})`);
         }
     }
+    ns.print(`\n`);
+    ns.print(`Total available budget: $${ns.formatNumber(totalBudget - totalDonationCosts)}`);
     ns.print("\n");
     ns.print("=== PURCHASE SUMMARY ===");
     ns.print(`Total augments to purchase: ${result.purchaseOrder.length}`);
@@ -1181,13 +1258,14 @@ export async function main(ns) {
     const charismaAugmentsCount =
         result.purchaseOrder.filter((aug) => aug.charismaBoost).length - result.neurofluxCount;
     const hacknetAugmentsCount = result.purchaseOrder.filter((aug) => aug.hacknetBoost).length - result.neurofluxCount;
+    const bladeburnerAugmentsCount = result.purchaseOrder.filter((aug) => aug.bladeburnerBoost).length;
     ns.print(`  - NeuroFlux Governors: ${result.neurofluxCount}`);
     ns.print(`  - Hacking augments: ${hackingAugmentsCount}`);
     ns.print(`  - Reputation augments: ${repAugmentsCount}`);
     ns.print(`  - Combat augments: ${combatAugmentsCount}`);
     ns.print(`  - Charisma augments: ${charismaAugmentsCount}`);
     ns.print(`  - Hacknet augments: ${hacknetAugmentsCount}`);
-
+    ns.print(`  - Bladeburner augments: ${bladeburnerAugmentsCount}`);
     if (allowDonation && totalDonationCosts > 0) {
         ns.print(`  - Total donation cost: $${ns.formatNumber(totalDonationCosts)}`);
     }
@@ -1200,7 +1278,6 @@ export async function main(ns) {
     ns.print(`Remaining budget: $${ns.formatNumber(totalBudget - totalDonationCosts - result.totalCost * 1000000)}`);
 
     ns.print("\n");
-    ns.print(`Total cost of all augments: $${ns.formatNumber(result.totalCostOfAll * 1000000)}`);
     if (result.nextUnaffordableItem) {
         ns.print(
             `Next unaffordable item: ${result.nextUnaffordableItem.name} - $${ns.formatNumber(result.nextUnaffordableItem.currentCost * 1000000)}`,
