@@ -3,9 +3,9 @@ import { findStatsForCrimeSuccessChance } from "./automate-tasks.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    // const numGymHashesBought = 7;
+    const numGymHashesBought = 10;
     const withPlayerHomicide = true;
-    const useCurrentStats = true;
+    const useCurrentStats = false;
 
     let bestTime = Infinity;
     let bestConfig = null;
@@ -23,6 +23,7 @@ export async function main(ns) {
     const startingCrimeChance = useCurrentStats
         ? ns.formulas.work.crimeSuccessChance(ns.sleeve.getSleeve(0), "Homicide")
         : 0.2;
+    const currentGymUpgradesBought = ns.hacknet.getHashUpgradeLevel("Improve Gym Training");
 
     // Test shock values from 0.97 to 0.9
     for (let shockValue = startingShockValue; shockValue >= Math.max(startingShockValue - 10, 0); shockValue -= 1) {
@@ -39,6 +40,12 @@ export async function main(ns) {
             // 2. Exp gain rate
             let baselineExpGainRate =
                 ns.formulas.work.gymGains(ns.sleeve.getSleeve(0), "str", "Powerhouse Gym").strExp * 5;
+
+            if (!useCurrentStats) {
+                const gymUpgradeBonus = 1 + currentGymUpgradesBought * 0.2;
+                baselineExpGainRate = (baselineExpGainRate / gymUpgradeBonus) * (1 + numGymHashesBought * 0.2);
+            }
+
             const syncBonusFromOtherSleeves = 1 + (ns.sleeve.getNumSleeves() - 1) * ((100 - shockValue) / 100);
             baselineExpGainRate *= syncBonusFromOtherSleeves;
             //  * // 5 ticks per second
@@ -71,7 +78,7 @@ export async function main(ns) {
             const playerHomicideKarmaRate = withPlayerHomicide ? 1 : 0;
             const karmaRate = minCrimeSuccessChance * ns.sleeve.getNumSleeves() + playerHomicideKarmaRate;
             const startingKarma = useCurrentStats ? -ns.heart.break() : 0;
-            const playerKarmaDuringTraining = playerHomicideKarmaRate * timeTraining;
+            const playerKarmaDuringTraining = 0; //playerHomicideKarmaRate * timeTraining;
             const timeToReachKarma = (54000 - startingKarma - playerKarmaDuringTraining) / karmaRate;
 
             // 6. Total time
