@@ -51,25 +51,25 @@ export async function main(ns) {
         { type: "augmentation", target: "SPTN-97 Gene Modification" }, // The Covenant 1.250m
         { type: "augmentation", target: "QLink" }, // Illuminati 1.875m
 
-        // { type: "train", target: "homicide", goal: 1.0 },
-        { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
+        { type: "train", target: "homicide", goal: 1.0 },
+        // { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
         // { type: "train", target: "stats", goal: { strength: 10e5, defense: 10e5, dexterity: 10e5, agility: 10e5 } },
         { type: "homicide" },
 
         // { type: "graft", target: "QLink" },
-        {
-            type: "graft",
-            target: "Neuronal Densification",
-        },
+        // {
+        //     type: "graft",
+        //     target: "Neuronal Densification",
+        // },
         // {
         //     type: "graft",
         //     target: "PC Direct-Neural Interface", // 8% hacking skill, 43 min graft
         // },
-        {
-            type: "graft",
-            target: "Xanipher",
-            condition: (ns) => ns.getPlayer().money > 120e9,
-        },
+        // {
+        //     type: "graft",
+        //     target: "Xanipher",
+        //     condition: (ns) => ns.getPlayer().money > 120e9,
+        // },
         // {
         //     type: "graft",
         //     target: "BitRunners Neurolink",
@@ -461,6 +461,7 @@ export function findStatsForCrimeSuccessChance(ns, crimeType, goal, mockPlayer =
     // Strength and defense are 4X as valuable as dexterity and agility
     // We want to find the minimum experience required to spread across all stats to reach the goal
     if (crimeType === "Homicide") {
+        const originalPlayer = JSON.parse(JSON.stringify(mockPlayer || ns.getPlayer())); // Deep copy the player object to avoid modifying the original
         const player = mockPlayer || ns.getPlayer();
         const bitnodeMults = ns.getBitNodeMultipliers();
 
@@ -503,12 +504,26 @@ export function findStatsForCrimeSuccessChance(ns, crimeType, goal, mockPlayer =
 
             player.skills[lowestStatType] += 1;
         }
+
+        const strengthExpRequired =
+            ns.formulas.skills.calculateExp(player.skills.strength, getSkillMult("strength")) -
+            ns.formulas.skills.calculateExp(originalPlayer.skills.strength, getSkillMult("strength"));
+        const defenseExpRequired =
+            ns.formulas.skills.calculateExp(player.skills.defense, getSkillMult("defense")) -
+            ns.formulas.skills.calculateExp(originalPlayer.skills.defense, getSkillMult("defense"));
+        const dexterityExpRequired =
+            ns.formulas.skills.calculateExp(player.skills.dexterity, getSkillMult("dexterity")) -
+            ns.formulas.skills.calculateExp(originalPlayer.skills.dexterity, getSkillMult("dexterity"));
+        const agilityExpRequired =
+            ns.formulas.skills.calculateExp(player.skills.agility, getSkillMult("agility")) -
+            ns.formulas.skills.calculateExp(originalPlayer.skills.agility, getSkillMult("agility"));
         return {
             strength: player.skills.strength,
             defense: player.skills.defense,
             dexterity: player.skills.dexterity,
             agility: player.skills.agility,
             successChance: ns.formulas.work.crimeSuccessChance(player, crimeType),
+            totalExpRequired: strengthExpRequired + defenseExpRequired + dexterityExpRequired + agilityExpRequired,
         };
     }
 

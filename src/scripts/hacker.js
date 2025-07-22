@@ -23,7 +23,7 @@ export async function main(ns) {
     let MAX_WEAKEN_TIME = 5 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
     let ALLOW_HASH_UPGRADES = true;
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.4; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.02; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0;
 
     let serversToHack = []; // ["clarkinc"];
@@ -469,16 +469,16 @@ export async function main(ns) {
                     const serverStats = globalPrioritiesMap.get(server);
                     // Determine server drift recovery conditions
                     const securityThreshold = Math.max(
-                        serverInfo.minDifficulty + 15,
-                        serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
+                        serverInfo.minDifficulty,
+                        serverInfo.minDifficulty + serverStats.totalSecurityIncrease,
                     );
 
                     const moneyProtectionThreshold = 1 - serverStats.hackPercentage - 0.25; // TODO: this could be outdated, a new server can become available and the smaller one gets hacked way less
 
                     const securityBreach = serverInfo.hackDifficulty > securityThreshold;
-                    const moneyBreach = serverInfo.moneyAvailable < serverInfo.moneyMax * moneyProtectionThreshold;
+                    // const moneyBreach = serverInfo.moneyAvailable < serverInfo.moneyMax * moneyProtectionThreshold;
 
-                    const needsRecovery = securityBreach || moneyBreach;
+                    const needsRecovery = securityBreach; // || moneyBreach;
 
                     if (needsRecovery) {
                         const message = securityBreach

@@ -20,12 +20,12 @@ const defaultMaxSpendPerTickPermanentEquipment = 0.1; // If the --augmentation-b
 
 // Territory-related variables
 const gangsByPower = [
-    "Speakers for the Dead",
-    "The Dark Army",
-    "The Syndicate",
-    "Tetrads",
+    // "Speakers for the Dead",
+    // "The Dark Army",
+    // "The Syndicate",
+    // "Tetrads",
     "Slum Snakes",
-    /* Hack gangs don't scale as far */ "The Black Hand" /* "NiteSec" Been there, not fun. */,
+    // /* Hack gangs don't scale as far */ "The Black Hand" /* "NiteSec" Been there, not fun. */,
 ];
 const territoryEngageThreshold = 0.6; // Minimum average win chance (of gangs with territory) before we engage other clans
 let territoryTickDetected = false;
@@ -83,7 +83,7 @@ const argsSchema = [
     ["training-percentage", 0.1], // Spend this percent of time randomly training gang members versus doing crime
     ["no-training", false], // Don't train unless all other tasks generate no gains or the member ascended recently (--min-training-ticks)
     ["no-auto-ascending", false], // Don't ascend members
-    ["ascend-multi-threshold", 1.2], // Ascend member #12 if a primary stat multi would increase by more than this amount
+    ["ascend-multi-threshold", 1.5], // Ascend member #12 if a primary stat multi would increase by more than this amount
     ["ascend-multi-threshold-spacing", 0.05], // Members will space their acention multis by this amount to ensure they are ascending at different rates
     // Note: given the above two defaults, members would ascend at multis [1.6, 1.55, 1.50, ..., 1.1, 1.05] once you have 12 members.
     ["min-training-ticks", 10], // Require this many ticks of training after ascending or recruiting to rebuild stats
