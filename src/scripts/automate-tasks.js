@@ -52,8 +52,8 @@ export async function main(ns) {
         { type: "augmentation", target: "QLink" }, // Illuminati 1.875m
 
         // { type: "train", target: "homicide", goal: 1.0 },
-        // { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
-        { type: "train", target: "stats", goal: { strength: 10e5, defense: 10e5, dexterity: 10e5, agility: 10e5 } },
+        { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
+        // { type: "train", target: "stats", goal: { strength: 10e5, defense: 10e5, dexterity: 10e5, agility: 10e5 } },
         { type: "homicide" },
 
         // { type: "graft", target: "QLink" },

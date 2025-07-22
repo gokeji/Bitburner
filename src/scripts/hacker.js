@@ -35,11 +35,12 @@ export async function main(ns) {
     const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
-    const ALWAYS_XP_FARM = false;
+    const ALWAYS_XP_FARM = true;
     const XP_FARM_SERVER = "foodnstuff";
     const ALLOW_PARTIAL_PREP = true;
     const SHOULD_INFLUENCE_STOCKS = true;
     const ONLY_MANIPULATE_STOCKS = false;
+    const THREAD_SPLIT_THRESHOLD = 2 ** 16; // 65536 GB - If a server has more than this amount of RAM, don't split threads across servers
 
     let growStocks = new Map();
     let hackStocks = new Map();
@@ -89,6 +90,7 @@ export async function main(ns) {
     let maxRamAvailable = 0;
     let totalFreeRam = 0;
     let maxRamAvailableForHacking = 0;
+    let maxSingleServerRam = 0;
 
     ns.disableLog("ALL");
 
@@ -273,6 +275,7 @@ export async function main(ns) {
 
         maxRamAvailable = executableServers.reduce((acc, server) => acc + ns.getServerMaxRam(server), 0);
         totalFreeRam = getTotalFreeRam(ns);
+        maxSingleServerRam = executableServers.reduce((acc, server) => Math.max(acc, ns.getServerMaxRam(server)), 0);
         ns.print(`Total RAM Available: ${ns.formatRam(totalFreeRam)}`);
 
         // Run contract solving script each tick
@@ -2116,7 +2119,9 @@ export async function main(ns) {
                 remainingThreads = 0;
                 break; // We're done
             } else {
-                continue;
+                if (maxSingleServerRam > THREAD_SPLIT_THRESHOLD) {
+                    continue;
+                }
                 // Server doesn't have enough RAM for all needs
                 // Can split, so take what we can and continue
                 if (threadsCanAllocate > 0) {
