@@ -23,7 +23,7 @@ export async function main(ns) {
     let MAX_WEAKEN_TIME = 5 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
     let ALLOW_HASH_UPGRADES = true;
-    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.05; // Use extra grow and weak threads to correct for out of sync HGW batches
+    const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.4; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0;
 
     let serversToHack = []; // ["clarkinc"];
@@ -70,7 +70,7 @@ export async function main(ns) {
         "omnitek",
         "fulcrumtech",
         "fulcrumassets",
-        "w0r1d_d43m0n",
+        // "w0r1d_d43m0n",
     ]);
 
     /**
@@ -195,7 +195,7 @@ export async function main(ns) {
     let serverStatsCache = new Map(); // Map<serverName, CachedServerStats>
     let globalCalculationCache = null; // Cache player, bitnode multipliers etc.
 
-    let ramOverestimation = 1;
+    let ramOverestimation = 1.8;
 
     // === MAIN STATE MACHINE LOOP ===
     while (true) {
@@ -692,7 +692,10 @@ export async function main(ns) {
 
         // Find highest priority server for hash upgrades
         const highestPriorityServer = gameState.serversByPriority.find((server) => {
-            return ns.getServerMaxMoney(server) < 10e12 || ns.getServerMinSecurityLevel(server) > 10;
+            return (
+                ns.getWeakenTime(server) <= MAX_WEAKEN_TIME &&
+                (ns.getServerMaxMoney(server) < 10e12 || ns.getServerMinSecurityLevel(server) > 10)
+            );
         });
 
         if (!highestPriorityServer) return actions;
@@ -982,7 +985,7 @@ export async function main(ns) {
         const { player, bitnodeMultipliers, cpuCores, weakenAmount } = globalCalculationCache;
 
         // Fast calculations that depend on hackThreads
-        const hackPercentage = hackThreads * hackPercentageFromOneThread;
+        const hackPercentage = Math.min(hackThreads * hackPercentageFromOneThread, 1);
 
         // Early exit for very low hack percentages to avoid expensive growthThreads calculation
         if (hackPercentage < 0.001 || hackChance < 0.01) {
@@ -1113,7 +1116,10 @@ export async function main(ns) {
                 if (config.priority > maxPriorityForServer) {
                     maxPriorityForServer = config.priority;
                 }
-                if (ns.getWeakenTime(server) > MAX_WEAKEN_TIME && !growStocks.has(server) && !hackStocks.has(server)) {
+                if (
+                    ns.getWeakenTime(server) > MAX_WEAKEN_TIME &&
+                    !(ONLY_MANIPULATE_STOCKS && (growStocks.has(server) || hackStocks.has(server)))
+                ) {
                     continue;
                 }
                 allConfigurations.push(config);
@@ -1171,17 +1177,17 @@ export async function main(ns) {
         const knapsackStart = performance.now();
 
         // Target is around 95%
-        if (tickCounter > 1) {
-            const ramUtilization = (maxRamAvailableForHacking - totalFreeRam) / maxRamAvailableForHacking;
+        // if (tickCounter > 1) {
+        //     const ramUtilization = (maxRamAvailableForHacking - totalFreeRam) / maxRamAvailableForHacking;
 
-            if (ramUtilization < 0.9) {
-                // increase overestimation to hit 95%
-                ramOverestimation = Math.max(1, ramOverestimation * (0.95 / ramUtilization));
-            } else if (ramUtilization > 0.95) {
-                // decrease overestimation slowly
-                ramOverestimation = ramOverestimation * (0.95 / ramUtilization);
-            }
-        }
+        //     if (ramUtilization < 0.9) {
+        //         // increase overestimation to hit 95%
+        //         ramOverestimation = Math.max(1, ramOverestimation * (0.95 / ramUtilization));
+        //     } else if (ramUtilization > 0.95) {
+        //         // decrease overestimation slowly
+        //         ramOverestimation = ramOverestimation * (0.95 / ramUtilization);
+        //     }
+        // }
 
         const selectedConfigs = knapsackBucketed(allConfigurations, maxRamAvailableForHacking * ramOverestimation);
         const knapsackTime = performance.now() - knapsackStart;
@@ -2110,6 +2116,7 @@ export async function main(ns) {
                 remainingThreads = 0;
                 break; // We're done
             } else {
+                continue;
                 // Server doesn't have enough RAM for all needs
                 // Can split, so take what we can and continue
                 if (threadsCanAllocate > 0) {
@@ -2401,7 +2408,7 @@ export async function main(ns) {
         let totalMsChange = 0;
         let totalCurrentTime = 0;
 
-        const DRIFT_THRESHOLD_PERCENT = 0.5; // 5% drift threshold for holding HGW and resuming on new weaken time
+        const DRIFT_THRESHOLD_PERCENT = 0.01; // 5% drift threshold for holding HGW and resuming on new weaken time
         const HOLD_BUFFER_MS = DELAY_BETWEEN_BATCHES * 4;
 
         for (const [server, { originalWeakenTime }] of serverBatchTimings.entries()) {

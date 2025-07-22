@@ -43,6 +43,7 @@ export async function main(ns) {
     // First batch of 5 threads
     const growMultiplier5_1 = ns.formulas.hacking.growPercent(testServer, 5, player, cores);
     const moneyAfter5_1 = Math.min(testServer.moneyAvailable * growMultiplier5_1, testServer.moneyMax);
+    const securityAfter5_1 = testServer.hackDifficulty + 5 * 0.004;
 
     ns.print(`First 5 threads:`);
     ns.print(`  Grow multiplier: ${growMultiplier5_1.toFixed(6)}x`);
@@ -53,6 +54,7 @@ export async function main(ns) {
     const serverAfter5 = {
         ...testServer,
         moneyAvailable: moneyAfter5_1,
+        hackDifficulty: securityAfter5_1,
     };
 
     // Second batch of 5 threads
@@ -122,7 +124,7 @@ export async function main(ns) {
         // 5 + 5
         const mult5_1 = ns.formulas.hacking.growPercent(server, 5, player, cores);
         const after5_1 = Math.min(testMoney * mult5_1, testServer.moneyMax);
-        const server2 = { ...server, moneyAvailable: after5_1 };
+        const server2 = { ...server, moneyAvailable: after5_1, hackDifficulty: server.hackDifficulty + 5 * 0.004 };
         const mult5_2 = ns.formulas.hacking.growPercent(server2, 5, player, cores);
         const final5x2 = Math.min(after5_1 * mult5_2, testServer.moneyMax);
 
