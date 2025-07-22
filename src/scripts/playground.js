@@ -3,61 +3,78 @@ import { findStatsForCrimeSuccessChance } from "./automate-tasks.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const numGymHashesBought = 10;
+    const numGymHashesBought = 7;
     const withPlayerHomicide = true;
+    const useCurrentStats = true;
 
     let bestTime = Infinity;
     let bestConfig = null;
     const results = [];
 
+    const startingShockValue = useCurrentStats ? ns.sleeve.getSleeve(0).shock : 100;
+    const startingCrimeChance = useCurrentStats
+        ? ns.formulas.work.crimeSuccessChance(ns.sleeve.getSleeve(0), "Homicide")
+        : 0.2;
+
     // Test shock values from 0.97 to 0.9
-    for (let shockValue = 0.97; shockValue >= 0.9; shockValue -= 0.01) {
+    for (let shockValue = startingShockValue; shockValue >= Math.max(startingShockValue - 10, 0); shockValue -= 1) {
         // Test crime success chances from 0.2 to 0.5 in 0.01 increments
-        for (let minCrimeSuccessChance = 0.2; minCrimeSuccessChance <= 0.5; minCrimeSuccessChance += 0.01) {
+        for (
+            let minCrimeSuccessChance = startingCrimeChance;
+            minCrimeSuccessChance <= Math.min(startingCrimeChance + 0.4, 1);
+            minCrimeSuccessChance += 0.01
+        ) {
             // 1. Shock value
             const shockReductionRate = 0.0003 * 5 * 1.16; // Per second, 5 ticks per second, with 16% int bonus at 0.75 mult
-            const shockReductionTime = ((1 - shockValue) * 100) / shockReductionRate;
+            const shockReductionTime = (startingShockValue - shockValue) / shockReductionRate;
 
             // 2. Exp gain rate
             const baselineExpGainRate =
-                ns.formulas.work.gymGains(ns.sleeve.getSleeve(0), "str", "Powerhouse Gym").strExp * 0.2;
-            const expGainRate = baselineExpGainRate * numGymHashesBought * (1 - shockValue) * 5 * 8; // Per second, 5 ticks per second (bonus time is faster)
+                ns.formulas.work.gymGains(ns.sleeve.getSleeve(0), "str", "Powerhouse Gym").strExp *
+                (1 + numGymHashesBought * 0.2) * // Gym upgrade bonus
+                5 * // 5 ticks per second
+                ns.sleeve.getNumSleeves(); // 8 sleeves syncing exp
+            const expGainRate = baselineExpGainRate * ((100 - shockValue) / 100); // Per second, 5 ticks per second (bonus time is faster)
 
             // 3. Player stats
             const player = ns.sleeve.getSleeve(0);
-            player.skills.strength = 0;
-            player.skills.defense = 0;
-            player.skills.dexterity = 0;
-            player.skills.agility = 0;
+            if (!useCurrentStats) {
+                player.skills.strength = 0;
+                player.skills.defense = 0;
+                player.skills.dexterity = 0;
+                player.skills.agility = 0;
+            }
             const stats = findStatsForCrimeSuccessChance(ns, "Homicide", minCrimeSuccessChance, player);
 
             // 4. Calculate the time to reach the minimum crime success chance
-            const timeTraining = stats.totalExpRequired / expGainRate;
+            let timeTraining = stats.totalExpRequired / expGainRate;
 
             // 4.5 Shock reduction during exp training
-            const standardShockReductionRate = shockReductionRate / 3;
-            const shockReductionDuringExpTraining = standardShockReductionRate * timeTraining;
-            const maxExpGainRate =
-                baselineExpGainRate *
-                numGymHashesBought *
-                (1 - shockValue + shockReductionDuringExpTraining / 100) *
-                5 *
-                8;
-            const adjustedTimeTraining = stats.totalExpRequired / ((expGainRate + maxExpGainRate) / 2);
+            if (expGainRate > 0) {
+                const standardShockReductionRate = shockReductionRate / 3;
+                const shockReductionDuringExpTraining = standardShockReductionRate * timeTraining;
+                const maxExpGainRate =
+                    baselineExpGainRate * (Math.min(100, 100 - shockValue + shockReductionDuringExpTraining) / 100);
+                timeTraining = stats.totalExpRequired / ((expGainRate + maxExpGainRate) / 2);
+            }
 
             // 5. Time to reach -54K karma
-            const karmaRate = minCrimeSuccessChance * 8 + (withPlayerHomicide ? 1 : 0);
-            const timeToReachKarma = 54000 / karmaRate;
+            const playerHomicideKarmaRate = withPlayerHomicide ? 1 : 0;
+            const karmaRate = minCrimeSuccessChance * ns.sleeve.getNumSleeves() + playerHomicideKarmaRate;
+            const startingKarma = useCurrentStats ? -ns.heart.break() : 0;
+            const playerKarmaDuringTraining = playerHomicideKarmaRate * timeTraining;
+            const timeToReachKarma = (54000 - startingKarma - playerKarmaDuringTraining) / karmaRate;
 
             // 6. Total time
-            const totalTime = shockReductionTime + adjustedTimeTraining + timeToReachKarma;
+            const totalTime = shockReductionTime + timeTraining + timeToReachKarma;
 
             const config = {
+                stats: stats,
                 shockValue: shockValue.toFixed(2),
                 crimeChance: minCrimeSuccessChance.toFixed(2),
                 totalTime: totalTime.toFixed(2),
                 shockTime: shockReductionTime.toFixed(2),
-                expTime: adjustedTimeTraining.toFixed(2),
+                expTime: timeTraining.toFixed(2),
                 karmaTime: timeToReachKarma.toFixed(2),
             };
 
@@ -83,12 +100,13 @@ export async function main(ns) {
 
     // Print best configuration
     ns.print("\n=== BEST CONFIGURATION ===");
+    ns.print(JSON.stringify(bestConfig.stats, null, 2));
     ns.print(`Shock Value: ${bestConfig.shockValue}`);
     ns.print(`Crime Success Chance: ${bestConfig.crimeChance}`);
     ns.print(`Total Time: ${bestConfig.totalTime} seconds`);
     ns.print(`Breakdown:`);
     ns.print(`  - Shock reduction: ${bestConfig.shockTime} seconds`);
-    ns.print(`  - Exp training: ${bestConfig.expTime} seconds`);
+    ns.print(`  - Combat training: ${bestConfig.expTime} seconds`);
     ns.print(`  - Karma farming: ${bestConfig.karmaTime} seconds`);
 }
 
