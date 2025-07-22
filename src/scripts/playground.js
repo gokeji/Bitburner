@@ -46,11 +46,15 @@ export async function main(ns) {
                 baselineExpGainRate = (baselineExpGainRate / gymUpgradeBonus) * (1 + numGymHashesBought * 0.2);
             }
 
-            const syncBonusFromOtherSleeves = 1 + (ns.sleeve.getNumSleeves() - 1) * ((100 - shockValue) / 100);
-            baselineExpGainRate *= syncBonusFromOtherSleeves;
-            //  * // 5 ticks per second
-            // ns.sleeve.getNumSleeves(); // 8 sleeves syncing exp
-            const expGainRate = baselineExpGainRate * (Math.min(100, 100 - shockValue) / 100); // Per second, 5 ticks per second (bonus time is faster)
+            // Note: syncBonusFromOtherSleeves will be calculated dynamically in the training equation
+            // since it changes over time as shock decreases
+            const numSleeves = ns.sleeve.getNumSleeves();
+            const syncBonusFromOtherSleeves = 1 + (numSleeves - 1) * ((100 - shockValue) / 100);
+
+            // Current exp gain rate at the start of training (for display purposes)
+            const initialExpGainRate =
+                baselineExpGainRate * syncBonusFromOtherSleeves * (Math.min(100, 100 - shockValue) / 100);
+            const expGainRate = initialExpGainRate;
 
             // 3. Player stats
             const player = ns.sleeve.getSleeve(0);
@@ -63,22 +67,108 @@ export async function main(ns) {
             const stats = findStatsForCrimeSuccessChance(ns, "Homicide", minCrimeSuccessChance, player);
 
             // 4. Calculate the time to reach the minimum crime success chance
-            let timeTraining = stats.totalExpRequired / expGainRate;
+            // Using quadratic equation to account for continuous shock reduction during training
+
+            let timeTraining = 0;
+            let maxExpGainRate = expGainRate;
+            let shockReductionDuringExpTraining = 0;
 
             // 4.5 Shock reduction during exp training
-            if (expGainRate > 0) {
+            if (expGainRate > 0 && stats.totalExpRequired > 0) {
                 const standardShockReductionRate = shockReductionRate / 3;
-                const shockReductionDuringExpTraining = standardShockReductionRate * timeTraining;
-                const maxExpGainRate =
-                    baselineExpGainRate * (Math.min(100, 100 - shockValue + shockReductionDuringExpTraining) / 100);
-                timeTraining = stats.totalExpRequired / ((expGainRate + maxExpGainRate) / 2);
+
+                // Enhanced equation accounting for both efficiency and sync bonus changes over time
+                // exp_rate(t) = baseline * sync(t) * efficiency(t)
+                // where:
+                // sync(t) = 1 + (numSleeves - 1) * (100 - shockValue + r*t)/100
+                // efficiency(t) = (100 - shockValue + r*t)/100
+                //
+                // This expands to:
+                // exp_rate(t) = baseline * [(100 - shockValue + r*t)/100] * [1 + (numSleeves - 1) * (100 - shockValue + r*t)/100]
+                //             = baseline * [(100 - shockValue + r*t)/100] + baseline * [(numSleeves - 1) * (100 - shockValue + r*t)²/10000]
+
+                const baseEfficiency = (100 - shockValue) / 100;
+                const r = standardShockReductionRate;
+
+                // Coefficients for the expanded polynomial integration
+                // ∫₀ᵀ [baseline * (baseEff + r*t/100) + baseline * (numSleeves-1) * (baseEff + r*t/100)²/100] dt = totalExpRequired
+
+                // Linear terms: baseline * baseEff + baseline * (numSleeves-1) * baseEff²/100
+                const linearCoeff =
+                    baselineExpGainRate * (baseEfficiency + (numSleeves - 1) * baseEfficiency * baseEfficiency);
+
+                // Quadratic terms: baseline * r/100 + baseline * (numSleeves-1) * 2 * baseEff * r / 10000
+                const quadraticCoeff =
+                    baselineExpGainRate * (r / 100 + ((numSleeves - 1) * 2 * baseEfficiency * r) / 10000);
+
+                // Cubic terms: baseline * (numSleeves-1) * r² / 1000000
+                const cubicCoeff = (baselineExpGainRate * (numSleeves - 1) * r * r) / 1000000;
+
+                // We now have: cubicCoeff * T³/3 + quadraticCoeff * T²/2 + linearCoeff * T = totalExpRequired
+                // Rearranging: (cubicCoeff/3) * T³ + (quadraticCoeff/2) * T² + linearCoeff * T - totalExpRequired = 0
+
+                const a = cubicCoeff / 3;
+                const b = quadraticCoeff / 2;
+                const c = linearCoeff;
+                const d = -stats.totalExpRequired;
+
+                // For cubic equations, we'll use an iterative approach (Newton's method) for simplicity
+                // Starting estimate based on linear approximation
+                let T = stats.totalExpRequired / (linearCoeff || 1);
+
+                // Newton's method iterations
+                for (let i = 0; i < 10; i++) {
+                    const f = a * T * T * T + b * T * T + c * T + d;
+                    const fprime = 3 * a * T * T + 2 * b * T + c;
+
+                    if (Math.abs(fprime) < 1e-10) break; // Avoid division by zero
+
+                    const newT = T - f / fprime;
+                    if (Math.abs(newT - T) < 1e-6) break; // Convergence check
+
+                    T = Math.max(0, newT); // Ensure positive time
+                }
+
+                timeTraining = T;
+
+                // Calculate actual shock reduction and final exp rate
+                shockReductionDuringExpTraining = standardShockReductionRate * timeTraining;
+                const finalShockValue = Math.max(0, shockValue - shockReductionDuringExpTraining);
+                const finalSyncBonus = 1 + (numSleeves - 1) * ((100 - finalShockValue) / 100);
+                maxExpGainRate = baselineExpGainRate * finalSyncBonus * ((100 - finalShockValue) / 100);
+
+                // Fallback check: if Newton's method failed or gave unreasonable results
+                if (timeTraining <= 0 || timeTraining > 1e6 || !isFinite(timeTraining)) {
+                    // Fallback to quadratic approximation (ignoring sync bonus changes)
+                    const simpleA =
+                        (baselineExpGainRate * standardShockReductionRate * syncBonusFromOtherSleeves) / 200;
+                    const simpleB = (baselineExpGainRate * syncBonusFromOtherSleeves * (100 - shockValue)) / 100;
+                    const simpleC = -stats.totalExpRequired;
+
+                    const discriminant = simpleB * simpleB - 4 * simpleA * simpleC;
+
+                    if (discriminant >= 0 && simpleA !== 0) {
+                        timeTraining = (-simpleB + Math.sqrt(discriminant)) / (2 * simpleA);
+                        shockReductionDuringExpTraining = standardShockReductionRate * timeTraining;
+                        const fallbackFinalShock = Math.max(0, shockValue - shockReductionDuringExpTraining);
+                        const fallbackFinalSync = 1 + (numSleeves - 1) * ((100 - fallbackFinalShock) / 100);
+                        maxExpGainRate = baselineExpGainRate * fallbackFinalSync * ((100 - fallbackFinalShock) / 100);
+                    } else {
+                        // Final fallback to simple linear
+                        timeTraining = stats.totalExpRequired / Math.max(expGainRate, 1);
+                        shockReductionDuringExpTraining = standardShockReductionRate * timeTraining;
+                        maxExpGainRate = expGainRate;
+                    }
+                }
+            } else {
+                timeTraining = expGainRate > 0 ? stats.totalExpRequired / Math.max(expGainRate, 1) : Infinity;
             }
 
             // 5. Time to reach -54K karma
             const playerHomicideKarmaRate = withPlayerHomicide ? 1 : 0;
             const karmaRate = minCrimeSuccessChance * ns.sleeve.getNumSleeves() + playerHomicideKarmaRate;
             const startingKarma = useCurrentStats ? -ns.heart.break() : 0;
-            const playerKarmaDuringTraining = 0; //playerHomicideKarmaRate * timeTraining;
+            const playerKarmaDuringTraining = playerHomicideKarmaRate * timeTraining;
             const timeToReachKarma = (54000 - startingKarma - playerKarmaDuringTraining) / karmaRate;
 
             // 6. Total time
@@ -91,8 +181,10 @@ export async function main(ns) {
                 totalTime: totalTime.toFixed(2),
                 shockTime: shockReductionTime.toFixed(2),
                 expTime: timeTraining.toFixed(2),
-                syncBonusFromOtherSleeves,
                 trainingExpGainRate: expGainRate.toFixed(2),
+                shockReductionDuringExpTraining: shockReductionDuringExpTraining.toFixed(2),
+                finalExpGainRate: maxExpGainRate.toFixed(2),
+                syncBonusFromOtherSleeves,
                 karmaTime: timeToReachKarma.toFixed(2),
             };
 
@@ -126,6 +218,8 @@ export async function main(ns) {
     ns.print(`  - Shock reduction: ${bestConfig.shockTime} seconds`);
     ns.print(`  - Combat training: ${bestConfig.expTime} seconds`);
     ns.print(`  - Training exp gain rate: ${bestConfig.trainingExpGainRate}`);
+    ns.print(`  - Shock reduction during exp training: ${bestConfig.shockReductionDuringExpTraining}`);
+    ns.print(`  - Final exp gain rate: ${bestConfig.finalExpGainRate}`);
     ns.print(`  - Sync bonus from other sleeves: ${bestConfig.syncBonusFromOtherSleeves}`);
     ns.print(`  - Karma farming: ${bestConfig.karmaTime} seconds`);
 }
