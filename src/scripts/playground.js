@@ -3,13 +3,21 @@ import { findStatsForCrimeSuccessChance } from "./automate-tasks.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const numGymHashesBought = 7;
+    // const numGymHashesBought = 7;
     const withPlayerHomicide = true;
     const useCurrentStats = true;
 
     let bestTime = Infinity;
     let bestConfig = null;
     const results = [];
+
+    const test = ns.formulas.work.gymGains(ns.sleeve.getSleeve(0), "str", "Powerhouse Gym").strExp * 0.1405 * 5; // 5 ticks per second
+
+    const test2 = 1 + (ns.sleeve.getNumSleeves() - 1) * ((100 - ns.sleeve.getSleeve(0).shock) / 100);
+    // ns.sleeve.getNumSleeves();
+    ns.print(test);
+    ns.print(test2);
+    ns.print(test * test2);
 
     const startingShockValue = useCurrentStats ? ns.sleeve.getSleeve(0).shock : 100;
     const startingCrimeChance = useCurrentStats
@@ -29,12 +37,13 @@ export async function main(ns) {
             const shockReductionTime = (startingShockValue - shockValue) / shockReductionRate;
 
             // 2. Exp gain rate
-            const baselineExpGainRate =
-                ns.formulas.work.gymGains(ns.sleeve.getSleeve(0), "str", "Powerhouse Gym").strExp *
-                (1 + numGymHashesBought * 0.2) * // Gym upgrade bonus
-                5 * // 5 ticks per second
-                ns.sleeve.getNumSleeves(); // 8 sleeves syncing exp
-            const expGainRate = baselineExpGainRate * ((100 - shockValue) / 100); // Per second, 5 ticks per second (bonus time is faster)
+            let baselineExpGainRate =
+                ns.formulas.work.gymGains(ns.sleeve.getSleeve(0), "str", "Powerhouse Gym").strExp * 5;
+            const syncBonusFromOtherSleeves = 1 + (ns.sleeve.getNumSleeves() - 1) * ((100 - shockValue) / 100);
+            baselineExpGainRate *= syncBonusFromOtherSleeves;
+            //  * // 5 ticks per second
+            // ns.sleeve.getNumSleeves(); // 8 sleeves syncing exp
+            const expGainRate = baselineExpGainRate * (Math.min(100, 100 - shockValue) / 100); // Per second, 5 ticks per second (bonus time is faster)
 
             // 3. Player stats
             const player = ns.sleeve.getSleeve(0);
@@ -75,6 +84,8 @@ export async function main(ns) {
                 totalTime: totalTime.toFixed(2),
                 shockTime: shockReductionTime.toFixed(2),
                 expTime: timeTraining.toFixed(2),
+                syncBonusFromOtherSleeves,
+                trainingExpGainRate: expGainRate.toFixed(2),
                 karmaTime: timeToReachKarma.toFixed(2),
             };
 
@@ -88,15 +99,15 @@ export async function main(ns) {
     }
 
     // Print all results
-    ns.print("All configurations:");
-    ns.print("Shock | Crime | Total | Shock | Exp | Karma");
-    ns.print("------|-------|-------|-------|-----|------");
+    // ns.print("All configurations:");
+    // ns.print("Shock | Crime | Total | Shock | Exp | Karma");
+    // ns.print("------|-------|-------|-------|-----|------");
 
-    results.forEach((config) => {
-        ns.print(
-            `${config.shockValue} | ${config.crimeChance} | ${config.totalTime} | ${config.shockTime} | ${config.expTime} | ${config.karmaTime}`,
-        );
-    });
+    // results.forEach((config) => {
+    //     ns.print(
+    //         `${config.shockValue} | ${config.crimeChance} | ${config.totalTime} | ${config.shockTime} | ${config.expTime} | ${config.karmaTime}`,
+    //     );
+    // });
 
     // Print best configuration
     ns.print("\n=== BEST CONFIGURATION ===");
@@ -107,6 +118,8 @@ export async function main(ns) {
     ns.print(`Breakdown:`);
     ns.print(`  - Shock reduction: ${bestConfig.shockTime} seconds`);
     ns.print(`  - Combat training: ${bestConfig.expTime} seconds`);
+    ns.print(`  - Training exp gain rate: ${bestConfig.trainingExpGainRate}`);
+    ns.print(`  - Sync bonus from other sleeves: ${bestConfig.syncBonusFromOtherSleeves}`);
     ns.print(`  - Karma farming: ${bestConfig.karmaTime} seconds`);
 }
 

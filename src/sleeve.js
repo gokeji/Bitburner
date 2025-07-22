@@ -22,10 +22,10 @@ const argsSchema = [
     ["reserve", null], // Reserve this much cash before determining spending budgets (defaults to contents of reserve.txt if not specified)
     ["disable-follow-player", false], // Set to true to disable having Sleeve 0 work for the same faction/company as the player to boost reputation gain rates
     ["disable-training", false], // Set to true to disable having sleeves workout at the gym (costs money)
-    ["train-to-strength", 122], // Sleeves will go to the gym until they reach this much Str
-    ["train-to-defense", 122], // Sleeves will go to the gym until they reach this much Def
-    ["train-to-dexterity", 80], // Sleeves will go to the gym until they reach this much Dex
-    ["train-to-agility", 79], // Sleeves will go to the gym until they reach this much Agi
+    ["train-to-strength", 85], // Sleeves will go to the gym until they reach this much Str
+    ["train-to-defense", 84], // Sleeves will go to the gym until they reach this much Def
+    ["train-to-dexterity", 47], // Sleeves will go to the gym until they reach this much Dex
+    ["train-to-agility", 47], // Sleeves will go to the gym until they reach this much Agi
     ["study-to-hacking", 0], // Sleeves will go to university until they reach this much Hak
     ["study-to-charisma", 0], // Sleeves will go to university until they reach this much Cha
     ["intelligence-farm", true], // Set to true to have sleeves study hacking for intelligence after shock recovery is complete
