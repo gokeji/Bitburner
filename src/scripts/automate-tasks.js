@@ -26,31 +26,31 @@ export async function main(ns) {
         { type: "augmentation", target: "The Red Pill" }, // Daedalus 2.5m
         { type: "augmentation", target: "Synaptic Enhancement Implant" }, // CyberSec 2000
 
-        { type: "augmentation", target: "Social Negotiation Assistant (S.N.A)" }, // Tian Di Hui 6250
-
         { type: "augmentation", target: "Hacknet Node NIC Architecture Neural-Upload" }, // Netburners 1.875k
         { type: "augmentation", target: "Hacknet Node Kernel Direct-Neural Interface" }, // Netburners 7.5k
         { type: "augmentation", target: "Hacknet Node Core Direct-Neural Interface" }, // Netburners 12.5k
+
+        { type: "augmentation", target: "Social Negotiation Assistant (S.N.A)" }, // Tian Di Hui 6250
         // { type: "reset" },
         // { type: "augmentation", target: "NeuroFlux Governor" }, // Get closest NFG rep
         { type: "augmentation", target: "Neural-Retention Enhancement" }, // NiteSec 20k
         { type: "augmentation", target: "CRTX42-AA Gene Modification" }, // NiteSec 45k
 
-        { type: "faction", target: "Illuminati", goal: "120000" },
-        { type: "faction", target: "The Covenant", goal: "120000" },
+        // { type: "faction", target: "Illuminati", goal: "120000" },
+        // { type: "faction", target: "The Covenant", goal: "120000" },
         { type: "faction", target: "Illuminati", goal: "favor" },
         { type: "faction", target: "The Covenant", goal: "favor" },
         { type: "augmentation", target: "SPTN-97 Gene Modification" }, // The Covenant 1.250m
         { type: "augmentation", target: "QLink" }, // Illuminati 1.875m
 
-        { type: "train", target: "homicide", goal: 1.0 },
-        // { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
-        { type: "train", target: "stats", goal: { strength: 10e5, defense: 10e5, dexterity: 10e5, agility: 10e5 } },
+        // { type: "train", target: "homicide", goal: 1.0 },
+        { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
+        // { type: "train", target: "stats", goal: { strength: 10e5, defense: 10e5, dexterity: 10e5, agility: 10e5 } },
         { type: "homicide" },
-        {
-            type: "graft",
-            target: "OmniTek InfoLoad",
-        },
+        // {
+        //     type: "graft",
+        //     target: "OmniTek InfoLoad",
+        // },
         // {
         //     type: "graft",
         //     target: "ADR-V2 Pheromone Gene",
@@ -65,15 +65,15 @@ export async function main(ns) {
         //     type: "graft",
         //     target: "PC Direct-Neural Interface", // 8% hacking skill, 43 min graft
         // },
-        {
-            type: "graft",
-            target: "Xanipher",
-            condition: (ns) => ns.getPlayer().money > 120e9,
-        },
-        {
-            type: "graft",
-            target: "BitRunners Neurolink",
-        },
+        // {
+        //     type: "graft",
+        //     target: "Xanipher",
+        //     condition: (ns) => ns.getPlayer().money > 120e9,
+        // },
+        // {
+        //     type: "graft",
+        //     target: "BitRunners Neurolink",
+        // },
         // {
         //     type: "graft",
         //     target: "SPTN-97 Gene Modification",

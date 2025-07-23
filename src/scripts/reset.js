@@ -77,15 +77,17 @@ export async function main(ns) {
     }
 
     if (ns.gang.inGang()) {
-        // Restart gangs with higher augmentation budget
-        if (ns.scriptRunning("gangs.js", "home")) {
-            ns.scriptKill("gangs.js", "home");
-            ns.run("gangs.js", 1, "--buy-all-before-reset");
-            const gangMessage = "Restarted gangs to buy all equipment";
-            resetLog.push(gangMessage);
+        for (let i = 10; i > 0; i--) {
+            // Restart gangs with higher augmentation budget
+            if (ns.scriptRunning("gangs.js", "home")) {
+                ns.scriptKill("gangs.js", "home");
+                ns.run("gangs.js", 1, "--buy-all-before-reset");
+                const gangMessage = "Restarted gangs to buy all equipment";
+                resetLog.push(gangMessage);
+            }
+            ns.tprint(`🔄 ${i}: Waiting for gangs to finish buying equipment...`);
+            await ns.sleep(1000); // Wait for a few ticks to ensure gangs are done buying equipment
         }
-        ns.tprint(`🔄 Waiting for gangs to finish buying equipment...`);
-        await ns.sleep(10000); // Wait for a few ticks to ensure gangs are done buying equipment
     }
     resetLog.push(`- Total augmentations purchased: ${purchasedAugmentations.length}`);
     resetLog.push(`- RAM upgrades performed: ${ramUpgrades}`);

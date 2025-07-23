@@ -70,9 +70,7 @@ export async function main(ns) {
 
     startTaskAutomationIfNotRunning(ns);
 
-    if (ns.bladeburner.getNextBlackOp() != null) {
-        startBladeburnerIfNotRunning(ns);
-    }
+    startBladeburnerIfNotRunning(ns);
 
     let startedStockTrader = false;
     let sharedRam = false;

@@ -236,7 +236,7 @@ async function mainLoop(ns) {
         try {
             const { bestConfig } = calculateBestSleeveStats(ns, true);
 
-            if (bestConfig != optimalSleeveConfig) {
+            if (JSON.stringify(bestConfig) !== JSON.stringify(optimalSleeveConfig)) {
                 log(
                     ns,
                     `INFO: Updated optimal sleeve config - Target shock: ${bestConfig.shockValue}, Crime chance: ${ns.formatPercent(bestConfig.crimeChance, 2)}, Stats: ${JSON.stringify(bestConfig.stats)}`,
@@ -768,7 +768,7 @@ export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgrades
     ns.print(test2);
     ns.print(test * test2);
 
-    const startingShockValue = useCurrentStats ? ns.sleeve.getSleeve(0).shock : 100;
+    const startingShockValue = useCurrentStats ? Math.ceil(ns.sleeve.getSleeve(0).shock) : 100;
     const startingCrimeChance = useCurrentStats
         ? ns.formulas.work.crimeSuccessChance(ns.sleeve.getSleeve(0), "Homicide")
         : 0.2;
