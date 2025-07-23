@@ -45,7 +45,7 @@ export async function main(ns) {
 
         { type: "train", target: "homicide", goal: 1.0 },
         // { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
-        // { type: "train", target: "stats", goal: { strength: 10e5, defense: 10e5, dexterity: 10e5, agility: 10e5 } },
+        { type: "train", target: "stats", goal: { strength: 10e5, defense: 10e5, dexterity: 10e5, agility: 10e5 } },
         { type: "homicide" },
         {
             type: "graft",
@@ -195,7 +195,7 @@ function canWorkOnTask(ns, task) {
 function isTaskComplete(ns, task) {
     switch (task.type) {
         case "graft":
-            return ns.singularity.getOwnedAugmentations(false).includes(task.target);
+            return ns.getResetInfo().ownedAugs.has(task.target);
         case "augmentation":
             return (
                 (ns.getResetInfo().ownedAugs.has(task.target) && task.target !== "NeuroFlux Governor") ||

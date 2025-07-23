@@ -34,7 +34,7 @@ export async function main(ns) {
     const TIME_PER_BATCH = BASE_SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES;
     const TICK_DELAY = 800; // ms delay between ticks
 
-    const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
+    const HOME_SERVER_RESERVED_RAM = 1100; // GB reserved for home server
     const ALWAYS_XP_FARM = true;
     const XP_FARM_SERVER = "foodnstuff";
     const ALLOW_PARTIAL_PREP = true;

@@ -20,6 +20,8 @@ export function autocomplete(data, args) {
     return ["--faction", "--low-ram", "--go"];
 }
 
+const failedToStartScripts = [];
+
 /** @param {NS} ns */
 export async function main(ns) {
     const shouldShare = true;
@@ -67,7 +69,10 @@ export async function main(ns) {
     }
 
     startTaskAutomationIfNotRunning(ns);
-    startBladeburnerIfNotRunning(ns);
+
+    if (ns.bladeburner.getNextBlackOp() != null) {
+        startBladeburnerIfNotRunning(ns);
+    }
 
     let startedStockTrader = false;
     let sharedRam = false;
@@ -138,8 +143,26 @@ export async function main(ns) {
     while (
         !startedStockTrader ||
         (!sharedRam && shouldShare && SERVER_TO_START_SHARING_RAM_ON) ||
-        (!ranStanekCharge && SERVER_TO_STANEK)
+        (!ranStanekCharge && SERVER_TO_STANEK) ||
+        failedToStartScripts.length > 0
     ) {
+        if (!ns.scriptRunning("stanek.js", HOST_NAME)) {
+            // Try to start any scripts that failed to start last time
+            for (let i = failedToStartScripts.length - 1; i >= 0; i--) {
+                const script = failedToStartScripts[i];
+                const result = startScriptIfNotRunning(
+                    ns,
+                    script.scriptName,
+                    script.hostname,
+                    script.threads,
+                    ...script.args,
+                );
+                if (result.success) {
+                    failedToStartScripts.splice(i, 1);
+                }
+            }
+        }
+
         if (
             !sharedRam &&
             shouldShare &&
@@ -215,6 +238,7 @@ function startScriptIfNotRunning(ns, scriptName, hostname = HOST_NAME, threads =
     const pid = ns.exec(scriptName, hostname, threads, ...args);
 
     if (pid === 0) {
+        failedToStartScripts.push({ scriptName, hostname, threads, args });
         ns.tprint(`ERROR Failed to start ${scriptName}`);
         return { pid: 0, success: false };
     } else {

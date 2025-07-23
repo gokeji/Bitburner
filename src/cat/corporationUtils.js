@@ -178,7 +178,9 @@ function hasDivision(ns, divisionName) {
     return ns.corporation.getCorporation().divisions.includes(divisionName);
 }
 function buyUpgrade(ns, upgrade, targetLevel) {
-    ns.print(`Buying ${targetLevel} of ${upgrade}`);
+    if (ns.corporation.getUpgradeLevel(upgrade) < targetLevel) {
+        ns.print(`Buying ${targetLevel} of ${upgrade}`);
+    }
     for (let i = ns.corporation.getUpgradeLevel(upgrade); i < targetLevel; i++) {
         ns.corporation.levelUpgrade(upgrade);
     }
@@ -403,6 +405,8 @@ function assignJobs(ns, divisionName, officeSetups) {
     }
 }
 function upgradeOffices(ns, divisionName, officeSetups) {
+    let totalUpgradeCount = 0;
+    let totalEmployeeCount = 0;
     for (const officeSetup of officeSetups) {
         const office = ns.corporation.getOffice(divisionName, officeSetup.city);
         if (officeSetup.size < office.size) {
@@ -411,11 +415,18 @@ function upgradeOffices(ns, divisionName, officeSetups) {
         }
         if (officeSetup.size > office.size) {
             ns.corporation.upgradeOfficeSize(divisionName, officeSetup.city, officeSetup.size - office.size);
+            totalUpgradeCount += officeSetup.size - office.size;
         }
-        while (ns.corporation.hireEmployee(divisionName, officeSetup.city, EmployeePosition.RESEARCH_DEVELOPMENT)) {}
+        while (ns.corporation.hireEmployee(divisionName, officeSetup.city, EmployeePosition.RESEARCH_DEVELOPMENT)) {
+            totalEmployeeCount++;
+        }
     }
     assignJobs(ns, divisionName, officeSetups);
-    ns.print(`Upgrade offices completed`);
+    if (totalUpgradeCount > 0 || totalEmployeeCount > 0) {
+        ns.print(
+            `${divisionName}: Upgrade offices completed. Total upgrade count: ${totalUpgradeCount}, total employee count: ${totalEmployeeCount}`,
+        );
+    }
 }
 function clearPurchaseOrders(ns, clearInputMaterialOrders = true) {
     loopAllDivisionsAndCities(ns, (divisionName, city) => {
@@ -1327,6 +1338,7 @@ async function buyBoostMaterials(ns, division) {
     if (industryData.makesProducts) {
         reservedSpaceRatio = 0.1;
     }
+    let totalBoostMaterialsCount = 0;
     let count = 0;
     while (true) {
         await waitForNextTimeStateHappens(ns, CorpState.EXPORT);
@@ -1384,6 +1396,7 @@ async function buyBoostMaterials(ns, division) {
                     },
                 ],
             });
+            totalBoostMaterialsCount += boostMaterialQuantities.reduce((a, b) => a + b, 0);
             finish = false;
         }
         if (finish) {
@@ -1392,6 +1405,7 @@ async function buyBoostMaterials(ns, division) {
         await stockMaterials(ns, division.name, orders, true);
         ++count;
     }
+    return totalBoostMaterialsCount;
 }
 function getProductMarketPrice(ns, division, industryData, city) {
     let productMarketPrice = 0;

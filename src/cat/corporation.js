@@ -94,9 +94,9 @@ const PrecalculatedRound1Option = {
         boostMaterialsRatio: 0.815,
     },
     OPTION5: {
-        agricultureOfficeSize: 3,
-        waitForAgricultureRP: 65,
-        boostMaterialsRatio: 0.715,
+        agricultureOfficeSize: 5,
+        waitForAgricultureRP: 500,
+        boostMaterialsRatio: 0.6,
     },
 };
 const PrecalculatedRound2Option = {
@@ -224,7 +224,7 @@ const usePrecalculatedEmployeeRatioForProfitSetup = true;
 const usePrecalculatedEmployeeRatioForProductDivision = true;
 const maxNumberOfProductsInRound3 = 1;
 const maxNumberOfProductsInRound4 = 2;
-const thresholdOfFocusingOnAdvert = 1e18;
+const thresholdOfFocusingOnAdvert = 1e14; // Was 1e18
 /** @type {import("@ns").NS} */
 let ns;
 let nsx;
@@ -241,6 +241,7 @@ const defaultConfig = [
     ["auto", false],
     ["selfFund", false],
     ["round1", false],
+    ["round1_5", false],
     ["round2", false],
     ["round3", false],
     ["improveAllDivisions", false],
@@ -322,6 +323,73 @@ async function round1(option = PrecalculatedRound1Option.OPTION2) {
         ns.corporation.acceptInvestmentOffer();
         await round2();
     }
+}
+async function round1_5(option = PrecalculatedRound1Option.OPTION5) {
+    ns.print(`Use: ${JSON.stringify(option)}`);
+    await createDivision(ns, DivisionName.AGRICULTURE, option.agricultureOfficeSize, 1);
+    for (const city of cities) {
+        ns.corporation.sellMaterial(DivisionName.AGRICULTURE, city, MaterialName.PLANTS, "MAX", "MP");
+        ns.corporation.sellMaterial(DivisionName.AGRICULTURE, city, MaterialName.FOOD, "MAX", "MP");
+    }
+    // if (enableTestingTools && config.auto === false) {
+    //     testingTools.setEnergyAndMorale(DivisionName.AGRICULTURE, 100, 100);
+    //     testingTools.setResearchPoints(DivisionName.AGRICULTURE, option.waitForAgricultureRP);
+    // }
+    await buyTeaAndThrowParty(ns, DivisionName.AGRICULTURE);
+    buyAdvert(ns, DivisionName.AGRICULTURE, 2);
+    const dataArray = new CorporationOptimizer().optimizeStorageAndFactory(
+        agricultureIndustryData,
+        ns.corporation.getUpgradeLevel(UpgradeName.SMART_STORAGE),
+        // Assume that all warehouses are at the same level
+        ns.corporation.getWarehouse(DivisionName.AGRICULTURE, CityName.Sector12).level,
+        ns.corporation.getUpgradeLevel(UpgradeName.SMART_FACTORIES),
+        getDivisionResearches(ns, DivisionName.AGRICULTURE),
+        ns.corporation.getCorporation().funds,
+        false,
+    );
+    // if (dataArray.length === 0) {
+    //     throw new Error("Cannot find optimal data");
+    // }
+    if (dataArray.length > 0) {
+        const optimalData = dataArray[dataArray.length - 1];
+        buyUpgrade(ns, UpgradeName.SMART_STORAGE, optimalData.smartStorageLevel);
+        buyUpgrade(ns, UpgradeName.SMART_FACTORIES, optimalData.smartFactoriesLevel);
+        for (const city of cities) {
+            upgradeWarehouse(ns, DivisionName.AGRICULTURE, city, optimalData.warehouseLevel);
+        }
+    }
+    await waitUntilHavingEnoughResearchPoints(ns, [
+        {
+            divisionName: DivisionName.AGRICULTURE,
+            researchPoint: option.waitForAgricultureRP,
+        },
+    ]);
+    assignJobs(ns, DivisionName.AGRICULTURE, generateOfficeSetupsForEarlyRounds(option.agricultureOfficeSize, false));
+    const optimalAmountOfBoostMaterials = await findOptimalAmountOfBoostMaterials(
+        ns,
+        DivisionName.AGRICULTURE,
+        agricultureIndustryData,
+        CityName.Sector12,
+        true,
+        option.boostMaterialsRatio,
+    );
+    await stockMaterials(
+        ns,
+        DivisionName.AGRICULTURE,
+        generateMaterialsOrders(cities, [
+            { name: MaterialName.AI_CORES, count: optimalAmountOfBoostMaterials[0] },
+            { name: MaterialName.HARDWARE, count: optimalAmountOfBoostMaterials[1] },
+            { name: MaterialName.REAL_ESTATE, count: optimalAmountOfBoostMaterials[2] },
+            { name: MaterialName.ROBOTS, count: optimalAmountOfBoostMaterials[3] },
+        ]),
+    );
+    // if (config.auto === true) {
+    //     await waitForOffer(ns, 10, 10, 49e10);
+    //     ns.print(`Round 1: Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
+    //     corporationEventLogger.generateOfferAcceptanceEvent(ns);
+    //     ns.corporation.acceptInvestmentOffer();
+    //     await round2();
+    // }
 }
 async function round2(option = PrecalculatedRound2Option.OPTION2) {
     ns.print(`Use: ${JSON.stringify(option)}`);
@@ -545,9 +613,13 @@ async function improveAllDivisions() {
     const buyBoostMaterialsIfNeeded = (divisionName) => {
         if (!pendingBuyingBoostMaterialsDivisions.has(divisionName)) {
             pendingBuyingBoostMaterialsDivisions.add(divisionName);
-            ns.print(`Buying boost materials for division: ${divisionName}`);
-            buyBoostMaterials(ns, ns.corporation.getDivision(divisionName)).then(() => {
-                ns.print(`Finish buying boost materials for division: ${divisionName}`);
+            // ns.print(`Buying boost materials for division: ${divisionName}`);
+            buyBoostMaterials(ns, ns.corporation.getDivision(divisionName)).then((totalBoostMaterialsCount) => {
+                if (totalBoostMaterialsCount > 0) {
+                    ns.print(
+                        `${divisionName}: Finish buying boost materials. Total boost materials count: ${totalBoostMaterialsCount}`,
+                    );
+                }
                 pendingBuyingBoostMaterialsDivisions.delete(divisionName);
             });
         }
@@ -576,6 +648,11 @@ async function improveAllDivisions() {
         ++cycleCount;
         const currentRound = ns.corporation.getInvestmentOffer().round;
         const profit = getProfit(ns);
+        if (cycleCount % 10 === 0) {
+            ns.print(
+                `Cycle: ${cycleCount}. Funds: ${ns.formatNumber(ns.corporation.getCorporation().funds)}. Profit: ${ns.formatNumber(profit)}`,
+            );
+        }
         console.log(
             `cycleCount: ${cycleCount}. Funds: ${ns.formatNumber(ns.corporation.getCorporation().funds)}. Profit: ${ns.formatNumber(profit)}` +
                 (currentRound <= 4 ? `. Offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}` : ""),
@@ -1516,6 +1593,11 @@ async function main(nsContext) {
     if (config.round1 === true) {
         ns.print("Round 1");
         await round1();
+        return;
+    }
+    if (config.round1_5 === true) {
+        ns.print("Round 1.5");
+        await round1_5();
         return;
     }
     if (config.round2 === true) {
