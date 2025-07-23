@@ -8,7 +8,7 @@ export async function main(ns) {
         (ns.getMoneySources().sinceStart.total / (Date.now() - ns.getResetInfo().lastNodeReset)) * 1000;
 
     ns.print(`Earn rate this node: ${ns.formatNumber(earnRateThisNode)}`);
-    const { bestConfig } = calculateBestSleeveStats(ns, false, ns.hacknet.getHashUpgradeLevel("Improve Gym Training"));
+    const { bestConfig } = calculateBestSleeveStats(ns, true, ns.hacknet.getHashUpgradeLevel("Improve Gym Training"));
 
     // Print best configuration
     ns.print("\n=== BEST CONFIGURATION ===");

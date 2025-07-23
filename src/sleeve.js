@@ -769,14 +769,6 @@ export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgrades
     let bestConfig = null;
     const results = [];
 
-    const test = ns.formulas.work.gymGains(ns.sleeve.getSleeve(0), "str", "Powerhouse Gym").strExp * 0.1405 * 5; // 5 ticks per second
-
-    const test2 = 1 + (ns.sleeve.getNumSleeves() - 1) * ((100 - ns.sleeve.getSleeve(0).shock) / 100);
-    // ns.sleeve.getNumSleeves();
-    ns.print(test);
-    ns.print(test2);
-    ns.print(test * test2);
-
     const startingShockValue = useCurrentStats ? ns.sleeve.getSleeve(0).shock : 100;
     const startingCrimeChance = useCurrentStats
         ? ns.formulas.work.crimeSuccessChance(ns.sleeve.getSleeve(0), "Homicide")
@@ -788,7 +780,7 @@ export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgrades
         shockValue >= Math.max(startingShockValue - 10, 0);
         shockValue -= 1
     ) {
-        let shockValueForCalc = Math.max(shockValue, startingShockValue);
+        let shockValueForCalc = Math.min(shockValue, startingShockValue);
         // Test crime success chances from 0.2 to 0.5 in 0.01 increments
         // Use integer-based loop to avoid floating point precision issues
         const minChanceInt = Math.floor(startingCrimeChance * 100);
@@ -898,30 +890,6 @@ export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgrades
                 const finalShockValue = Math.max(0, shockValueForCalc - shockReductionDuringExpTraining);
                 const finalSyncBonus = 1 + (numSleeves - 1) * ((100 - finalShockValue) / 100);
                 maxExpGainRate = baselineExpGainRate * finalSyncBonus * ((100 - finalShockValue) / 100);
-
-                // Fallback check: if Newton's method failed or gave unreasonable results
-                // if (timeTraining <= 0 || timeTraining > 1e6 || !isFinite(timeTraining)) {
-                //     // Fallback to quadratic approximation (ignoring sync bonus changes)
-                //     const simpleA =
-                //         (baselineExpGainRate * standardShockReductionRate * syncBonusFromOtherSleeves) / 200;
-                //     const simpleB = (baselineExpGainRate * syncBonusFromOtherSleeves * (100 - shockValue)) / 100;
-                //     const simpleC = -stats.totalExpRequired;
-
-                //     const discriminant = simpleB * simpleB - 4 * simpleA * simpleC;
-
-                //     if (discriminant >= 0 && simpleA !== 0) {
-                //         timeTraining = (-simpleB + Math.sqrt(discriminant)) / (2 * simpleA);
-                //         shockReductionDuringExpTraining = standardShockReductionRate * timeTraining;
-                //         const fallbackFinalShock = Math.max(0, shockValue - shockReductionDuringExpTraining);
-                //         const fallbackFinalSync = 1 + (numSleeves - 1) * ((100 - fallbackFinalShock) / 100);
-                //         maxExpGainRate = baselineExpGainRate * fallbackFinalSync * ((100 - fallbackFinalShock) / 100);
-                //     } else {
-                //         // Final fallback to simple linear
-                //         timeTraining = stats.totalExpRequired / Math.max(expGainRate, 1);
-                //         shockReductionDuringExpTraining = standardShockReductionRate * timeTraining;
-                //         maxExpGainRate = expGainRate;
-                //     }
-                // }
             } else {
                 timeTraining = expGainRate > 0 ? stats.totalExpRequired / Math.max(expGainRate, 1) : Infinity;
             }
