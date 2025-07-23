@@ -234,12 +234,21 @@ async function mainLoop(ns) {
     // Calculate optimal sleeve configuration if not in gang yet and we haven't calculated recently (once per tick is sufficient)
     if (!playerInGang && Date.now() - lastOptimalConfigCalculation > 30 * interval) {
         try {
-            const { bestConfig } = calculateBestSleeveStats(ns, true);
+            const { bestTime, bestConfig } = calculateBestSleeveStats(ns, true);
 
-            if (JSON.stringify(bestConfig) !== JSON.stringify(optimalSleeveConfig)) {
+            const { strength, defense, dexterity, agility } = bestConfig.stats;
+            const shockValue = bestConfig.shockValue;
+
+            if (
+                strength !== optimalSleeveConfig?.stats?.strength ||
+                defense !== optimalSleeveConfig?.stats?.defense ||
+                dexterity !== optimalSleeveConfig?.stats?.dexterity ||
+                agility !== optimalSleeveConfig?.stats?.agility ||
+                shockValue !== optimalSleeveConfig?.shockValue
+            ) {
                 log(
                     ns,
-                    `INFO: Updated optimal sleeve config - Target shock: ${bestConfig.shockValue}, Crime chance: ${ns.formatPercent(bestConfig.crimeChance, 2)}, Stats: ${JSON.stringify(bestConfig.stats)}`,
+                    `INFO: Updated optimal sleeve config - shock: ${bestConfig.shockValue} | chance: ${ns.formatPercent(bestConfig.crimeChance, 2)} | str: ${strength} | def: ${defense} | dex: ${dexterity} | agi: ${agility} | time: ${(bestTime / 3600).toFixed(2)}h`,
                     true,
                 );
             }
@@ -768,22 +777,27 @@ export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgrades
     ns.print(test2);
     ns.print(test * test2);
 
-    const startingShockValue = useCurrentStats ? Math.ceil(ns.sleeve.getSleeve(0).shock) : 100;
+    const startingShockValue = useCurrentStats ? ns.sleeve.getSleeve(0).shock : 100;
     const startingCrimeChance = useCurrentStats
         ? ns.formulas.work.crimeSuccessChance(ns.sleeve.getSleeve(0), "Homicide")
         : 0.2;
 
     // Test shock values from 0.97 to 0.9
-    for (let shockValue = startingShockValue; shockValue >= Math.max(startingShockValue - 10, 0); shockValue -= 1) {
+    for (
+        let shockValue = Math.ceil(startingShockValue);
+        shockValue >= Math.max(startingShockValue - 10, 0);
+        shockValue -= 1
+    ) {
+        let shockValueForCalc = Math.max(shockValue, startingShockValue);
         // Test crime success chances from 0.2 to 0.5 in 0.01 increments
-        for (
-            let minCrimeSuccessChance = startingCrimeChance;
-            minCrimeSuccessChance <= Math.min(startingCrimeChance + 0.4, 1);
-            minCrimeSuccessChance += 0.01
-        ) {
+        // Use integer-based loop to avoid floating point precision issues
+        const minChanceInt = Math.floor(startingCrimeChance * 100);
+        const maxChanceInt = Math.min(Math.round((startingCrimeChance + 0.4) * 100), 100);
+        for (let chanceInt = minChanceInt; chanceInt <= maxChanceInt; chanceInt++) {
+            const minCrimeSuccessChance = chanceInt / 100;
             // 1. Shock value
             const shockReductionRate = 0.0003 * 5 * 1.16; // Per second, 5 ticks per second, with 16% int bonus at 0.75 mult
-            const shockReductionTime = (startingShockValue - shockValue) / shockReductionRate;
+            const shockReductionTime = (startingShockValue - shockValueForCalc) / shockReductionRate;
 
             // 2. Exp gain rate
             let baselineExpGainRate =
@@ -797,11 +811,11 @@ export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgrades
             // Note: syncBonusFromOtherSleeves will be calculated dynamically in the training equation
             // since it changes over time as shock decreases
             const numSleeves = ns.sleeve.getNumSleeves();
-            const syncBonusFromOtherSleeves = 1 + (numSleeves - 1) * ((100 - shockValue) / 100);
+            const syncBonusFromOtherSleeves = 1 + (numSleeves - 1) * ((100 - shockValueForCalc) / 100);
 
             // Current exp gain rate at the start of training (for display purposes)
             const initialExpGainRate =
-                baselineExpGainRate * syncBonusFromOtherSleeves * (Math.min(100, 100 - shockValue) / 100);
+                baselineExpGainRate * syncBonusFromOtherSleeves * (Math.min(100, 100 - shockValueForCalc) / 100);
             const expGainRate = initialExpGainRate;
 
             // 3. Player stats
@@ -835,7 +849,7 @@ export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgrades
                 // exp_rate(t) = baseline * [(100 - shockValue + r*t)/100] * [1 + (numSleeves - 1) * (100 - shockValue + r*t)/100]
                 //             = baseline * [(100 - shockValue + r*t)/100] + baseline * [(numSleeves - 1) * (100 - shockValue + r*t)²/10000]
 
-                const baseEfficiency = (100 - shockValue) / 100;
+                const baseEfficiency = (100 - shockValueForCalc) / 100;
                 const r = standardShockReductionRate;
 
                 // Coefficients for the expanded polynomial integration
@@ -881,7 +895,7 @@ export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgrades
 
                 // Calculate actual shock reduction and final exp rate
                 shockReductionDuringExpTraining = standardShockReductionRate * timeTraining;
-                const finalShockValue = Math.max(0, shockValue - shockReductionDuringExpTraining);
+                const finalShockValue = Math.max(0, shockValueForCalc - shockReductionDuringExpTraining);
                 const finalSyncBonus = 1 + (numSleeves - 1) * ((100 - finalShockValue) / 100);
                 maxExpGainRate = baselineExpGainRate * finalSyncBonus * ((100 - finalShockValue) / 100);
 

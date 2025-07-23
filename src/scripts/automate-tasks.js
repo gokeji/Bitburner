@@ -24,11 +24,16 @@ export async function main(ns) {
     let taskQueue = [
         { type: "faction", target: "Daedalus", goal: "favor" },
         { type: "augmentation", target: "The Red Pill" }, // Daedalus 2.5m
-        { type: "augmentation", target: "Synaptic Enhancement Implant" }, // CyberSec 2000
 
+        // Early game
+        { type: "augmentation", target: "Synaptic Enhancement Implant" }, // CyberSec 2000
         { type: "augmentation", target: "Hacknet Node NIC Architecture Neural-Upload" }, // Netburners 1.875k
         { type: "augmentation", target: "Hacknet Node Kernel Direct-Neural Interface" }, // Netburners 7.5k
         { type: "augmentation", target: "Hacknet Node Core Direct-Neural Interface" }, // Netburners 12.5k
+
+        { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
+        // { type: "train", target: "homicide", goal: 1.0 },
+        { type: "homicide" },
 
         { type: "augmentation", target: "Social Negotiation Assistant (S.N.A)" }, // Tian Di Hui 6250
         // { type: "reset" },
@@ -43,10 +48,8 @@ export async function main(ns) {
         { type: "augmentation", target: "SPTN-97 Gene Modification" }, // The Covenant 1.250m
         { type: "augmentation", target: "QLink" }, // Illuminati 1.875m
 
-        // { type: "train", target: "homicide", goal: 1.0 },
         { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
         // { type: "train", target: "stats", goal: { strength: 10e5, defense: 10e5, dexterity: 10e5, agility: 10e5 } },
-        { type: "homicide" },
         // {
         //     type: "graft",
         //     target: "OmniTek InfoLoad",
