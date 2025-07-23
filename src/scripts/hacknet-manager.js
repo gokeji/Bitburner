@@ -10,10 +10,8 @@ export async function main(ns) {
     let maxPaybackHours = ns.args[0] || 0.2; // Stop upgrading if payback time > 12 minutes
     let prioritizeNetburnersRequirement = ns.args.includes("--netburners"); // If true, prioritize buying 8 nodes
 
-    const currentBitnode = ns.getResetInfo().currentNode;
-
     // Get BitNode multipliers with fallback support
-    let bitNodeMultipliers = getSafeBitNodeMultipliers(ns, currentBitnode); // Default to BitNode 4 if unavailable
+    let bitNodeMultipliers = getSafeBitNodeMultipliers(ns);
     let bitnodeHacknetNodeMoneyMultiplier = bitNodeMultipliers.HacknetNodeMoney;
 
     const getProd = (level, ram, cores) => level * 1.5 * Math.pow(1.035, ram - 1) * ((cores + 5) / 6);

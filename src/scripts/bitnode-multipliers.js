@@ -76,7 +76,7 @@ export class BitNodeMultipliers {
  * @param {number} lvl - The level (used for BitNode 12)
  * @returns {BitNodeMultipliers} The multipliers for the specified BitNode
  */
-export function getBitNodeMultipliers(bitnode, lvl = 1) {
+export function getStoredBitNodeMultipliers(bitnode, lvl = 1) {
     switch (bitnode) {
         case 1: {
             return new BitNodeMultipliers();
@@ -460,11 +460,11 @@ export function getBitNodeMultipliers(bitnode, lvl = 1) {
  * @param {number} fallbackLevel - Level to use for BitNode 12 fallback (default: 1)
  * @returns {Object} BitNode multipliers
  */
-export function getSafeBitNodeMultipliers(ns, fallbackBitnode = 1, fallbackLevel = 1) {
-    try {
-        return ns.getBitNodeMultipliers();
-    } catch (error) {
-        ns.print(`WARN: getBitNodeMultipliers() not available, using fallback BitNode ${fallbackBitnode}`);
-        return getBitNodeMultipliers(fallbackBitnode, fallbackLevel);
-    }
+export function getSafeBitNodeMultipliers(ns) {
+    // try {
+    //     return ns.getBitNodeMultipliers();
+    // } catch (error) {
+    //     ns.print(`WARN: getBitNodeMultipliers() not available, using fallback BitNode ${fallbackBitnode}`);
+    return getStoredBitNodeMultipliers(ns.getResetInfo().currentNode, 1);
+    // }
 }

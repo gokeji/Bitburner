@@ -1,3 +1,4 @@
+import { NS } from "@ns";
 import {
     log,
     getConfiguration,
@@ -746,7 +747,12 @@ async function calculateCrimeChance(ns, sleeve, crimeName) {
     return Math.min(chance, 1);
 }
 
-export function calculateBestSleeveStats(ns, useCurrentStats) {
+/**
+ * @param {NS} ns
+ * @param {boolean} useCurrentStats
+ * @returns {Object}
+ */
+export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgradesBought) {
     const numGymHashesBought = 10;
     const withPlayerHomicide = true;
 
@@ -766,7 +772,6 @@ export function calculateBestSleeveStats(ns, useCurrentStats) {
     const startingCrimeChance = useCurrentStats
         ? ns.formulas.work.crimeSuccessChance(ns.sleeve.getSleeve(0), "Homicide")
         : 0.2;
-    const currentGymUpgradesBought = ns.hacknet.getHashUpgradeLevel("Improve Gym Training");
 
     // Test shock values from 0.97 to 0.9
     for (let shockValue = startingShockValue; shockValue >= Math.max(startingShockValue - 10, 0); shockValue -= 1) {

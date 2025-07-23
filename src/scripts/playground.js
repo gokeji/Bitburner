@@ -4,7 +4,7 @@ import { findStatsForCrimeSuccessChance } from "./automate-tasks.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const { bestConfig } = calculateBestSleeveStats(ns, false);
+    const { bestConfig } = calculateBestSleeveStats(ns, false, ns.hacknet.getHashUpgradeLevel("Improve Gym Training"));
 
     // Print best configuration
     ns.print("\n=== BEST CONFIGURATION ===");

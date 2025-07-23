@@ -1,4 +1,5 @@
 import { NS } from "@ns";
+import { getSafeBitNodeMultipliers } from "./bitnode-multipliers.js";
 
 const IGNORE_AUGMENTS_IN_GANG = true; // If true, do not work for faction repuatation to get augments that exist in gang, assuming those are easier to get later on.
 
@@ -64,15 +65,15 @@ export async function main(ns) {
         //     type: "graft",
         //     target: "PC Direct-Neural Interface", // 8% hacking skill, 43 min graft
         // },
-        // {
-        //     type: "graft",
-        //     target: "Xanipher",
-        //     condition: (ns) => ns.getPlayer().money > 120e9,
-        // },
-        // {
-        //     type: "graft",
-        //     target: "BitRunners Neurolink",
-        // },
+        {
+            type: "graft",
+            target: "Xanipher",
+            condition: (ns) => ns.getPlayer().money > 120e9,
+        },
+        {
+            type: "graft",
+            target: "BitRunners Neurolink",
+        },
         // {
         //     type: "graft",
         //     target: "SPTN-97 Gene Modification",
@@ -462,7 +463,7 @@ export function findStatsForCrimeSuccessChance(ns, crimeType, goal, mockPlayer =
     if (crimeType === "Homicide") {
         const originalPlayer = JSON.parse(JSON.stringify(mockPlayer || ns.getPlayer())); // Deep copy the player object to avoid modifying the original
         const player = mockPlayer || ns.getPlayer();
-        const bitnodeMults = ns.getBitNodeMultipliers();
+        const bitnodeMults = getSafeBitNodeMultipliers(ns);
 
         function getSkillMult(stat) {
             let skillMult;

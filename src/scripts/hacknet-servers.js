@@ -25,10 +25,8 @@ export async function main(ns) {
 
     ns.ui.openTail();
 
-    const currentBitnode = ns.getResetInfo().currentNode;
-
     // Get BitNode multipliers with fallback support
-    let bitNodeMultipliers = getSafeBitNodeMultipliers(ns, currentBitnode); // Default to BitNode 4 if unavailable
+    let bitNodeMultipliers = getSafeBitNodeMultipliers(ns); // Default to BitNode 4 if unavailable
     let bitnodeHacknetNodeMoneyMultiplier = bitNodeMultipliers.HacknetNodeMoney;
     const playerHacknetMultipliers = ns.getHacknetMultipliers();
     let totalHacknetProdMult = bitnodeHacknetNodeMoneyMultiplier * playerHacknetMultipliers.production;

@@ -1125,6 +1125,13 @@ export async function main(ns) {
                 ) {
                     continue;
                 }
+                if (growStocks.has(server) || hackStocks.has(server)) {
+                    const totalStockValue = (growStocks.get(server) ?? 0) + (hackStocks.get(server) ?? 0);
+                    config.throughput +=
+                        (config.hackPercentage * totalStockValue * config.batchLimitForSustainedThroughput) /
+                        config.weakenTime;
+                    config.priority = config.throughput / (config.ramUsageForSustainedThroughput / 10000);
+                }
                 allConfigurations.push(config);
                 configsForServer++;
 
