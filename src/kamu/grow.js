@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 
 let shouldPrint = false;
-let serverToPrint = "harakiri-sushi";
+let serverToPrint = "phantasy";
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -20,17 +20,18 @@ export async function main(ns) {
         const currentTime = new Date().toISOString().substring(11, 23);
         const timeDifference = Date.now() - endTime;
         const sign = timeDifference >= 0 ? "+" : "";
-        ns.tprint(
+        const msg =
             "  " +
-                currentTime +
-                " | Batch: " +
-                ns.args[4] +
-                "   |    G    | " +
-                // " G  Delay: " +
-                // ns.formatNumber(delay) +
-                sign +
-                timeDifference.toFixed(2) +
-                "ms",
-        );
+            currentTime +
+            " | Batch: " +
+            ns.args[4] +
+            "   |    G    | " +
+            // " G  Delay: " +
+            // ns.formatNumber(delay) +
+            sign +
+            timeDifference.toFixed(2) +
+            "ms";
+        ns.write("hgw-log.txt", msg, "a");
+        ns.tprint(msg);
     }
 }
