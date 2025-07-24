@@ -8,8 +8,7 @@ import { click, findRequiredElement } from "./roulette-navigator";
 export async function main(ns) {
     ns.disableLog("ALL");
 
-    const earnRateThisNode =
-        (ns.getMoneySources().sinceStart.total / (Date.now() - ns.getResetInfo().lastNodeReset)) * 1000;
+    const earnRateThisNode = ns.getMoneySources().sinceStart.total / (ns.getTimeSinceLastAug() / 1000);
     const isLateGame =
         (ns.getPlayer().mults.hacking * ns.getBitNodeMultipliers().HackingLevelMultiplier > 5 ||
             ns.getServerMaxRam("home") >= 2 ** 20 ||

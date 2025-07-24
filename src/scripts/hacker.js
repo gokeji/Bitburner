@@ -34,7 +34,7 @@ export async function main(ns) {
     const TIME_PER_BATCH = BASE_SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES;
     const TICK_DELAY = 800; // ms delay between ticks
 
-    const HOME_SERVER_RESERVED_RAM = 1100; // GB reserved for home server
+    const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
     const ALWAYS_XP_FARM = true;
     const XP_FARM_SERVER = "foodnstuff";
     const ALLOW_PARTIAL_PREP = true;
@@ -469,7 +469,7 @@ export async function main(ns) {
                     const serverStats = globalPrioritiesMap.get(server);
                     // Determine server drift recovery conditions
                     const securityThreshold = Math.max(
-                        serverInfo.minDifficulty,
+                        serverInfo.minDifficulty + 15,
                         serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
                     );
 
@@ -1111,13 +1111,16 @@ export async function main(ns) {
             for (let hackThreads = 1; hackThreads <= 400; hackThreads++) {
                 const config = getServerHackStats(ns, server, hackThreads);
 
-                if (config === null || config.batchSustainRatio < 0.8) {
+                if (config === null) {
                     break;
                 }
 
                 // Track the maximum throughput for this server
                 if (config.priority > maxPriorityForServer) {
                     maxPriorityForServer = config.priority;
+                }
+                if (config.batchSustainRatio < 0.4) {
+                    continue;
                 }
                 if (
                     ns.getWeakenTime(server) > MAX_WEAKEN_TIME &&

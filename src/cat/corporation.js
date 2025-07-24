@@ -96,7 +96,7 @@ const PrecalculatedRound1Option = {
     OPTION5: {
         agricultureOfficeSize: 5,
         waitForAgricultureRP: 500,
-        boostMaterialsRatio: 0.6,
+        boostMaterialsRatio: 0.7,
     },
 };
 const PrecalculatedRound2Option = {
@@ -224,7 +224,7 @@ const usePrecalculatedEmployeeRatioForProfitSetup = true;
 const usePrecalculatedEmployeeRatioForProductDivision = true;
 const maxNumberOfProductsInRound3 = 1;
 const maxNumberOfProductsInRound4 = 2;
-const thresholdOfFocusingOnAdvert = 1e14; // Was 1e18
+const thresholdOfFocusingOnAdvert = 1e10; // Was 1e18
 /** @type {import("@ns").NS} */
 let ns;
 let nsx;
@@ -391,7 +391,7 @@ async function round1_5(option = PrecalculatedRound1Option.OPTION5) {
     //     await round2();
     // }
 }
-async function round2(option = PrecalculatedRound2Option.OPTION2) {
+async function round2(option = PrecalculatedRound2Option.OPTION1) {
     ns.print(`Use: ${JSON.stringify(option)}`);
     if (enableTestingTools && config.auto === false) {
         resetStatistics();
@@ -749,8 +749,10 @@ async function improveAllDivisions() {
                     console.log(
                         `Cycle: ${cycleCount}. Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`,
                     );
-                    corporationEventLogger.generateOfferAcceptanceEvent(ns);
-                    ns.corporation.acceptInvestmentOffer();
+                    if (ns.corporation.getInvestmentOffer().funds > 10e12) {
+                        corporationEventLogger.generateOfferAcceptanceEvent(ns);
+                        ns.corporation.acceptInvestmentOffer();
+                    }
                     preparingToAcceptOffer = false;
                     continue;
                 }

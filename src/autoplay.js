@@ -155,7 +155,7 @@ export async function main(ns) {
                     script.threads,
                     ...script.args,
                 );
-                if (result.success) {
+                if (result.success || ns.scriptRunning(script.scriptName, script.hostname)) {
                     failedToStartScripts.splice(i, 1);
                 }
             }

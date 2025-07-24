@@ -31,8 +31,9 @@ export async function main(ns) {
         { type: "augmentation", target: "Hacknet Node Kernel Direct-Neural Interface" }, // Netburners 7.5k
         { type: "augmentation", target: "Hacknet Node Core Direct-Neural Interface" }, // Netburners 12.5k
 
-        { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
-        // { type: "train", target: "homicide", goal: 1.0 },
+        // { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
+        // { type: "stop" },
+        { type: "train", target: "homicide", goal: 0.8 },
         { type: "homicide" },
 
         { type: "augmentation", target: "Social Negotiation Assistant (S.N.A)" }, // Tian Di Hui 6250
@@ -48,7 +49,6 @@ export async function main(ns) {
         { type: "augmentation", target: "SPTN-97 Gene Modification" }, // The Covenant 1.250m
         { type: "augmentation", target: "QLink" }, // Illuminati 1.875m
 
-        { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
         // { type: "train", target: "stats", goal: { strength: 10e5, defense: 10e5, dexterity: 10e5, agility: 10e5 } },
         // {
         //     type: "graft",
@@ -188,7 +188,7 @@ function canWorkOnTask(ns, task) {
                 // No need to stop if not in bladeburner, or we have The Blade's Simulacrum which allows us to do bladeburner actions while busy
                 return false;
             }
-            return ns.singularity.getCurrentWork() !== null;
+            return true;
         default:
             return false;
     }
@@ -236,7 +236,7 @@ function isTaskComplete(ns, task) {
         case "reset":
             return false; // Always execute reset when reached
         case "stop":
-            return ns.singularity.getCurrentWork() === null;
+            return false; //ns.singularity.getCurrentWork() === null;
     }
 }
 
@@ -372,6 +372,7 @@ async function executeTask(ns, task, isFirstTime = false) {
             return true;
 
         case "stop":
+            ns.print(`${new Date().toLocaleTimeString()} Stopping action`);
             ns.singularity.stopAction();
     }
 }

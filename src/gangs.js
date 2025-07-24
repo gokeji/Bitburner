@@ -435,18 +435,18 @@ async function optimizeGangCrime(ns, myGangInfo) {
     // Tolerate our wanted level increasing, as long as reputation increases several orders of magnitude faster and we do not currently have a penalty more than -0.01%
     let currentWantedPenalty = getWantedPenalty(myGangInfo) - 1;
     // Note, until we have ~200 respect, the best way to recover from wanted penalty is to focus on gaining respect, rather than doing vigilante work.
-    let wantedGainTolerance =
-        currentWantedPenalty < -1.1 * wantedPenaltyThreshold &&
-        myGangInfo.wantedLevel >= 1.1 + myGangInfo.respect / 1000 &&
-        myGangInfo.respect > 200
-            ? -0.01 * myGangInfo.wantedLevel /* Recover from wanted penalty */
-            : currentWantedPenalty < -0.9 * wantedPenaltyThreshold &&
-                myGangInfo.wantedLevel >= 1.1 + myGangInfo.respect / 10000
-              ? 0 /* Sustain */
-              : Math.max(
-                    myGangInfo.respectGainRate / 1000,
-                    myGangInfo.wantedLevel / 10,
-                ); /* Allow wanted to increase at a manageable rate */
+    let wantedGainTolerance = Infinity;
+    // currentWantedPenalty < -1.1 * wantedPenaltyThreshold &&
+    // myGangInfo.wantedLevel >= 1.1 + myGangInfo.respect / 1000 &&
+    // myGangInfo.respect > 200
+    //     ? -0.01 * myGangInfo.wantedLevel /* Recover from wanted penalty */
+    //     : currentWantedPenalty < -0.9 * wantedPenaltyThreshold &&
+    //         myGangInfo.wantedLevel >= 1.1 + myGangInfo.respect / 10000
+    //       ? 0 /* Sustain */
+    //       : Math.max(
+    //             myGangInfo.respectGainRate / 1000,
+    //             myGangInfo.wantedLevel / 10,
+    //         ); /* Allow wanted to increase at a manageable rate */
     const playerData = await getNsDataThroughFile(ns, "ns.getPlayer()");
     // Find out how much reputation we need, without SF4, we estimate gang faction rep based on current gang rep
     let factionRep = -1;
@@ -607,8 +607,8 @@ async function optimizeGangCrime(ns, myGangInfo) {
             `INFO: Determined all ${myGangMembers.length} gang member assignments are already optimal for ${optStat} with wanted gain tolerance ${wantedGainTolerance.toPrecision(2)} (${elapsed} ms).`,
         );
     // Fail-safe: If we somehow over-shot and are generating wanted levels, start randomly assigning members to vigilante to fix it
-    if (myGangInfo.wantedLevelGainRate > wantedGainTolerance)
-        await fixWantedGainRate(ns, myGangInfo, wantedGainTolerance);
+    // if (myGangInfo.wantedLevelGainRate > wantedGainTolerance)
+    //     await fixWantedGainRate(ns, myGangInfo, wantedGainTolerance);
 }
 
 /** @param {NS} ns

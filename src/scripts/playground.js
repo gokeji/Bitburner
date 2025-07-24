@@ -4,8 +4,7 @@ import { findStatsForCrimeSuccessChance } from "./automate-tasks.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const earnRateThisNode =
-        (ns.getMoneySources().sinceStart.total / (Date.now() - ns.getResetInfo().lastNodeReset)) * 1000;
+    const earnRateThisNode = ns.getMoneySources().sinceStart.total / (ns.getTimeSinceLastAug() / 1000);
 
     ns.print(`Earn rate this node: ${ns.formatNumber(earnRateThisNode)}`);
     const { bestConfig } = calculateBestSleeveStats(ns, true, ns.hacknet.getHashUpgradeLevel("Improve Gym Training"));

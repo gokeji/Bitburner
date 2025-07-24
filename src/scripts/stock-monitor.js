@@ -102,6 +102,16 @@ function calculateTotalMarketCap(ns) {
  */
 export async function main(ns) {
     ns.disableLog("ALL");
+
+    ns.ps(ns.getHostname())
+        .filter((p) => p.filename === "scripts/stock-monitor.js")
+        .forEach((p) => {
+            if (p.pid !== ns.pid) {
+                ns.ui.closeTail(p.pid);
+                ns.kill(p.pid);
+            }
+        });
+
     ns.ui.openTail(); // Log Window
     ns.ui.resizeTail(320, 260);
     const windowSize = ns.ui.windowSize();
@@ -141,7 +151,7 @@ export async function main(ns) {
             // profitRate = (portfolio.totalProfit - oldest.totalProfit) / timeElapsed;
             // totalStockRate = (totalStockValueSinceInstall - oldest.totalStockValueSinceInstall) / timeElapsed;
         }
-        const timeSinceReset = (now - ns.getResetInfo().lastAugReset) / 1000;
+        const timeSinceReset = ns.getTimeSinceLastAug() / 1000;
         totalStockRate = totalStockValueSinceInstall / timeSinceReset;
 
         ns.print("💰 Market Cap: " + ns.formatNumber(totalMarketCap, 1));

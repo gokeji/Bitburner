@@ -7,18 +7,20 @@ import { calculateBestSleeveStats } from "../sleeve.js";
  */
 export async function main(ns) {
     ns.disableLog("ALL");
+
+    ns.ps(ns.getHostname())
+        .filter((p) => p.filename === "scripts/karma.js")
+        .forEach((p) => {
+            if (p.pid !== ns.pid) {
+                ns.ui.closeTail(p.pid);
+                ns.kill(p.pid);
+            }
+        });
+
+    const windowSize = ns.ui.windowSize();
     ns.ui.openTail(); // Log Window
     ns.ui.resizeTail(180, 140);
-    const windowSize = ns.ui.windowSize();
     ns.ui.moveTail(windowSize[0] - 400, 40);
-
-    const existingKarmaScript = ns.getRunningScript("karma.js");
-    if (existingKarmaScript) {
-        ns.ui.openTail(existingKarmaScript.pid);
-        ns.ui.resizeTail(180, 140);
-        ns.ui.moveTail(windowSize[0] - 400, 40);
-        return;
-    }
 
     var karmaHistory = [];
     let predictedTimeToGang = 0;
@@ -32,7 +34,7 @@ export async function main(ns) {
         if (karma <= -54000 && !reachedGang) {
             reachedGang = true;
             ns.tprint(now);
-            ns.tprint(`Unlocked gang after ${formatTime((now - ns.getResetInfo().lastNodeReset) / 1000)} in Bitnode.`);
+            ns.tprint(`Unlocked gang after ${formatTime(ns.getTimeSinceLastAug() / 1000)} in Bitnode.`);
         }
 
         // Keep 60 seconds of history

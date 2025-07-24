@@ -81,11 +81,12 @@ export async function main(ns) {
             // Restart gangs with higher augmentation budget
             if (ns.scriptRunning("gangs.js", "home")) {
                 ns.scriptKill("gangs.js", "home");
-                ns.run("gangs.js", 1, "--buy-all-before-reset");
-                const gangMessage = "Restarted gangs to buy all equipment";
-                resetLog.push(gangMessage);
             }
-            ns.tprint(`🔄 ${i}: Waiting for gangs to finish buying equipment...`);
+
+            ns.run("gangs.js", 1, "--buy-all-before-reset");
+            const gangMessage = `🔄 ${i}: Waiting for gangs to finish buying equipment...`;
+            ns.tprint(gangMessage);
+            resetLog.push(gangMessage);
             await ns.sleep(1000); // Wait for a few ticks to ensure gangs are done buying equipment
         }
     }

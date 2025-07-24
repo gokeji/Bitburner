@@ -896,6 +896,7 @@ export async function main(ns) {
         const alwaysIncludeList = [
             "NeuroFlux Governor",
             "Neuroreceptor Management Implant", // Removes penalty for not focusing on task
+            "The Blade's Simulacrum",
             // "The Red Pill",
         ];
 
