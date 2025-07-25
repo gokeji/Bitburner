@@ -234,13 +234,10 @@ function findHGWProcesses(ns, targetServer) {
                 totalThreads += process.threads;
                 scriptCounts[actionType] += 1;
 
-                const endTime = process.args.find((arg) => typeof arg === "string" && arg.startsWith("endTime="));
+                const jobArgs = process.args.find((arg) => typeof arg === "string" && arg.includes("endTime"));
+                const { endTime } = JSON.parse(jobArgs);
                 if (endTime) {
-                    const endTimeMs = parseInt(endTime.split("=")[1]);
-                    serverEarliestEndTime.set(
-                        server,
-                        Math.min(serverEarliestEndTime.get(server) || endTimeMs, endTimeMs),
-                    );
+                    serverEarliestEndTime.set(server, Math.min(serverEarliestEndTime.get(server) || endTime, endTime));
                 }
             }
         }

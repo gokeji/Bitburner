@@ -29,8 +29,8 @@ export async function main(ns) {
     let serversToHack = []; // ["clarkinc"];
 
     // let minMoneyProtectionThreshold = 1 - hackPercentage - 0.25;
-    const BASE_SCRIPT_DELAY = 20; // ms delay between scripts, will be added to dynamically
-    const DELAY_BETWEEN_BATCHES = 20; // ms delay between batches
+    const BASE_SCRIPT_DELAY = 10; // ms delay between scripts, will be added to dynamically
+    const DELAY_BETWEEN_BATCHES = 10; // ms delay between batches
     const TIME_PER_BATCH = BASE_SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES;
     const TICK_DELAY = 800; // ms delay between ticks
 
@@ -190,7 +190,7 @@ export async function main(ns) {
     // === SIMPLE TICK-BASED PRIORITY CACHE ===
     let prioritiesCacheData = null;
     let prioritiesCacheValidUntilTick = 0;
-    const CACHE_DURATION_TICKS = 30; // Cache priorities for 30 ticks
+    const CACHE_DURATION_TICKS = 0; // Cache priorities for 30 ticks
 
     // === PERFORMANCE OPTIMIZATION: Server Stats Cache ===
     // Cache expensive calculations that don't change between thread counts for the same server
@@ -1042,7 +1042,7 @@ export async function main(ns) {
         const moneyPerBatch = hackPercentage * hackChance * moneyMultiplierCache;
 
         const maxConcurrentBatches = Math.floor(maxRamAvailableForHacking / ramPerBatch);
-        const theoreticalBatchLimit = Math.floor((weakenTime / TICK_DELAY) * batchesPerTick);
+        const theoreticalBatchLimit = Math.max(1, Math.floor((weakenTime / TICK_DELAY) * batchesPerTick));
         const batchLimitForSustainedThroughput = Math.min(maxConcurrentBatches, theoreticalBatchLimit);
 
         // Throughput is money per second from sustainable batches
@@ -1202,7 +1202,7 @@ export async function main(ns) {
         //     }
         // }
 
-        const selectedConfigs = knapsackBucketed(allConfigurations, maxRamAvailableForHacking * ramOverestimation);
+        const selectedConfigs = knapsackGreedy(allConfigurations, maxRamAvailableForHacking * ramOverestimation);
         const knapsackTime = performance.now() - knapsackStart;
         logPerformance("knapsack", knapsackTime);
 
@@ -1773,7 +1773,7 @@ export async function main(ns) {
             if (finalAllocation.initial_weaken) {
                 // Execute weaken on potentially multiple servers
                 for (const [server, threads] of finalAllocation.initial_weaken) {
-                    executeWeaken(ns, server, target, threads, 0, true, 0, weakenTime);
+                    executeWeaken(ns, server, target, threads, weakenTime + 100, true, 0, weakenTime);
                 }
                 totalRamUsed += finalAllocation.scalingFactor * initialWeakenRam;
             } else {
@@ -1783,10 +1783,7 @@ export async function main(ns) {
 
         if (shouldGrow && finalAllocation.grow && finalAllocation.final_weaken) {
             // Execute grow on single server (as enforced by the allocation function)
-            const growWeakenDiff = weakenTime - growthTime;
-            const growDelay = needsInitialWeaken
-                ? growWeakenDiff + BASE_SCRIPT_DELAY
-                : Math.max(0, growWeakenDiff - BASE_SCRIPT_DELAY);
+            const growDelay = weakenTime + 100 + needsInitialWeaken ? BASE_SCRIPT_DELAY : 0;
             if (growDelay < 0) {
                 ns.tprint(`ERROR: Negative grow delay detected for PREP ${target} - growDelay=${growDelay}`);
                 return false;
@@ -1797,9 +1794,8 @@ export async function main(ns) {
             totalRamUsed += finalAllocation.scalingFactor * growRam;
 
             // Execute final weaken on potentially multiple servers
-            const finalWeakenDelay = needsInitialWeaken
-                ? 2 * BASE_SCRIPT_DELAY
-                : Math.max(0, BASE_SCRIPT_DELAY - growWeakenDiff);
+            const finalWeakenDelay =
+                weakenTime + 100 + (needsInitialWeaken ? 2 * BASE_SCRIPT_DELAY : BASE_SCRIPT_DELAY);
             for (const [server, threads] of finalAllocation.final_weaken) {
                 executeWeaken(ns, server, target, threads, finalWeakenDelay, true, 0, weakenTime);
             }
@@ -1895,6 +1891,12 @@ export async function main(ns) {
         const growDelay = weakenTime + extraDelay + BASE_SCRIPT_DELAY + 100;
         const weakenDelay = weakenTime + extraDelay + 2 * BASE_SCRIPT_DELAY + 100;
 
+        if (weakenDelay - growthTime < 0) {
+            ns.tprint(
+                `ERROR: Weaken time is less than grow time! W=${weakenDelay}, G=${growthTime}, D=${weakenDelay - growthTime}`,
+            );
+        }
+
         // Validate delays are not negative (which would cause timing issues)
         // if (hackDelay < 0 || growDelay < 0 || weakenDelay < 0) {
         //     ns.tprint(`ERROR: Negative delays detected! H=${hackDelay}, G=${growDelay}, W=${weakenDelay}`);
@@ -1939,7 +1941,7 @@ export async function main(ns) {
         const pid = ns.exec(
             weakenScript,
             host,
-            threads,
+            { threads, temporary: true },
             target,
             sleepTime,
             isPrep ? "prep" : "hgw",
@@ -1969,7 +1971,7 @@ export async function main(ns) {
         const pid = ns.exec(
             growScript,
             host,
-            threads,
+            { threads, temporary: true },
             target,
             sleepTime,
             growStocks.has(target),
@@ -2000,7 +2002,7 @@ export async function main(ns) {
         const pid = ns.exec(
             hackScript,
             host,
-            threads,
+            { threads, temporary: true },
             target,
             sleepTime,
             hackStocks.has(target),

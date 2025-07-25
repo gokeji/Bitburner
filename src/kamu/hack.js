@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 
 let shouldPrint = false;
-let serverToPrint = "phantasy";
+let serverToPrint = "4sigma";
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -29,7 +29,7 @@ export async function main(ns) {
         const msg =
             currentTime +
             " | Batch: " +
-            ns.args[4] +
+            ns.args[4].padEnd(9, " ") +
             "     | H       | " +
             // " H  Delay: " +
             // ns.formatNumber(delay) +

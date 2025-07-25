@@ -1,18 +1,21 @@
 import { NS } from "@ns";
 
 let shouldPrint = false;
-let serverToPrint = "phantasy";
+let serverToPrint = "4sigma";
 
 /** @param {NS} ns **/
 export async function main(ns) {
     const { growTime, endTime } = JSON.parse(ns.args[5]);
     // const delay = ns.args[1];
-    let delay = endTime - growTime - Date.now();
+    const now = Date.now();
+    let delay = endTime - growTime - now;
 
     const server = ns.args[0];
 
     if (delay < 0) {
-        ns.tprint(`WARN: Batch ${ns.args[4]} Grow was ${-delay}ms too late. (${endTime})`);
+        ns.tprint(
+            `WARN: Batch ${ns.args[4]}, Server ${server} Grow was ${-delay}ms too late. (now=${now}, growTime=${growTime}, endTime=${endTime})`,
+        );
         delay = 0;
     }
 
@@ -30,7 +33,7 @@ export async function main(ns) {
             "  " +
             currentTime +
             " | Batch: " +
-            ns.args[4] +
+            ns.args[4].padEnd(9, " ") +
             "   |    G    | " +
             // " G  Delay: " +
             // ns.formatNumber(delay) +
