@@ -458,7 +458,7 @@ export function getStoredBitNodeMultipliers(bitnode, lvl = 1) {
  * @param {NS} ns - NetScript object
  * @param {number} fallbackBitnode - BitNode to use as fallback (default: 1)
  * @param {number} fallbackLevel - Level to use for BitNode 12 fallback (default: 1)
- * @returns {Object} BitNode multipliers
+ * @returns {BitNodeMultipliers} BitNode multipliers
  */
 export function getSafeBitNodeMultipliers(ns) {
     // try {

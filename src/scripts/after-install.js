@@ -13,7 +13,7 @@ export async function main(ns) {
         (ns.getPlayer().mults.hacking * ns.getBitNodeMultipliers().HackingLevelMultiplier > 5 ||
             ns.getServerMaxRam("home") >= 2 ** 20 ||
             (ns.gang.inGang() && ns.gang.getGangInformation().respect > 200e6) ||
-            earnRateThisNode > 100e6) &&
+            earnRateThisNode > 1e9) &&
         ns.getResetInfo().currentNode != 8;
 
     if (ns.getPlayer().factions.includes("Church of the Machine God")) {
@@ -98,7 +98,7 @@ export async function main(ns) {
 
     // while (true) {
     //     const timeSinceInstall = Date.now() - ns.getResetInfo().lastAugReset;
-    //     if (timeSinceInstall > 12 * 60 * 1000) {
+    //     if (timeSinceInstall > 20 * 60 * 1000) {
     //         // run reset.js after 10 minutes
     //         let success = ns.run("scripts/reset.js");
     //         if (success) {
@@ -109,7 +109,7 @@ export async function main(ns) {
     //         }
     //     }
     //     ns.print(
-    //         `INFO ${ns.formatNumber(timeSinceInstall / 1000 / 60)} minutes since install. Will reset after 12 minutes.`,
+    //         `INFO ${ns.formatNumber(timeSinceInstall / 1000 / 60)} minutes since install. Will reset after 20 minutes.`,
     //     );
     //     await ns.sleep(30000);
     // }

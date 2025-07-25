@@ -1,7 +1,8 @@
 import { NS } from "@ns";
+import { getSafeBitNodeMultipliers } from "./scripts/bitnode-multipliers";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = 12 * 10 ** 9; // 12 B max server value
+const MAX_SERVER_VALUE = 6 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
 const SERVER_TO_START_SHARING_RAM_ON = "b-05";
 const SERVER_TO_STANEK = null; // "b-01";
@@ -277,6 +278,9 @@ function restartIpvgo(ns) {
     if (hasRedPill) {
         opponents.push("????????????");
         // opponents = ["????????????"]; // Only use ipvgo for hacking levels
+    } else {
+        // Needed for sometimes after reset the opponents list persists with ??????????? and it's unavailable
+        opponents = opponents.filter((opponent) => opponent !== "????????????");
     }
 
     startScriptIfNotRunning(ns, "ipvgo-smart.js", HOST_NAME, 1, ...opponents);
@@ -284,17 +288,11 @@ function restartIpvgo(ns) {
 }
 
 function startSleeveIfNeeded(ns) {
-    const result = startScriptIfNotRunning(ns, "sleeve.js", HOST_NAME, 1, "--disable-follow-player");
-    // if (result.success) {
-    //     ns.ui.openTail(result.pid, HOST_NAME);
-    // }
+    startScriptIfNotRunning(ns, "sleeve.js", HOST_NAME, 1, "--disable-follow-player");
 }
 
 function startGangIfNeeded(ns) {
-    const result = startScriptIfNotRunning(ns, "gangs.js", HOST_NAME, 1);
-    // if (result.success) {
-    //     ns.ui.openTail(result.pid, HOST_NAME);
-    // }
+    startScriptIfNotRunning(ns, "gangs.js", HOST_NAME, 1);
 }
 
 function startHacknetSpendIfNeeded(ns) {
@@ -312,11 +310,19 @@ function restartUpgradeServers(ns) {
         ns.kill(isRunning);
     }
 
-    const result = startScriptIfNotRunning(ns, "scripts/upgrade-servers.js", HOST_NAME, 1, MAX_SERVER_VALUE);
+    const useSlowMode = getSafeBitNodeMultipliers(ns).PurchasedServerSoftcap >= 1.5;
+    startScriptIfNotRunning(
+        ns,
+        "scripts/upgrade-servers.js",
+        HOST_NAME,
+        1,
+        MAX_SERVER_VALUE,
+        useSlowMode ? "--slow" : "",
+    );
 }
 
 function startUpgradeHomeRamIfNeeded(ns) {
-    const result = startScriptIfNotRunning(ns, "scripts/upgrade-home-ram.js");
+    startScriptIfNotRunning(ns, "scripts/upgrade-home-ram.js");
 }
 
 function startStockTraderIfNotRunning(ns) {

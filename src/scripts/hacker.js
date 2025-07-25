@@ -35,7 +35,7 @@ export async function main(ns) {
     const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
-    const ALWAYS_XP_FARM = true;
+    const ALWAYS_XP_FARM = false;
     const XP_FARM_SERVER = "foodnstuff";
     const ALLOW_PARTIAL_PREP = true;
     const SHOULD_INFLUENCE_STOCKS = true;
@@ -197,7 +197,14 @@ export async function main(ns) {
     let serverStatsCache = new Map(); // Map<serverName, CachedServerStats>
     let globalCalculationCache = null; // Cache player, bitnode multipliers etc.
 
-    let ramOverestimation = 1.8;
+    const ServerProcessState = {
+        HGW: "HGW",
+        PREP: "PREP",
+        IDLE: "IDLE",
+    };
+    let serverProcessStates = new Map(); // Map<serverName, ServerProcessState>
+
+    let ramOverestimation = 1;
 
     // === MAIN STATE MACHINE LOOP ===
     while (true) {
@@ -294,13 +301,31 @@ export async function main(ns) {
     function gatherGameState(ns) {
         // Gather all required data for decision making
         const scriptInfoStart = performance.now();
-        const { scriptInfoByTarget, scriptInfoByHost } = getRunningScriptInfo(ns);
-        logPerformance("scriptInfo", performance.now() - scriptInfoStart);
+
+        // if (serverProcessStates.size === 0) {
+        const { scriptInfoByTarget, scriptInfoByHost } = getRunningProcessState(ns);
+
+        for (const targetServer of scriptInfoByTarget.keys()) {
+            const info = scriptInfoByTarget.get(targetServer);
+
+            const isHgw = info.hasHack && info.hasGrow && info.hasWeaken;
+            const isPrep = info.isPrep || (!info.hasHack && (info.hasGrow || info.hasWeaken) && !info.isXp);
+
+            if (isHgw) {
+                serverProcessStates.set(targetServer, ServerProcessState.HGW);
+            } else if (isPrep) {
+                serverProcessStates.set(targetServer, ServerProcessState.PREP);
+            } else {
+                serverProcessStates.set(targetServer, ServerProcessState.IDLE);
+            }
+        }
+        // }
 
         maxRamAvailableForHacking = executableServers.reduce(
             (acc, server) => acc + scriptInfoByHost.get(server).ramUsed,
             totalFreeRam,
         );
+        logPerformance("scriptInfo", performance.now() - scriptInfoStart);
 
         ns.print(`DEBUG: maxRamAvailableForHacking: ${ns.formatRam(maxRamAvailableForHacking)}`);
 
@@ -652,21 +677,8 @@ export async function main(ns) {
         // }
 
         const serverInfo = ns.getServer(server);
-        const currentServerScripts = gameState.scriptInfoByTarget.get(server) || {
-            ramUsed: 0,
-            isPrep: false,
-            hasHack: false,
-            hasGrow: false,
-            hasWeaken: false,
-            isXp: false,
-        };
-
-        const isHgw = currentServerScripts.hasHack && currentServerScripts.hasGrow && currentServerScripts.hasWeaken;
-        const isPrep =
-            currentServerScripts.isPrep ||
-            (!currentServerScripts.hasHack &&
-                (currentServerScripts.hasGrow || currentServerScripts.hasWeaken) &&
-                !currentServerScripts.isXp);
+        const isHgw = serverProcessStates.get(server) === ServerProcessState.HGW;
+        const isPrep = serverProcessStates.get(server) === ServerProcessState.PREP;
 
         if (isHgw) {
             return ServerState.BATCHING;
@@ -842,6 +854,7 @@ export async function main(ns) {
         logPerformance("allocations", performance.now() - allocStart);
 
         if (prepRamUsed !== false && prepRamUsed > 0) {
+            // serverProcessStates.set(action.server, ServerProcessState.PREP);
             const currentPrepStats = getServerPrepStats(ns, action.server);
             serverPrepTimings.set(action.server, {
                 weakenTime: currentPrepStats.weakenTime,
@@ -862,6 +875,9 @@ export async function main(ns) {
             action.serverStats,
             action.timeDriftDelay,
         );
+        // if (result > 0) {
+        //     serverProcessStates.set(action.server, ServerProcessState.BATCHING);
+        // }
         logPerformance("allocations", performance.now() - allocStart);
         return result;
     }
@@ -1103,7 +1119,6 @@ export async function main(ns) {
         });
 
         for (const server of serversToEvaluate) {
-            const serverStart = performance.now();
             let maxPriorityForServer = 0;
             let configsForServer = 0;
 
@@ -1119,7 +1134,7 @@ export async function main(ns) {
                 if (config.priority > maxPriorityForServer) {
                     maxPriorityForServer = config.priority;
                 }
-                if (config.batchSustainRatio < 0.4) {
+                if (config.batchSustainRatio < 0.1 || serverProcessStates.get(server) === ServerProcessState.PREP) {
                     continue;
                 }
                 if (
@@ -1145,12 +1160,6 @@ export async function main(ns) {
 
             // Store the maximum throughput for this server
             serverMaxPriorities.set(server, maxPriorityForServer);
-
-            const serverTime = performance.now() - serverStart;
-            if (serverTime > 100) {
-                // Log servers that take more than 100ms
-                ns.print(`PERF: ${server} took ${serverTime.toFixed(1)}ms to generate ${configsForServer} configs`);
-            }
         }
 
         if (ONLY_MANIPULATE_STOCKS) {
@@ -1381,7 +1390,7 @@ export async function main(ns) {
      * @param {NS} ns - The Netscript API.
      * @returns {Map<string, {ramUsed: number, hasHack: boolean, hasGrow: boolean, hasWeaken: boolean, isPrep: boolean}>}
      */
-    function getRunningScriptInfo(ns) {
+    function getRunningProcessState(ns) {
         const scriptScanStart = performance.now();
 
         const scriptInfoByTarget = new Map();

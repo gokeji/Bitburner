@@ -14,7 +14,7 @@ const UPGRADE_THRESHOLD = 0.5;
  *
  * @param {NS} ns
  */
-function getRamTierToBuy(ns, firstTime) {
+function getRamTierToBuy(ns, firstTime, slowMode) {
     const maxAllowedServers = ns.getPurchasedServerLimit();
     const maxAllowedRam = getMaxRamAllowed(ns);
 
@@ -60,7 +60,10 @@ function getRamTierToBuy(ns, firstTime) {
     // Increase to maximum tier that we can afford
     while (targetRam * 2 <= maxAllowedRam && ns.getPurchasedServerCost(targetRam * 2) <= currentMoney) {
         // Guard against upgrading too fast after making 10b from casino.js
-        if (ns.getMoneySources().sinceInstall.total < 12e9 && ns.getPurchasedServerCost(targetRam * 2) > 3e9) {
+        if (
+            slowMode ||
+            (ns.getMoneySources().sinceInstall.total < 12e9 && ns.getPurchasedServerCost(targetRam * 2) > 3e9)
+        ) {
             break;
         }
         targetRam *= 2;
@@ -97,6 +100,8 @@ function getNameForNewServer(ns) {
 export async function main(ns) {
     // Disable default Logging
     ns.disableLog("ALL");
+
+    const slowMode = ns.args.includes("--slow");
 
     // Max amount of total money existing servers are worth
     // This is to prevent us from maxing out servers in Bitnodes where hacking value is lower and you want to save money for other things
@@ -144,7 +149,7 @@ export async function main(ns) {
         }
 
         // Calculate the ram tier to buy
-        ramTierToBuy = getRamTierToBuy(ns, firstTime);
+        ramTierToBuy = getRamTierToBuy(ns, firstTime, slowMode);
         firstTime = false;
 
         // If we cannot afford it, sleep and wait for more money
