@@ -469,7 +469,7 @@ export async function main(ns) {
                     const serverStats = globalPrioritiesMap.get(server);
                     // Determine server drift recovery conditions
                     const securityThreshold = Math.max(
-                        serverInfo.minDifficulty + 15,
+                        serverInfo.minDifficulty + 10,
                         serverInfo.minDifficulty + serverStats.totalSecurityIncrease * 2,
                     );
 
@@ -1783,11 +1783,7 @@ export async function main(ns) {
 
         if (shouldGrow && finalAllocation.grow && finalAllocation.final_weaken) {
             // Execute grow on single server (as enforced by the allocation function)
-            const growDelay = weakenTime + 100 + needsInitialWeaken ? BASE_SCRIPT_DELAY : 0;
-            if (growDelay < 0) {
-                ns.tprint(`ERROR: Negative grow delay detected for PREP ${target} - growDelay=${growDelay}`);
-                return false;
-            }
+            const growDelay = weakenTime + 100 + (needsInitialWeaken ? BASE_SCRIPT_DELAY : 0);
             for (const [server, threads] of finalAllocation.grow) {
                 executeGrow(ns, server, target, threads, growDelay, true, 0, growthTime);
             }
@@ -1891,21 +1887,6 @@ export async function main(ns) {
         const growDelay = weakenTime + extraDelay + BASE_SCRIPT_DELAY + 100;
         const weakenDelay = weakenTime + extraDelay + 2 * BASE_SCRIPT_DELAY + 100;
 
-        if (weakenDelay - growthTime < 0) {
-            ns.tprint(
-                `ERROR: Weaken time is less than grow time! W=${weakenDelay}, G=${growthTime}, D=${weakenDelay - growthTime}`,
-            );
-        }
-
-        // Validate delays are not negative (which would cause timing issues)
-        // if (hackDelay < 0 || growDelay < 0 || weakenDelay < 0) {
-        //     ns.tprint(`ERROR: Negative delays detected! H=${hackDelay}, G=${growDelay}, W=${weakenDelay}`);
-        //     ns.tprint(
-        //         `Times: hackTime=${hackTime}, growthTime=${growthTime}, weakenTime=${weakenTime}, extraDelay=${extraDelay}`,
-        //     );
-        //     return { success: false, ramUsed: 0 };
-        // }
-
         if (allocation.hack && allocation.grow && allocation.weaken) {
             // Execute hack operations
             for (const [server, threads] of allocation.hack) {
@@ -1937,7 +1918,7 @@ export async function main(ns) {
      * @param {boolean} isPrep - Whether the script is being executed for prep.
      * @param {number} weakenTime - The time the weaken script should finish at.
      */
-    function executeWeaken(ns, host, target, threads, sleepTime, isPrep = false, batchIdx, weakenTime = 0) {
+    function executeWeaken(ns, host, target, threads, sleepTime, isPrep = false, batchIdx, weakenTime) {
         const pid = ns.exec(
             weakenScript,
             host,
@@ -1967,7 +1948,7 @@ export async function main(ns) {
      * @param {boolean} isPrep - Whether the script is being executed for prep.
      * @param {number} growTime - The time the grow script should finish at.
      */
-    function executeGrow(ns, host, target, threads, sleepTime, isPrep = false, batchIdx, growTime = 0) {
+    function executeGrow(ns, host, target, threads, sleepTime, isPrep = false, batchIdx, growTime) {
         const pid = ns.exec(
             growScript,
             host,
@@ -1998,7 +1979,7 @@ export async function main(ns) {
      * @param {boolean} isPrep - Whether the script is being executed for prep.
      * @param {number} hackTime - The time the hack script should finish at.
      */
-    function executeHack(ns, host, target, threads, sleepTime, isPrep = false, batchIdx, hackTime = 0) {
+    function executeHack(ns, host, target, threads, sleepTime, isPrep = false, batchIdx, hackTime) {
         const pid = ns.exec(
             hackScript,
             host,

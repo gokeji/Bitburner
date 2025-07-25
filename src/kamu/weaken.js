@@ -1,7 +1,7 @@
 import { NS } from "@ns";
 
 let shouldPrint = false;
-let serverToPrint = "4sigma";
+let serverToPrint = "the-hub";
 
 /** @param {NS} ns **/
 export async function main(ns) {
