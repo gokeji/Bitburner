@@ -156,7 +156,7 @@ function tendStocks(ns) {
         let remainingSharesToBuy = demand.sharesToBuy;
         let remainingDemand = ns.stock.getPurchaseCost(stock.sym, remainingSharesToBuy, demand.type);
         let purchaseType = demand.type;
-        const costPerShare = ns.stock.getPurchaseCost(stock.sym, 1, purchaseType) - commission;
+        const costPerShare = ns.stock.getAskPrice(stock.sym); // Use ask price instead of purchase cost to get upper bound of cost
 
         let idx = 0;
 
