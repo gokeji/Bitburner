@@ -319,7 +319,14 @@ export async function main(ns) {
                 serverProcessStates.set(targetServer, ServerProcessState.IDLE);
             }
         }
-        // }
+
+        // Handle servers that finished prepping (no longer have running scripts)
+        for (const [server, currentState] of serverProcessStates.entries()) {
+            if (!scriptInfoByTarget.has(server) && currentState !== ServerProcessState.IDLE) {
+                serverProcessStates.set(server, ServerProcessState.IDLE);
+            }
+        }
+        // })
 
         maxRamAvailableForHacking = executableServers.reduce(
             (acc, server) => acc + scriptInfoByHost.get(server).ramUsed,
@@ -1211,7 +1218,7 @@ export async function main(ns) {
         //     }
         // }
 
-        const selectedConfigs = knapsackGreedy(allConfigurations, maxRamAvailableForHacking * ramOverestimation);
+        const selectedConfigs = knapsackBucketed(allConfigurations, maxRamAvailableForHacking * ramOverestimation);
         const knapsackTime = performance.now() - knapsackStart;
         logPerformance("knapsack", knapsackTime);
 

@@ -2,7 +2,8 @@
 // import { testConfigs } from "../examples/testServerHackConfigurations.js";
 // import { testConfigs2 } from "../examples/testServerHackConfigurations2.js";
 // import { testConfigs3 } from "../examples/testServerHackConfigurations3.js";
-import { testConfig4 } from "../examples/testServerHackConfigurations4.js";
+// import { testConfig4 } from "../examples/testServerHackConfigurations4.js";
+import { testConfig5 } from "../examples/testServerHackConfigurations5.js";
 
 /**
  * Fast greedy solution for the knapsack problem.
@@ -118,8 +119,8 @@ function knapsackBucketed(configurations, weightLimit, numBuckets = 100) {
     };
 }
 
-const configsToTest = testConfig4;
-const weightLimit = 217.28e3;
+const configsToTest = testConfig5;
+const weightLimit = 23.82e3;
 console.log("Number of configurations:", configsToTest.length);
 console.log("Weight limit:", weightLimit);
 
@@ -211,7 +212,7 @@ for (const numBuckets of bucketSizesToTest) {
     console.log("... (details from last run) ...");
     for (const config of lastResult.selected) {
         console.log(
-            `  ${config.server} - ${config.hackThreads}H (${config.actualHackPercentage}) - ${config.ramRequired}GB/batch, max ${config.batchLimitForSustainedThroughput} concurrent = ${config.ramUsageForSustainedThroughput}GB (${config.batchSustainRatio}) priority - ${config.priority}`,
+            `  ${config.server} - ${config.hackThreads}H (${config.actualHackPercentage || config.hackPercentage}) - ${config.ramRequired || config.ramPerBatch}GB/batch, max ${config.batchLimitForSustainedThroughput} concurrent = ${config.ramUsageForSustainedThroughput}GB (${config.batchSustainRatio}) priority - ${config.priority}`,
         );
     }
 }
