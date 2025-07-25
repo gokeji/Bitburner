@@ -1891,18 +1891,18 @@ export async function main(ns) {
         }
 
         // Calculate delays
-        const hackDelay = Math.max(weakenTime, TIME_PER_BATCH) + extraDelay - 2 * BASE_SCRIPT_DELAY - hackTime;
-        const growDelay = Math.max(weakenTime, TIME_PER_BATCH) + extraDelay - BASE_SCRIPT_DELAY - growthTime;
-        const weakenDelay = Math.max(0, TIME_PER_BATCH - weakenTime) + extraDelay;
+        const hackDelay = weakenTime + extraDelay + 100;
+        const growDelay = weakenTime + extraDelay + BASE_SCRIPT_DELAY + 100;
+        const weakenDelay = weakenTime + extraDelay + 2 * BASE_SCRIPT_DELAY + 100;
 
         // Validate delays are not negative (which would cause timing issues)
-        if (hackDelay < 0 || growDelay < 0 || weakenDelay < 0) {
-            ns.tprint(`ERROR: Negative delays detected! H=${hackDelay}, G=${growDelay}, W=${weakenDelay}`);
-            ns.tprint(
-                `Times: hackTime=${hackTime}, growthTime=${growthTime}, weakenTime=${weakenTime}, extraDelay=${extraDelay}`,
-            );
-            return { success: false, ramUsed: 0 };
-        }
+        // if (hackDelay < 0 || growDelay < 0 || weakenDelay < 0) {
+        //     ns.tprint(`ERROR: Negative delays detected! H=${hackDelay}, G=${growDelay}, W=${weakenDelay}`);
+        //     ns.tprint(
+        //         `Times: hackTime=${hackTime}, growthTime=${growthTime}, weakenTime=${weakenTime}, extraDelay=${extraDelay}`,
+        //     );
+        //     return { success: false, ramUsed: 0 };
+        // }
 
         if (allocation.hack && allocation.grow && allocation.weaken) {
             // Execute hack operations
@@ -1944,7 +1944,7 @@ export async function main(ns) {
             sleepTime,
             isPrep ? "prep" : "hgw",
             `${tickCounter} - ${batchIdx}`,
-            `endTime=${Date.now() + sleepTime + weakenTime}`,
+            JSON.stringify({ weakenTime, endTime: Date.now() + sleepTime }),
         );
         if (!pid) {
             ns.tprint(`WARN Failed to execute weaken script on ${target}`);
@@ -1975,7 +1975,7 @@ export async function main(ns) {
             growStocks.has(target),
             isPrep ? "prep" : "hgw",
             `${tickCounter} - ${batchIdx}`,
-            `endTime=${Date.now() + sleepTime + growTime}`,
+            JSON.stringify({ growTime, endTime: Date.now() + sleepTime }),
         );
         if (!pid) {
             ns.tprint(`WARN Failed to execute grow script on ${target}`);
@@ -2006,7 +2006,7 @@ export async function main(ns) {
             hackStocks.has(target),
             isPrep ? "prep" : "hgw",
             `${tickCounter} - ${batchIdx}`,
-            `endTime=${Date.now() + sleepTime + hackTime}`,
+            JSON.stringify({ hackTime, endTime: Date.now() + sleepTime }),
         );
         if (!pid) {
             ns.tprint(`WARN Failed to execute hack script on ${target}`);

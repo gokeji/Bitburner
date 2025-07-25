@@ -49,7 +49,7 @@ export async function main(ns) {
                     false,
                     "xp",
                     cycle,
-                    `endTime=${Date.now() + growTime}`,
+                    JSON.stringify({ growTime, endTime: Date.now() + growTime + 100 }),
                 );
                 if (pid) {
                     cycleThreads += pair.threads;

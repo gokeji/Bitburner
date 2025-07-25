@@ -25,6 +25,8 @@ function getRamTierToBuy(ns, firstTime) {
         0,
     );
 
+    // TODO: Implement slow mode: slowly ramp up ram, do not skip tiers
+
     const serverSoftcap = ns.getBitNodeMultipliers().PurchasedServerSoftcap;
     const costMult = Math.pow(serverSoftcap, Math.log2(homeServerRam) - 6);
     // 1 - 2

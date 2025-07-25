@@ -5,10 +5,16 @@ let serverToPrint = "phantasy";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const endTime = ns.args[5].split("=")[1];
-    const delay = ns.args[1];
+    const { growTime, endTime } = JSON.parse(ns.args[5]);
+    // const delay = ns.args[1];
+    let delay = endTime - growTime - Date.now();
 
     const server = ns.args[0];
+
+    if (delay < 0) {
+        ns.tprint(`WARN: Batch ${ns.args[4]} Grow was ${-delay}ms too late. (${endTime})`);
+        delay = 0;
+    }
 
     const hgwOptions = {
         stock: ns.args[2] ? true : false,
@@ -17,8 +23,8 @@ export async function main(ns) {
     await ns.grow(server, hgwOptions);
 
     if (shouldPrint && server === serverToPrint) {
-        const currentTime = new Date().toISOString().substring(11, 23);
         const timeDifference = Date.now() - endTime;
+        const currentTime = new Date().toISOString().substring(11, 23);
         const sign = timeDifference >= 0 ? "+" : "";
         const msg =
             "  " +
@@ -31,7 +37,7 @@ export async function main(ns) {
             sign +
             timeDifference.toFixed(2) +
             "ms";
-        ns.write("hgw-log.txt", msg, "a");
+        // ns.write("hgw-log.txt", msg, "a");
         ns.tprint(msg);
     }
 }

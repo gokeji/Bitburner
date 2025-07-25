@@ -5,10 +5,16 @@ let serverToPrint = "phantasy";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const endTime = ns.args[4].split("=")[1];
-    const delay = ns.args[1];
+    const { weakenTime, endTime } = JSON.parse(ns.args[4]);
+    // const delay = ns.args[1];
+    let delay = endTime - weakenTime - Date.now();
 
     const server = ns.args[0];
+
+    if (delay < 0) {
+        ns.tprint(`WARN: Batch ${ns.args[3]} Weaken was ${-delay}ms too late. (${endTime})`);
+        delay = 0;
+    }
 
     const hgwOptions = {
         additionalMsec: delay,
@@ -16,8 +22,8 @@ export async function main(ns) {
     await ns.weaken(server, hgwOptions);
 
     if (shouldPrint && server === serverToPrint) {
-        const currentTime = new Date().toISOString().substring(11, 23);
         const timeDifference = Date.now() - endTime;
+        const currentTime = new Date().toISOString().substring(11, 23);
         const sign = timeDifference >= 0 ? "+" : "";
         const msg =
             "  " +
@@ -30,7 +36,7 @@ export async function main(ns) {
             sign +
             timeDifference.toFixed(2) +
             "ms";
-        ns.write("hgw-log.txt", msg, "a");
+        // ns.write("hgw-log.txt", msg, "a");
         ns.tprint(msg);
     }
 }
