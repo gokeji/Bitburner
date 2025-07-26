@@ -96,7 +96,7 @@ const PrecalculatedRound1Option = {
     OPTION5: {
         agricultureOfficeSize: 5,
         waitForAgricultureRP: 500,
-        boostMaterialsRatio: 0.7,
+        boostMaterialsRatio: 0.8,
     },
 };
 const PrecalculatedRound2Option = {
@@ -224,7 +224,7 @@ const usePrecalculatedEmployeeRatioForProfitSetup = true;
 const usePrecalculatedEmployeeRatioForProductDivision = true;
 const maxNumberOfProductsInRound3 = 1;
 const maxNumberOfProductsInRound4 = 2;
-const thresholdOfFocusingOnAdvert = 1e10; // Was 1e18
+const thresholdOfFocusingOnAdvert = 1e18; // Was 1e18
 /** @type {import("@ns").NS} */
 let ns;
 let nsx;
@@ -390,8 +390,8 @@ async function round1_5(option = PrecalculatedRound1Option.OPTION5) {
         ]),
     );
     if (config.auto === true) {
-        await waitForOffer(ns, 10, 10, 45e10);
-        ns.print(`Round 1: Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
+        await waitForOffer(ns, 10, 10, 50e10);
+        ns.print(`Round 1.5: Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
         corporationEventLogger.generateOfferAcceptanceEvent(ns);
         ns.corporation.acceptInvestmentOffer();
         await round2();

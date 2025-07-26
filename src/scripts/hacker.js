@@ -25,15 +25,15 @@ export async function main(ns) {
     let ALLOW_HASH_UPGRADES = true;
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.02; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0;
-    let PREP_FOR_CORP = false;
+    let PREP_FOR_CORP = true;
 
     let serversToHack = []; // ["clarkinc"];
 
     // let minMoneyProtectionThreshold = 1 - hackPercentage - 0.25;
-    const BASE_SCRIPT_DELAY = 10; // ms delay between scripts, will be added to dynamically
-    const DELAY_BETWEEN_BATCHES = 10; // ms delay between batches
-    const TIME_PER_BATCH = BASE_SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES;
-    const TICK_DELAY = 800; // ms delay between ticks
+    const BASE_SCRIPT_DELAY = 5; // ms delay between scripts, will be added to dynamically
+    const DELAY_BETWEEN_BATCHES = 5; // ms delay between batches
+    const TIME_PER_BATCH = BASE_SCRIPT_DELAY * 2 + DELAY_BETWEEN_BATCHES;
+    const TICK_DELAY = 1200; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 100 + (PREP_FOR_CORP ? 1000 : 0); // GB reserved for home server
     const ALWAYS_XP_FARM = false;
@@ -209,7 +209,7 @@ export async function main(ns) {
     };
     let serverProcessStates = new Map(); // Map<serverName, ServerProcessState>
 
-    let ramOverestimation = 1;
+    let ramOverestimation = 1.5;
 
     // === MAIN STATE MACHINE LOOP ===
     while (true) {
@@ -1061,7 +1061,11 @@ export async function main(ns) {
         const moneyPerBatch = hackPercentage * hackChance * moneyMultiplierCache;
 
         const maxConcurrentBatches = Math.floor(maxRamAvailableForHacking / ramPerBatch);
-        const theoreticalBatchLimit = Math.max(1, Math.floor((weakenTime / TICK_DELAY) * batchesPerTick));
+        let theoreticalBatchLimit = Math.max(1, Math.floor((weakenTime / TICK_DELAY) * batchesPerTick));
+        if (weakenTime < TICK_DELAY) {
+            // Super end game edge case
+            theoreticalBatchLimit = Math.floor(TICK_DELAY / Math.max(TIME_PER_BATCH, weakenTime));
+        }
         const batchLimitForSustainedThroughput = Math.min(maxConcurrentBatches, theoreticalBatchLimit);
 
         // Throughput is money per second from sustainable batches
@@ -1154,7 +1158,7 @@ export async function main(ns) {
                     config.throughput +=
                         (config.hackPercentage * totalStockValue * config.batchLimitForSustainedThroughput) /
                         config.weakenTime /
-                        5;
+                        10;
                     config.priority = config.throughput / (config.ramUsageForSustainedThroughput / 10000);
                 }
                 allConfigurations.push(config);
@@ -2399,7 +2403,7 @@ export async function main(ns) {
         let totalMsChange = 0;
         let totalCurrentTime = 0;
 
-        const DRIFT_THRESHOLD_PERCENT = 0.01; // 5% drift threshold for holding HGW and resuming on new weaken time
+        const DRIFT_THRESHOLD_PERCENT = 0.01; // 1% drift threshold for holding HGW and resuming on new weaken time
         const HOLD_BUFFER_MS = DELAY_BETWEEN_BATCHES * 4;
 
         for (const [server, { originalWeakenTime }] of serverBatchTimings.entries()) {

@@ -39,7 +39,7 @@ export async function main(ns) {
         // { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
         // { type: "train", target: "stats", goal: { strength: 10e5, defense: 10e5, dexterity: 10e5, agility: 10e5 } },
         // { type: "stop" },
-        { type: "train", target: "homicide", goal: 1.0 },
+        { type: "train", target: "homicide", goal: 1.0, condition: (ns) => !ns.gang.inGang() },
         { type: "homicide" },
 
         { type: "augmentation", target: "Social Negotiation Assistant (S.N.A)" }, // Tian Di Hui 6250
@@ -183,6 +183,7 @@ function canWorkOnTask(ns, task) {
         case "faction":
             return ns.getPlayer().factions.includes(task.target); // Must be in faction
         case "train":
+            if (task.condition && !task.condition(ns)) return false;
             return ns.getPlayer().money > ns.getPlayer().city === "Sector-12" ? 0 : 200000;
         case "homicide":
             return true; // Can always attempt homicide
