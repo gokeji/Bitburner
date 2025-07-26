@@ -318,10 +318,16 @@ async function round1(option = PrecalculatedRound1Option.OPTION2) {
     );
     if (config.auto === true) {
         await waitForOffer(ns, 10, 10, 49e10);
-        ns.print(`Round 1: Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
+        const offerAmount = ns.corporation.getInvestmentOffer().funds;
+        ns.print(`Round 1: Accept offer: ${ns.formatNumber(offerAmount)}`);
         corporationEventLogger.generateOfferAcceptanceEvent(ns);
         ns.corporation.acceptInvestmentOffer();
-        await round2();
+
+        if (offerAmount < 300e10) {
+            await round1_5();
+        } else {
+            await round2();
+        }
     }
 }
 async function round1_5(option = PrecalculatedRound1Option.OPTION5) {
@@ -383,13 +389,13 @@ async function round1_5(option = PrecalculatedRound1Option.OPTION5) {
             { name: MaterialName.ROBOTS, count: optimalAmountOfBoostMaterials[3] },
         ]),
     );
-    // if (config.auto === true) {
-    //     await waitForOffer(ns, 10, 10, 49e10);
-    //     ns.print(`Round 1: Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
-    //     corporationEventLogger.generateOfferAcceptanceEvent(ns);
-    //     ns.corporation.acceptInvestmentOffer();
-    //     await round2();
-    // }
+    if (config.auto === true) {
+        await waitForOffer(ns, 10, 10, 45e10);
+        ns.print(`Round 1: Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
+        corporationEventLogger.generateOfferAcceptanceEvent(ns);
+        ns.corporation.acceptInvestmentOffer();
+        await round2();
+    }
 }
 async function round2(option = PrecalculatedRound2Option.OPTION1) {
     ns.print(`Use: ${JSON.stringify(option)}`);
@@ -545,7 +551,10 @@ async function round3(option = PrecalculatedRound3Option.OPTION1) {
         throw new Error("You need to sell 1 division");
     }
     await createDivision(ns, DivisionName.TOBACCO, 3, 1);
-    createDummyDivisions(ns, 20 - ns.corporation.getCorporation().divisions.length);
+    createDummyDivisions(
+        ns,
+        20 * ns.getBitNodeMultipliers().CorporationDivisions - ns.corporation.getCorporation().divisions.length,
+    );
     for (const city of cities) {
         ns.corporation.cancelExportMaterial(DivisionName.AGRICULTURE, city, DivisionName.TOBACCO, city, "Plants");
         ns.corporation.exportMaterial(
@@ -749,7 +758,7 @@ async function improveAllDivisions() {
                     console.log(
                         `Cycle: ${cycleCount}. Accept offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`,
                     );
-                    if (ns.corporation.getInvestmentOffer().funds > 10e12) {
+                    if (ns.corporation.getInvestmentOffer().funds > 2000e12) {
                         corporationEventLogger.generateOfferAcceptanceEvent(ns);
                         ns.corporation.acceptInvestmentOffer();
                     }

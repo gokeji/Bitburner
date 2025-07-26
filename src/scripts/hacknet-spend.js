@@ -125,7 +125,7 @@ export async function main(ns) {
         }
 
         if (bladeburnerRank) {
-            const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.bladeburnerRank, null, limit);
+            const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.bladeburnerRank, null, limit, true);
 
             if (success) {
                 logUpgradeSuccess(ns, "Exchange for Bladeburner Rank", `${ns.formatNumber(level)}`, cost);
@@ -133,7 +133,7 @@ export async function main(ns) {
         }
 
         if (bladeburnerSP) {
-            const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.bladeburnerSP, null, limit);
+            const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.bladeburnerSP, null, limit, true);
 
             if (success) {
                 logUpgradeSuccess(ns, "Exchange for Bladeburner SP", `${ns.formatNumber(level)}`, cost);

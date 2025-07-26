@@ -29,7 +29,11 @@ export async function main(ns) {
         { type: "augmentation", target: "Synaptic Enhancement Implant" }, // CyberSec 2000
         { type: "augmentation", target: "Hacknet Node NIC Architecture Neural-Upload" }, // Netburners 1.875k
         { type: "augmentation", target: "Hacknet Node Kernel Direct-Neural Interface" }, // Netburners 7.5k
-        { type: "augmentation", target: "Hacknet Node Core Direct-Neural Interface" }, // Netburners 12.5k
+        {
+            type: "reset",
+            condition: (ns) => !ns.getResetInfo().ownedAugs.has("Hacknet Node Kernel Direct-Neural Interface"),
+        },
+        // { type: "augmentation", target: "Hacknet Node Core Direct-Neural Interface" }, // Netburners 12.5k
 
         // Homicide
         // { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
@@ -183,7 +187,7 @@ function canWorkOnTask(ns, task) {
         case "homicide":
             return true; // Can always attempt homicide
         case "reset":
-            return true; // Can always attempt reset
+            return task.condition ? task.condition(ns) : true; // Can always attempt reset
         case "stop":
             if (!ns.bladeburner.inBladeburner() || ns.getResetInfo().ownedAugs.has("The Blade's Simulacrum")) {
                 // No need to stop if not in bladeburner, or we have The Blade's Simulacrum which allows us to do bladeburner actions while busy
