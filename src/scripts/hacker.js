@@ -20,11 +20,12 @@ export async function main(ns) {
     const MINIMUM_SCRIPT_RAM_USAGE = 1.75;
 
     // === Hacker Settings ===
-    let MAX_WEAKEN_TIME = 5 * 60 * 1000; // ms max weaken time (Max 10 minutes)
+    let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
     let ALLOW_HASH_UPGRADES = true;
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.02; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0;
+    let PREP_FOR_CORP = false;
 
     let serversToHack = []; // ["clarkinc"];
 
@@ -34,7 +35,7 @@ export async function main(ns) {
     const TIME_PER_BATCH = BASE_SCRIPT_DELAY * 3 + DELAY_BETWEEN_BATCHES;
     const TICK_DELAY = 800; // ms delay between ticks
 
-    const HOME_SERVER_RESERVED_RAM = 100; // GB reserved for home server
+    const HOME_SERVER_RESERVED_RAM = 100 + (PREP_FOR_CORP ? 1000 : 0); // GB reserved for home server
     const ALWAYS_XP_FARM = false;
     const XP_FARM_SERVER = "foodnstuff";
     const ALLOW_PARTIAL_PREP = true;
@@ -663,11 +664,6 @@ export async function main(ns) {
 
     // === SERVER STATE DETERMINATION ===
     function determineServerState(server, gameState) {
-        // Basic exclusion checks
-        // if (!serversToHack.includes(server)) {
-        //     return ServerState.EXCLUDED;
-        // }
-
         if (serversOnHold.has(server)) {
             return ServerState.ON_HOLD;
         }
@@ -676,13 +672,6 @@ export async function main(ns) {
         if (!serverStats) {
             return ServerState.EXCLUDED;
         }
-        // if (serverStats.batchLimitForSustainedThroughput <= 0) {
-        //     ns.print(
-        //         `DEBUG: No sustainable batches for ${server}: limit=${serverStats.batchLimitForSustainedThroughput}`,
-        //     );
-        //     return ServerState.EXCLUDED;
-        // }
-
         const serverInfo = ns.getServer(server);
         const isHgw = serverProcessStates.get(server) === ServerProcessState.HGW;
         const isPrep = serverProcessStates.get(server) === ServerProcessState.PREP;
@@ -1141,7 +1130,10 @@ export async function main(ns) {
                 if (config.priority > maxPriorityForServer) {
                     maxPriorityForServer = config.priority;
                 }
-                if (config.batchSustainRatio < 0.1 || serverProcessStates.get(server) === ServerProcessState.PREP) {
+                if (
+                    (config.batchSustainRatio < 0.1 && ns.getServerMaxRam("home") > 64e3) ||
+                    serverProcessStates.get(server) === ServerProcessState.PREP
+                ) {
                     continue;
                 }
                 if (
