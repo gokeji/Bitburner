@@ -80,6 +80,7 @@ export async function main(ns) {
      * @type {Map<string, number>}
      */
     let serverRamCache = new Map();
+    let executableServerInfoCache = new Map();
 
     // Server list caching to avoid expensive BFS traversals
     const CACHE_EXPIRY_MS = 10000; // Cache server lists for 10 seconds
@@ -1371,6 +1372,9 @@ export async function main(ns) {
 
             if (availableRam > MINIMUM_SCRIPT_RAM_USAGE) {
                 serverRamCache.set(server, availableRam);
+                executableServerInfoCache.set(server, {
+                    cpuCores: serverInfo.cpuCores,
+                });
                 totalRam += availableRam;
             }
         }
@@ -2109,10 +2113,23 @@ export async function main(ns) {
 
             const threadsCanAllocate = Math.floor(availableRam / ramPerThread);
 
-            if (threadsCanAllocate >= remainingThreads) {
+            let adjustedThreadDemand = remainingThreads;
+            let coreBonus = 1;
+
+            if (preferHigherCoreCount) {
+                const serverStats = executableServerInfoCache.get(server);
+                const cores = serverStats?.cpuCores || 1;
+                coreBonus = 1 + (cores - 1) / 16;
+                if (!serverStats) {
+                    ns.print(`WARN: No server stats for ${server}`);
+                }
+                adjustedThreadDemand = Math.ceil(remainingThreads / coreBonus);
+            }
+
+            if (threadsCanAllocate >= adjustedThreadDemand) {
                 // Server has enough RAM for all remaining needs
-                const ramUsed = remainingThreads * ramPerThread;
-                allocations.set(server, remainingThreads);
+                const ramUsed = adjustedThreadDemand * ramPerThread;
+                allocations.set(server, adjustedThreadDemand);
 
                 // Update available RAM in the map
                 serverRamAvailable.set(server, availableRam - ramUsed);
@@ -2132,7 +2149,7 @@ export async function main(ns) {
                     // Update available RAM in the map
                     serverRamAvailable.set(server, availableRam - ramUsed);
                     totalRamUsed += ramUsed;
-                    remainingThreads -= threadsCanAllocate;
+                    remainingThreads -= Math.floor(threadsCanAllocate * coreBonus);
                 }
                 // Continue to next server for remaining threads
             }
@@ -2284,12 +2301,13 @@ export async function main(ns) {
         // Step 2: Allocate hack operations
         for (const hackOp of hackOperations) {
             const opKey = hackOp.id || "hack";
+            const preferHigherCoreCount = false;
             const allocation = allocateRamForOperation(
                 sortedServersByCoreCount,
                 serverRamAvailable,
                 HACK_SCRIPT_RAM_USAGE,
                 hackOp.threads,
-                false,
+                preferHigherCoreCount,
             );
 
             if (!allocation) {

@@ -41,29 +41,24 @@ export async function main(ns) {
 
     let baselineHackPercent = 0;
     let baselineHackMoney = 0;
-    let baselineHackTime = 0;
 
     for (const cores of testCores) {
         const hackPercent = ns.formulas.hacking.hackPercent(hackServer, player);
         const hackMoney = hackPercent * hackServer.moneyAvailable * threads;
         const hackTime = ns.formulas.hacking.hackTime(hackServer, player) / 1000;
-        const hackCoreTime = hackTime / cores; // Cores reduce time
-        const moneyPerSec = hackMoney / hackCoreTime;
+        const moneyPerSec = hackMoney / hackTime;
 
         if (cores === 1) {
             baselineHackPercent = hackPercent;
             baselineHackMoney = hackMoney;
-            baselineHackTime = hackCoreTime;
         }
 
-        const timeImprovement = cores === 1 ? 0 : (baselineHackTime / hackCoreTime - 1) * 100;
-        const efficiencyImprovement =
-            cores === 1 ? 0 : (moneyPerSec / (baselineHackMoney / baselineHackTime) - 1) * 100;
+        const efficiencyImprovement = cores === 1 ? 0 : (moneyPerSec / (baselineHackMoney / hackTime) - 1) * 100;
 
         const improvementStr = cores === 1 ? "baseline" : `+${efficiencyImprovement.toFixed(1)}%`;
 
         ns.print(
-            `${cores.toString().padStart(4)} | ${(hackPercent * 100).toFixed(3)}% | $${ns.formatNumber(hackMoney).padStart(10)} | ${hackCoreTime.toFixed(2).padStart(9)} | $${ns.formatNumber(moneyPerSec).padStart(10)} | ${improvementStr}`,
+            `${cores.toString().padStart(4)} | ${(hackPercent * 100).toFixed(3)}% | $${ns.formatNumber(hackMoney).padStart(10)} | ${hackTime.toFixed(2).padStart(9)} | $${ns.formatNumber(moneyPerSec).padStart(10)} | ${improvementStr}`,
         );
     }
 
@@ -83,27 +78,23 @@ export async function main(ns) {
     ns.print("-".repeat(75));
 
     let baselineGrowMulti = 0;
-    let baselineGrowTime = 0;
 
     for (const cores of testCores) {
         const growMultiplier = ns.formulas.hacking.growPercent(growServer, threads, player, cores);
         const moneyAfter = Math.min(growServer.moneyAvailable * growMultiplier, growServer.moneyMax);
         const growTime = ns.formulas.hacking.growTime(growServer, player) / 1000;
-        const growCoreTime = growTime / cores; // Cores reduce time
-        const growthPerSec = (moneyAfter - growServer.moneyAvailable) / growCoreTime;
+        const growthPerSec = (moneyAfter - growServer.moneyAvailable) / growTime;
 
         if (cores === 1) {
             baselineGrowMulti = growMultiplier;
-            baselineGrowTime = growCoreTime;
         }
 
         const multiImprovement = cores === 1 ? 0 : (growMultiplier / baselineGrowMulti - 1) * 100;
-        const timeImprovement = cores === 1 ? 0 : (baselineGrowTime / growCoreTime - 1) * 100;
 
         const improvementStr = cores === 1 ? "baseline" : `+${multiImprovement.toFixed(1)}%`;
 
         ns.print(
-            `${cores.toString().padStart(4)} | ${growMultiplier.toFixed(4)} | $${ns.formatNumber(moneyAfter).padStart(10)} | ${growCoreTime.toFixed(2).padStart(9)} | $${ns.formatNumber(growthPerSec).padStart(10)} | ${improvementStr}`,
+            `${cores.toString().padStart(4)} | ${growMultiplier.toFixed(4)} | $${ns.formatNumber(moneyAfter).padStart(10)} | ${growTime.toFixed(2).padStart(9)} | $${ns.formatNumber(growthPerSec).padStart(10)} | ${improvementStr}`,
         );
     }
 
@@ -122,27 +113,23 @@ export async function main(ns) {
     ns.print("-".repeat(75));
 
     let baselineWeakenAmt = 0;
-    let baselineWeakenTime = 0;
 
     for (const cores of testCores) {
         const weakenAmount = ns.weakenAnalyze(threads, cores);
         const securityAfter = Math.max(weakenServer.hackDifficulty - weakenAmount, weakenServer.minDifficulty);
         const weakenTime = ns.formulas.hacking.weakenTime(weakenServer, player) / 1000;
-        const weakenCoreTime = weakenTime / cores; // Cores reduce time
-        const weakenPerSec = weakenAmount / weakenCoreTime;
+        const weakenPerSec = weakenAmount / weakenTime;
 
         if (cores === 1) {
             baselineWeakenAmt = weakenAmount;
-            baselineWeakenTime = weakenCoreTime;
         }
 
         const amountImprovement = cores === 1 ? 0 : (weakenAmount / baselineWeakenAmt - 1) * 100;
-        const timeImprovement = cores === 1 ? 0 : (baselineWeakenTime / weakenCoreTime - 1) * 100;
 
         const improvementStr = cores === 1 ? "baseline" : `+${amountImprovement.toFixed(1)}%`;
 
         ns.print(
-            `${cores.toString().padStart(4)} | ${weakenAmount.toFixed(4)} | ${securityAfter.toFixed(2).padStart(13)} | ${weakenCoreTime.toFixed(2).padStart(9)} | ${weakenPerSec.toFixed(4).padStart(12)} | ${improvementStr}`,
+            `${cores.toString().padStart(4)} | ${weakenAmount.toFixed(4)} | ${securityAfter.toFixed(2).padStart(13)} | ${weakenTime.toFixed(2).padStart(9)} | ${weakenPerSec.toFixed(4).padStart(12)} | ${improvementStr}`,
         );
     }
 
@@ -158,7 +145,7 @@ export async function main(ns) {
 
     for (const cores of testCores) {
         // Calculate improvements
-        const hackTimeReduction = cores === 1 ? 0 : ((cores - 1) * 100) / cores; // Simplified time reduction
+        const hackTimeReduction = 0;
         const growMultiBoost =
             cores === 1
                 ? 0
@@ -180,27 +167,6 @@ export async function main(ns) {
         }
     }
 
-    // BATCH TIMING ANALYSIS
-    ns.print("\n" + "=".repeat(80));
-    ns.print("BATCH TIMING ANALYSIS WITH CORES");
-    ns.print("=".repeat(80));
-
-    ns.print("How cores affect HGW batch timing:");
-    ns.print("");
-    ns.print("Cores | Hack Time | Grow Time | Weaken Time | Longest (Batch)");
-    ns.print("-".repeat(60));
-
-    for (const cores of testCores) {
-        const hackTime = ns.formulas.hacking.hackTime(hackServer, player) / 1000 / cores;
-        const growTime = ns.formulas.hacking.growTime(growServer, player) / 1000 / cores;
-        const weakenTime = ns.formulas.hacking.weakenTime(weakenServer, player) / 1000 / cores;
-        const batchTime = Math.max(hackTime, growTime, weakenTime);
-
-        ns.print(
-            `${cores.toString().padStart(4)} | ${hackTime.toFixed(1).padStart(8)}s | ${growTime.toFixed(1).padStart(8)}s | ${weakenTime.toFixed(1).padStart(10)}s | ${batchTime.toFixed(1)}s`,
-        );
-    }
-
     // RECOMMENDATIONS
     ns.print("\n" + "=".repeat(80));
     ns.print("RECOMMENDATIONS");
@@ -208,19 +174,14 @@ export async function main(ns) {
 
     ns.print("💡 KEY INSIGHTS:");
     ns.print("");
-    ns.print("1. TIME REDUCTION: Cores directly reduce operation times by cores factor");
-    ns.print("   - 2 cores = 50% time reduction");
-    ns.print("   - 4 cores = 75% time reduction");
-    ns.print("   - 8 cores = 87.5% time reduction");
-    ns.print("");
-    ns.print("2. GROW EFFECTIVENESS: Cores also boost grow multiplier effectiveness");
+    ns.print("1. GROW EFFECTIVENESS: Cores also boost grow multiplier effectiveness");
     ns.print("   - This is the biggest advantage for grow operations");
     ns.print("   - Double benefit: faster execution + more effective");
     ns.print("");
-    ns.print("3. WEAKEN EFFECTIVENESS: Cores boost weaken amount per thread");
+    ns.print("2. WEAKEN EFFECTIVENESS: Cores boost weaken amount per thread");
     ns.print("   - Similar to grow, both faster and more effective");
     ns.print("");
-    ns.print("4. HACK OPERATIONS: Only benefit from time reduction");
+    ns.print("3. HACK OPERATIONS: Only benefit from time reduction");
     ns.print("   - Hack percentage is not affected by cores");
     ns.print("   - Still significant benefit from faster execution");
     ns.print("");
