@@ -81,6 +81,9 @@ export async function main(ns) {
      */
     let serverRamCache = new Map();
     let executableServerInfoCache = new Map();
+    let ramSavingsThisTick = 0;
+    let sortedServersByCoreCountAsc = [];
+    let sortedServersByCoreCountDesc = [];
 
     // Server list caching to avoid expensive BFS traversals
     const CACHE_EXPIRY_MS = 10000; // Cache server lists for 10 seconds
@@ -217,6 +220,7 @@ export async function main(ns) {
         // Clear optimization caches at start of each tick
         serverStatsCache.clear();
         globalCalculationCache = null;
+        ramSavingsThisTick = 0;
 
         if (lastTickTime !== 0) {
             const actualTickTime = tickStartTime - lastTickTime;
@@ -912,8 +916,10 @@ export async function main(ns) {
 
         const averageTickTime = tickCounter > 1 ? totalServerTickTimes / (tickCounter - 1) : 0;
 
+        const ramSavingsMessage = `+${ns.formatRam(ramSavingsThisTick)}`;
+
         ns.print(
-            `INFO: RAM: ${ns.formatPercent(ramUtilization)} (${ns.formatRam(freeRamAfterTick)}+) | Batch: ${ns.formatPercent(serverSuccessRate, 2)} ${ns.formatNumber(totalServersNotDiscarded)}/${ns.formatNumber(totalServersAttempted)} | ${weakenTimeDriftMessage} | Ticks: ${ns.formatNumber(averageTickTime, 1)}ms | Overestimation: ${ns.formatNumber(ramOverestimation, 2)}x`,
+            `INFO: RAM: ${ns.formatPercent(ramUtilization)} (${ns.formatRam(freeRamAfterTick)}+) | Batch: ${ns.formatPercent(serverSuccessRate, 2)} ${ns.formatNumber(totalServersNotDiscarded)}/${ns.formatNumber(totalServersAttempted)} | ${weakenTimeDriftMessage} | Ticks: ${ns.formatNumber(averageTickTime, 1)}ms | Overestimation: ${ns.formatNumber(ramOverestimation, 2)}x | Saved: ${ramSavingsMessage}`,
         );
 
         // Note: XP farming is now handled by the reducer via XP_FARM actions
@@ -1147,7 +1153,8 @@ export async function main(ns) {
                     const totalStockValue = (growStocks.get(server) ?? 0) + (hackStocks.get(server) ?? 0);
                     config.throughput +=
                         (config.hackPercentage * totalStockValue * config.batchLimitForSustainedThroughput) /
-                        config.weakenTime;
+                        config.weakenTime /
+                        5;
                     config.priority = config.throughput / (config.ramUsageForSustainedThroughput / 10000);
                 }
                 allConfigurations.push(config);
@@ -1344,8 +1351,6 @@ export async function main(ns) {
      * @returns {number} - Total available RAM in GB.
      */
     function getTotalFreeRam(ns) {
-        const ramCalcStart = performance.now();
-
         // Calculate total from the cache
         let totalRam = 0;
         serverRamCache.clear();
@@ -1379,11 +1384,11 @@ export async function main(ns) {
             }
         }
 
-        const ramCalcTime = performance.now() - ramCalcStart;
-        if (ramCalcTime > 10) {
-            // Only log if it takes more than 10ms
-            ns.print(`PERF: getTotalFreeRam took ${ramCalcTime.toFixed(1)}ms`);
-        }
+        // Sort servers by available core count (highest first) - do this once and reuse
+        sortedServersByCoreCountAsc = Array.from(serverRamCache.keys()).sort(
+            (a, b) => ns.getServer(a).cpuCores - ns.getServer(b).cpuCores,
+        );
+        sortedServersByCoreCountDesc = [...sortedServersByCoreCountAsc].reverse();
 
         return totalRam;
     }
@@ -2086,29 +2091,21 @@ export async function main(ns) {
     /**
      * Allocates RAM for a single operation across available servers.
      *
-     * @param {Array<[string, number]>} sortedServers - Array of [serverName, availableRam] sorted by core count (highest first)
-     * @param {Map<string, number>} serverRamAvailable - Map of server names to available RAM (for updates)
      * @param {number} ramPerThread - RAM cost per thread for this operation type
      * @param {number} totalThreadsNeeded - Total number of threads needed
      * @returns {{allocations: Map<string, number>, totalRamUsed: number} | false} -
      *   Returns allocation map and total RAM used, or false if allocation failed
      */
-    function allocateRamForOperation(
-        sortedServers,
-        serverRamAvailable,
-        ramPerThread,
-        totalThreadsNeeded,
-        preferHigherCoreCount = true,
-    ) {
+    function allocateRamForOperation(ramPerThread, totalThreadsNeeded, preferHigherCoreCount = true) {
         const allocations = new Map();
         let totalRamUsed = 0;
         let remainingThreads = totalThreadsNeeded;
 
-        const serversToIterate = preferHigherCoreCount ? sortedServers : [...sortedServers].reverse();
+        const serversToIterate = preferHigherCoreCount ? sortedServersByCoreCountDesc : sortedServersByCoreCountAsc;
 
         for (const server of serversToIterate) {
             // FIX: Get the most current available RAM from the map, not the stale value from the sorted array
-            const availableRam = serverRamAvailable.get(server) || 0;
+            const availableRam = serverRamCache.get(server) || 0;
             if (remainingThreads <= 0) break;
 
             const threadsCanAllocate = Math.floor(availableRam / ramPerThread);
@@ -2132,8 +2129,9 @@ export async function main(ns) {
                 allocations.set(server, adjustedThreadDemand);
 
                 // Update available RAM in the map
-                serverRamAvailable.set(server, availableRam - ramUsed);
+                serverRamCache.set(server, availableRam - ramUsed);
                 totalRamUsed += ramUsed;
+                ramSavingsThisTick += (remainingThreads - adjustedThreadDemand) * ramPerThread;
                 remainingThreads = 0;
                 break; // We're done
             } else {
@@ -2147,8 +2145,10 @@ export async function main(ns) {
                     allocations.set(server, threadsCanAllocate);
 
                     // Update available RAM in the map
-                    serverRamAvailable.set(server, availableRam - ramUsed);
+                    serverRamCache.set(server, availableRam - ramUsed);
                     totalRamUsed += ramUsed;
+                    ramSavingsThisTick +=
+                        (Math.floor(threadsCanAllocate * coreBonus) - threadsCanAllocate) * ramPerThread;
                     remainingThreads -= Math.floor(threadsCanAllocate * coreBonus);
                 }
                 // Continue to next server for remaining threads
@@ -2264,14 +2264,6 @@ export async function main(ns) {
             );
         }
 
-        // Create a copy of server RAM availability to track allocations
-        const serverRamAvailable = new Map(serverRamCache);
-
-        // Sort servers by available core count (highest first) - do this once and reuse
-        const sortedServersByCoreCount = Array.from(serverRamAvailable.keys()).sort(
-            (a, b) => ns.getServer(a).cpuCores - ns.getServer(b).cpuCores,
-        );
-
         // Separate operations by type
         const growOperations = scaledOperations.filter((op) => op.type === "grow");
         const hackOperations = scaledOperations.filter((op) => op.type === "hack");
@@ -2281,13 +2273,7 @@ export async function main(ns) {
         for (const growOp of growOperations) {
             const opKey = growOp.id || "grow";
             const preferHigherCoreCount = true;
-            const allocation = allocateRamForOperation(
-                sortedServersByCoreCount,
-                serverRamAvailable,
-                GROW_SCRIPT_RAM_USAGE,
-                growOp.threads,
-                preferHigherCoreCount,
-            );
+            const allocation = allocateRamForOperation(GROW_SCRIPT_RAM_USAGE, growOp.threads, preferHigherCoreCount);
 
             if (!allocation) {
                 result.success = false;
@@ -2302,13 +2288,7 @@ export async function main(ns) {
         for (const hackOp of hackOperations) {
             const opKey = hackOp.id || "hack";
             const preferHigherCoreCount = false;
-            const allocation = allocateRamForOperation(
-                sortedServersByCoreCount,
-                serverRamAvailable,
-                HACK_SCRIPT_RAM_USAGE,
-                hackOp.threads,
-                preferHigherCoreCount,
-            );
+            const allocation = allocateRamForOperation(HACK_SCRIPT_RAM_USAGE, hackOp.threads, preferHigherCoreCount);
 
             if (!allocation) {
                 result.success = false;
@@ -2324,8 +2304,6 @@ export async function main(ns) {
             const opKey = weakenOp.id || "weaken";
             const preferHigherCoreCount = true;
             const allocation = allocateRamForOperation(
-                sortedServersByCoreCount,
-                serverRamAvailable,
                 WEAKEN_SCRIPT_RAM_USAGE,
                 weakenOp.threads,
                 preferHigherCoreCount,
@@ -2340,21 +2318,10 @@ export async function main(ns) {
             result.totalRamUsed += allocation.totalRamUsed;
         }
 
-        // Allocation is successful, so we can update the global serverRamCache
-        // Only update servers that have actually been modified during allocation
-
-        for (const [server, updatedRam] of serverRamAvailable) {
-            const originalRam = serverRamCache.get(server);
-
-            // Only update if the RAM amount has changed
-            if (originalRam !== updatedRam) {
-                if (updatedRam < MINIMUM_SCRIPT_RAM_USAGE) {
-                    // Remove servers with insufficient RAM
-                    serverRamCache.delete(server);
-                } else {
-                    // Update the global cache with the new available RAM
-                    serverRamCache.set(server, updatedRam);
-                }
+        // Remove servers with insufficient RAM
+        for (const server of [...serverRamCache.keys()]) {
+            if (serverRamCache.get(server) < MINIMUM_SCRIPT_RAM_USAGE) {
+                serverRamCache.delete(server);
             }
         }
 

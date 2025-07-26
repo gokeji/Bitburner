@@ -272,7 +272,7 @@ function tendStocks(ns) {
     for (const stock of longStocks.values()) {
         //ns.print("INFO grow " + sym);
         // Prioritize volatile stocks
-        growStockPort.write(`${getSymServer(stock.sym)}:${stock.marketCap * stock.profitPotential}`);
+        growStockPort.write(`${getSymServer(stock.sym)}:${stock.value * stock.profitPotential}`);
     }
     if (shortStocks.size === 0) {
         hackStockPort.write("EMPTY");
@@ -280,7 +280,7 @@ function tendStocks(ns) {
     for (const stock of shortStocks.values()) {
         //ns.print("INFO hack " + sym);
         // Prioritize volatile stocks
-        hackStockPort.write(`${getSymServer(stock.sym)}:${stock.marketCap * stock.profitPotential}`);
+        hackStockPort.write(`${getSymServer(stock.sym)}:${stock.value * stock.profitPotential}`);
     }
     if (longStocks.size === 0) {
         growStockPort.write("EMPTY");
