@@ -12,7 +12,7 @@ let IPVGO_OPPONENTS = [
     // "Slum Snakes", // crime success rate
     "The Black Hand", // hacking money
     "Tetrads", // strength, defense, dexterity, and agility levels
-    // "Daedalus", // reputation gain
+    "Daedalus", // reputation gain
     "Illuminati", // faster hack(), grow(), and weaken()
     // "????????????", // w0r1d_d43m0n Hacking Levels - will be dynamically added later
 ];

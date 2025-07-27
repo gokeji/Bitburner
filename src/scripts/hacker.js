@@ -25,7 +25,7 @@ export async function main(ns) {
     let ALLOW_HASH_UPGRADES = true;
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.02; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0;
-    let PREP_FOR_CORP = true;
+    let PREP_FOR_CORP = false;
 
     let serversToHack = []; // ["clarkinc"];
 
@@ -2095,12 +2095,18 @@ export async function main(ns) {
     /**
      * Allocates RAM for a single operation across available servers.
      *
+     * @param {Map<string, number>} serverRamCacheCopy - Copy of the server RAM cache to track allocations
      * @param {number} ramPerThread - RAM cost per thread for this operation type
      * @param {number} totalThreadsNeeded - Total number of threads needed
      * @returns {{allocations: Map<string, number>, totalRamUsed: number} | false} -
      *   Returns allocation map and total RAM used, or false if allocation failed
      */
-    function allocateRamForOperation(ramPerThread, totalThreadsNeeded, preferHigherCoreCount = true) {
+    function allocateRamForOperation(
+        serverRamCacheCopy,
+        ramPerThread,
+        totalThreadsNeeded,
+        preferHigherCoreCount = true,
+    ) {
         const allocations = new Map();
         let totalRamUsed = 0;
         let remainingThreads = totalThreadsNeeded;
@@ -2109,8 +2115,10 @@ export async function main(ns) {
 
         for (const server of serversToIterate) {
             // FIX: Get the most current available RAM from the map, not the stale value from the sorted array
-            const availableRam = serverRamCache.get(server) || 0;
+            const availableRam = serverRamCacheCopy.get(server) || 0;
             if (remainingThreads <= 0) break;
+
+            // ns.print(`INFO: Allocating ${remainingThreads} threads for ${server}: freeRam=${availableRam}`);
 
             const threadsCanAllocate = Math.floor(availableRam / ramPerThread);
 
@@ -2133,10 +2141,11 @@ export async function main(ns) {
                 allocations.set(server, adjustedThreadDemand);
 
                 // Update available RAM in the map
-                serverRamCache.set(server, availableRam - ramUsed);
+                serverRamCacheCopy.set(server, availableRam - ramUsed);
                 totalRamUsed += ramUsed;
                 ramSavingsThisTick += (remainingThreads - adjustedThreadDemand) * ramPerThread;
                 remainingThreads = 0;
+
                 break; // We're done
             } else {
                 if (maxSingleServerRam > THREAD_SPLIT_THRESHOLD) {
@@ -2149,7 +2158,7 @@ export async function main(ns) {
                     allocations.set(server, threadsCanAllocate);
 
                     // Update available RAM in the map
-                    serverRamCache.set(server, availableRam - ramUsed);
+                    serverRamCacheCopy.set(server, availableRam - ramUsed);
                     totalRamUsed += ramUsed;
                     ramSavingsThisTick +=
                         (Math.floor(threadsCanAllocate * coreBonus) - threadsCanAllocate) * ramPerThread;
@@ -2268,6 +2277,9 @@ export async function main(ns) {
             );
         }
 
+        // Create a copy of server RAM availability to track allocations, so we can simulate allocating but escape if we
+        const serverRamCacheCopy = new Map(serverRamCache);
+
         // Separate operations by type
         const growOperations = scaledOperations.filter((op) => op.type === "grow");
         const hackOperations = scaledOperations.filter((op) => op.type === "hack");
@@ -2277,7 +2289,12 @@ export async function main(ns) {
         for (const growOp of growOperations) {
             const opKey = growOp.id || "grow";
             const preferHigherCoreCount = true;
-            const allocation = allocateRamForOperation(GROW_SCRIPT_RAM_USAGE, growOp.threads, preferHigherCoreCount);
+            const allocation = allocateRamForOperation(
+                serverRamCacheCopy,
+                GROW_SCRIPT_RAM_USAGE,
+                growOp.threads,
+                preferHigherCoreCount,
+            );
 
             if (!allocation) {
                 result.success = false;
@@ -2292,7 +2309,12 @@ export async function main(ns) {
         for (const hackOp of hackOperations) {
             const opKey = hackOp.id || "hack";
             const preferHigherCoreCount = false;
-            const allocation = allocateRamForOperation(HACK_SCRIPT_RAM_USAGE, hackOp.threads, preferHigherCoreCount);
+            const allocation = allocateRamForOperation(
+                serverRamCacheCopy,
+                HACK_SCRIPT_RAM_USAGE,
+                hackOp.threads,
+                preferHigherCoreCount,
+            );
 
             if (!allocation) {
                 result.success = false;
@@ -2308,6 +2330,7 @@ export async function main(ns) {
             const opKey = weakenOp.id || "weaken";
             const preferHigherCoreCount = true;
             const allocation = allocateRamForOperation(
+                serverRamCacheCopy,
                 WEAKEN_SCRIPT_RAM_USAGE,
                 weakenOp.threads,
                 preferHigherCoreCount,
@@ -2321,11 +2344,21 @@ export async function main(ns) {
             result[opKey] = allocation.allocations;
             result.totalRamUsed += allocation.totalRamUsed;
         }
+        // Allocation is successful, so we can update the global serverRamCache
+        // Only update servers that have actually been modified during allocation
 
-        // Remove servers with insufficient RAM
-        for (const server of [...serverRamCache.keys()]) {
-            if (serverRamCache.get(server) < MINIMUM_SCRIPT_RAM_USAGE) {
-                serverRamCache.delete(server);
+        for (const [server, updatedRam] of serverRamCacheCopy) {
+            const originalRam = serverRamCache.get(server);
+
+            // Only update if the RAM amount has changed
+            if (originalRam !== updatedRam) {
+                if (updatedRam < MINIMUM_SCRIPT_RAM_USAGE) {
+                    // Remove servers with insufficient RAM
+                    serverRamCache.delete(server);
+                } else {
+                    // Update the global cache with the new available RAM
+                    serverRamCache.set(server, updatedRam);
+                }
             }
         }
 

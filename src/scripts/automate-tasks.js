@@ -29,10 +29,6 @@ export async function main(ns) {
         { type: "augmentation", target: "Synaptic Enhancement Implant" }, // CyberSec 2000
         { type: "augmentation", target: "Hacknet Node NIC Architecture Neural-Upload" }, // Netburners 1.875k
         { type: "augmentation", target: "Hacknet Node Kernel Direct-Neural Interface" }, // Netburners 7.5k
-        {
-            type: "reset",
-            condition: (ns) => !ns.getResetInfo().ownedAugs.has("Hacknet Node Kernel Direct-Neural Interface"),
-        },
         // { type: "augmentation", target: "Hacknet Node Core Direct-Neural Interface" }, // Netburners 12.5k
 
         // Homicide
