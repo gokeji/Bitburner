@@ -185,6 +185,111 @@ export function crimeSuccess(str, def, dex, agi, crime = "Homicide", mult = 1, i
     };
 }
 
+// MARK: - Bladeburner
+
+const BladeburnerConstants = {
+    DiffMultExponentialFactor: 0.28,
+    DiffMultLinearFactor: 650,
+    BaseStatGain: 1, // Base stat gain per second
+    BaseIntGain: 0.003, // Base intelligence stat gain
+
+    DifficultyToTimeFactor: 10, // Action Difficulty divided by this to get base action time
+    /**
+     * These factors are used to calculate action time.
+     * They affect how much action time is reduced based on your agility and dexterity
+     */
+    EffAgiLinearFactor: 10e3,
+    EffDexLinearFactor: 10e3,
+    EffAgiExponentialFactor: 0.04,
+    EffDexExponentialFactor: 0.035,
+};
+
+export function getBladeburnerIntGain(assassinationLevel, hyperdriveLevel, success = true) {
+    const difficulty = getDifficulty(assassinationLevel);
+
+    const action = {
+        weights: {
+            hacking: 0.1,
+            strength: 0.1,
+            defense: 0.1,
+            dexterity: 0.3,
+            agility: 0.3,
+            charisma: 0,
+            intelligence: 0.1,
+        },
+    };
+
+    /**
+     * Gain multiplier based on difficulty. If it changes then the
+     * same variable calculated in completeAction() needs to change too
+     */
+    const difficultyMult =
+        Math.pow(difficulty, BladeburnerConstants.DiffMultExponentialFactor) +
+        difficulty / BladeburnerConstants.DiffMultLinearFactor;
+
+    console.log("difficultyMult", difficultyMult);
+
+    const effAgility = 800e6 * 1461;
+    const effDexterity = 800e6 * 1461;
+
+    const time = getActionTime(effAgility, effDexterity, difficulty, 0.1);
+    const successMult = success ? 1 : 0.5;
+
+    const unweightedGain = time * BladeburnerConstants.BaseStatGain * successMult * difficultyMult;
+    const unweightedIntGain = time * BladeburnerConstants.BaseIntGain * successMult * difficultyMult;
+    const skillMult = hyperdriveLevel * 0.1;
+
+    return {
+        hackExp: unweightedGain * action.weights.hacking * skillMult,
+        strExp: unweightedGain * action.weights.strength * skillMult,
+        defExp: unweightedGain * action.weights.defense * skillMult,
+        dexExp: unweightedGain * action.weights.dexterity * skillMult,
+        agiExp: unweightedGain * action.weights.agility * skillMult,
+        chaExp: unweightedGain * action.weights.charisma * skillMult,
+        intExp: unweightedIntGain * action.weights.intelligence * skillMult,
+        money: 0,
+        reputation: 0,
+    };
+}
+
+export function getDifficulty(level) {
+    const baseDifficulty = 1500;
+    const difficultyFac = 1.06;
+    const difficulty = baseDifficulty * Math.pow(difficultyFac, level - 1);
+    if (isNaN(difficulty)) {
+        throw new Error("Calculated NaN in Action.getDifficulty()");
+    }
+    return difficulty;
+}
+
+export function getDifficultyMult(difficulty) {
+    /**
+     * Gain multiplier based on difficulty. If it changes then the
+     * same variable calculated in completeAction() needs to change too
+     */
+    const difficultyMult =
+        Math.pow(difficulty, BladeburnerConstants.DiffMultExponentialFactor) +
+        difficulty / BladeburnerConstants.DiffMultLinearFactor;
+
+    return difficultyMult;
+}
+
+export function getActionTime(effAgility, effDexterity, difficulty, actionTimeMult) {
+    let baseTime = difficulty / BladeburnerConstants.DifficultyToTimeFactor;
+    const skillFac = actionTimeMult; // Always < 1
+
+    const statFac =
+        0.5 *
+        (Math.pow(effAgility, BladeburnerConstants.EffAgiExponentialFactor) +
+            Math.pow(effDexterity, BladeburnerConstants.EffDexExponentialFactor) +
+            effAgility / BladeburnerConstants.EffAgiLinearFactor +
+            effDexterity / BladeburnerConstants.EffDexLinearFactor); // Always > 1
+
+    baseTime = Math.max(1, (baseTime * skillFac) / statFac);
+
+    return Math.ceil(baseTime);
+}
+
 /**
  * Main function to make all exported functions available in Node.js console
  * Run with: node src/scripts/formulas.js
@@ -202,6 +307,9 @@ async function main() {
         "- crimeSuccess(str, def, dex, agi, crime = 'Homicide', mult = 1, intelligence = 0) - Easy helper function",
     );
     console.log("- clampNumber(value, min = -Number.MAX_VALUE, max = Number.MAX_VALUE)");
+    console.log("- getBladeburnerIntGain(assassinationLevel, hyperdriveLevel, success = true)");
+    console.log("- getDifficulty(level)");
+    console.log("- getActionTime(effAgility, effDexterity, difficulty, actionTimeMult)");
     console.log("\nEasy crime success calculation:");
     console.log("Example: crimeSuccess(100, 100, 100, 100, 'Homicide', 1, 200)");
     console.log("Available crimes: 'Homicide', 'Mug'");
@@ -224,6 +332,10 @@ async function main() {
     replServer.context.crimeSuccess = crimeSuccess;
     replServer.context.clampNumber = clampNumber;
     replServer.context.CRIME_STATS = CRIME_STATS;
+    replServer.context.getBladeburnerIntGain = getBladeburnerIntGain;
+    replServer.context.getDifficulty = getDifficulty;
+    replServer.context.getDifficultyMult = getDifficultyMult;
+    replServer.context.getActionTime = getActionTime;
 }
 
 // Run main function if this file is executed directly

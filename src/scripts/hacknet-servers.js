@@ -23,7 +23,9 @@ export async function main(ns) {
     const continuousMode = flags["continuous"]; // If true, continue upgrading as long as spending < 1% of player money
     const HACKNET_SPEND_PERCENTAGE = 0.01;
 
-    ns.ui.openTail();
+    if (!continuousMode) {
+        ns.ui.openTail();
+    }
 
     // Get BitNode multipliers with fallback support
     let bitNodeMultipliers = getSafeBitNodeMultipliers(ns); // Default to BitNode 4 if unavailable
@@ -288,7 +290,7 @@ export async function main(ns) {
                 ns.print(`Exceeded max spend of ${ns.formatNumber(hacknetMaxSpend)}. Waiting for more money...`);
                 hasPrintedWaitingMessage = true;
             }
-            await ns.sleep(10000); // Wait 10 seconds before checking again
+            await ns.sleep(2000); // Wait 5 seconds before checking again
             continue;
         }
         hasPrintedWaitingMessage = false;
@@ -388,7 +390,7 @@ export async function main(ns) {
                 ns.print(
                     `Waiting for ${ns.formatNumber(bestUpgrade.cost)} to upgrade ${bestUpgrade.type} on node ${bestUpgrade.index}...`,
                 );
-                await ns.sleep(10000);
+                await ns.sleep(5000);
             }
 
             // Perform the upgrade and tally it

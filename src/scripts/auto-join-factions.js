@@ -49,22 +49,22 @@ export async function main(ns) {
                             ns.tprint(`❌ Failed to join ${faction}`);
                             ns.toast(`❌ Failed to join ${faction}`, "error");
                         }
-                        if (faction === "Daedalus") {
-                            const currentWork = ns.singularity.getCurrentWork();
-                            if (currentWork && currentWork.type === "GRAFTING") {
-                                await ns.grafting.waitForOngoingGrafting();
-                            }
-                            const success = ns.singularity.workForFaction(faction, "hacking");
-                            if (success) {
-                                ns.print(`✅ Working for ${faction}!`);
-                                ns.tprint(`✅ Working for ${faction}!`);
-                                ns.toast(`✅ Working for ${faction}!`, "success");
-                            } else {
-                                ns.print(`❌ Failed to work for ${faction}`);
-                                ns.tprint(`❌ Failed to work for ${faction}`);
-                                ns.toast(`❌ Failed to work for ${faction}`, "error");
-                            }
-                        }
+                        // if (faction === "Daedalus") {
+                        //     const currentWork = ns.singularity.getCurrentWork();
+                        //     if (currentWork && currentWork.type === "GRAFTING") {
+                        //         await ns.grafting.waitForOngoingGrafting();
+                        //     }
+                        //     const success = ns.singularity.workForFaction(faction, "hacking");
+                        //     if (success) {
+                        //         ns.print(`✅ Working for ${faction}!`);
+                        //         ns.tprint(`✅ Working for ${faction}!`);
+                        //         ns.toast(`✅ Working for ${faction}!`, "success");
+                        //     } else {
+                        //         ns.print(`❌ Failed to work for ${faction}`);
+                        //         ns.tprint(`❌ Failed to work for ${faction}`);
+                        //         ns.toast(`❌ Failed to work for ${faction}`, "error");
+                        //     }
+                        // }
                     } else {
                         // ns.print(`❌ Skipping ${faction}`);
                     }

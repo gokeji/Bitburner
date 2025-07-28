@@ -174,6 +174,8 @@ export async function main(ns) {
         } else
             log(ns, `WARNING: Stanek.js shutting down, but failed to launch ${completionScript}...`, false, "warning");
     }
+
+    ns.ui.closeTail();
 }
 
 /** Get Fragments to Charge

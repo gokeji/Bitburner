@@ -18,17 +18,17 @@ export async function main(ns) {
             earnRateThisNode > 1e9) &&
         ns.getResetInfo().currentNode != 8;
 
-    if (ns.getPlayer().factions.includes("Church of the Machine God")) {
-        // Start stanek early so it can run during crime and casino phases
-        if (!ns.scriptRunning("stanek.js", "home")) {
-            const stanekPid = ns.run("stanek.js");
-            if (stanekPid) {
-                ns.print("SUCCESS Started stanek.js early - it will run during crime and casino phases");
-            } else {
-                ns.print("WARNING Failed to start stanek.js early");
-            }
-        }
-    }
+    // if (ns.getPlayer().factions.includes("Church of the Machine God")) {
+    //     // Start stanek early so it can run during crime and casino phases
+    //     if (!ns.scriptRunning("stanek.js", "home")) {
+    //         const stanekPid = ns.run("stanek.js", 1, "--max-charges", 1);
+    //         if (stanekPid) {
+    //             ns.print("SUCCESS Started stanek.js early - it will run during crime and casino phases");
+    //         } else {
+    //             ns.print("WARNING Failed to start stanek.js early");
+    //         }
+    //     }
+    // }
 
     if (ns.gang.inGang()) {
         // Run gangs.js to start making some money
@@ -98,21 +98,23 @@ export async function main(ns) {
     ns.run("autoplay.js");
     ns.print("INFO After-install complete - autoplay.js has been started");
 
-    // while (true) {
-    //     const timeSinceInstall = Date.now() - ns.getResetInfo().lastAugReset;
-    //     if (timeSinceInstall > 20 * 60 * 1000) {
-    //         // run reset.js after 10 minutes
-    //         let success = ns.run("scripts/reset.js");
-    //         if (success) {
-    //             ns.print("INFO Reset.js has been started");
-    //             break;
-    //         } else {
-    //             ns.print("WARN Failed to start reset.js");
-    //         }
-    //     }
-    //     ns.print(
-    //         `INFO ${ns.formatNumber(timeSinceInstall / 1000 / 60)} minutes since install. Will reset after 20 minutes.`,
-    //     );
-    //     await ns.sleep(30000);
-    // }
+    const costOfNFG = ns.singularity.getAugmentationPrice("NeuroFlux Governor");
+    while (true) {
+        const timeSinceInstall = ns.getTimeSinceLastAug();
+        const remainingTimeOnBladeburnerAction = ns.bladeburner.getActionCurrentTime();
+        if (timeSinceInstall > 2.01 * 60 * 1000 && remainingTimeOnBladeburnerAction > 58000) {
+            // run reset.js after 10 minutes
+            let success = ns.run("scripts/reset.js", 1, "--allowSoftReset");
+            if (success) {
+                ns.print("INFO Reset.js has been started");
+                break;
+            } else {
+                ns.print("WARN Failed to start reset.js");
+            }
+        }
+        ns.print(
+            `INFO ${ns.formatNumber(timeSinceInstall / 1000 / 60)} minutes since install. Will reset after 1 minutes.`,
+        );
+        await ns.sleep(1000);
+    }
 }

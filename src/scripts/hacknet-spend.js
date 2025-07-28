@@ -125,18 +125,30 @@ export async function main(ns) {
         }
 
         if (bladeburnerRank) {
-            const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.bladeburnerRank, null, limit, true);
+            const { cost, success, level, count } = spendHashesOnUpgrade(
+                ns,
+                hashUpgrades.bladeburnerRank,
+                null,
+                limit,
+                true,
+            );
 
             if (success) {
-                logUpgradeSuccess(ns, "Exchange for Bladeburner Rank", `${ns.formatNumber(level)}`, cost);
+                logUpgradeSuccess(ns, "Exchange for Bladeburner Rank", `${ns.formatNumber(level)}`, cost, count);
             }
         }
 
         if (bladeburnerSP) {
-            const { cost, success, level } = spendHashesOnUpgrade(ns, hashUpgrades.bladeburnerSP, null, limit, true);
+            const { cost, success, level, count } = spendHashesOnUpgrade(
+                ns,
+                hashUpgrades.bladeburnerSP,
+                null,
+                limit,
+                true,
+            );
 
             if (success) {
-                logUpgradeSuccess(ns, "Exchange for Bladeburner SP", `${ns.formatNumber(level)}`, cost);
+                logUpgradeSuccess(ns, "Exchange for Bladeburner SP", `${ns.formatNumber(level)}`, cost, count);
             }
         }
 
@@ -220,7 +232,7 @@ export function spendHashesOnUpgrade(ns, upgradeName, target = null, limit = nul
         return { cost: 0, success: false, level: 0, count: 0 };
     }
 
-    if (cost > ns.hacknet.hashCapacity()) {
+    if (cost > ns.hacknet.hashCapacity() / 100000) {
         let hacknetWithLowestCache = null;
         let lowestCacheServerIndex = null;
 
@@ -260,8 +272,8 @@ export function logUpgradeSuccess(ns, upgradeName, effectString, cost, count = 1
     const toastMessage = `${upgradeName} | ${effectString} | ${cost}h | ${count}x`;
 
     ns.print(message);
-    ns.toast(toastMessage);
-    ns.tprint(message);
+    // ns.toast(toastMessage);
+    // ns.tprint(message);
 }
 
 /**

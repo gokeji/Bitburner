@@ -323,7 +323,7 @@ async function round1(option = PrecalculatedRound1Option.OPTION2) {
         corporationEventLogger.generateOfferAcceptanceEvent(ns);
         ns.corporation.acceptInvestmentOffer();
 
-        if (offerAmount < 300e10) {
+        if (offerAmount < 300e9) {
             await round1_5();
         } else {
             await round2();
@@ -397,7 +397,7 @@ async function round1_5(option = PrecalculatedRound1Option.OPTION5) {
         await round2();
     }
 }
-async function round2(option = PrecalculatedRound2Option.OPTION1) {
+async function round2(option = PrecalculatedRound2Option.OPTION2) {
     ns.print(`Use: ${JSON.stringify(option)}`);
     if (enableTestingTools && config.auto === false) {
         resetStatistics();
@@ -761,6 +761,7 @@ async function improveAllDivisions() {
                     if (ns.corporation.getInvestmentOffer().funds > 2000e12) {
                         corporationEventLogger.generateOfferAcceptanceEvent(ns);
                         ns.corporation.acceptInvestmentOffer();
+                        ns.print(`Accepted offer: ${ns.formatNumber(ns.corporation.getInvestmentOffer().funds)}`);
                     }
                     preparingToAcceptOffer = false;
                     continue;
@@ -1623,7 +1624,7 @@ async function main(nsContext) {
     }
     if (config.improveAllDivisions === true) {
         nsx.killProcessesSpawnFromSameScript();
-        ns.ui.openTail();
+        // ns.ui.openTail();
         await improveAllDivisions();
         return;
     }

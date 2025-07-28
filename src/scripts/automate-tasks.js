@@ -22,14 +22,11 @@ export async function main(ns) {
 
     /** @type {Task[]} */
     let taskQueue = [
-        { type: "faction", target: "Daedalus", goal: "favor" },
-        { type: "augmentation", target: "The Red Pill" }, // Daedalus 2.5m
-
         // Early game
         { type: "augmentation", target: "Synaptic Enhancement Implant" }, // CyberSec 2000
         { type: "augmentation", target: "Hacknet Node NIC Architecture Neural-Upload" }, // Netburners 1.875k
         { type: "augmentation", target: "Hacknet Node Kernel Direct-Neural Interface" }, // Netburners 7.5k
-        // { type: "augmentation", target: "Hacknet Node Core Direct-Neural Interface" }, // Netburners 12.5k
+        { type: "augmentation", target: "Hacknet Node Core Direct-Neural Interface" }, // Netburners 12.5k
 
         // Homicide
         // { type: "train", target: "stats", goal: { strength: 100, defense: 100, dexterity: 100, agility: 100 } },
@@ -37,6 +34,9 @@ export async function main(ns) {
         // { type: "stop" },
         { type: "train", target: "homicide", goal: 1.0, condition: (ns) => !ns.gang.inGang() },
         { type: "homicide" },
+
+        { type: "faction", target: "Daedalus", goal: "favor" },
+        { type: "augmentation", target: "The Red Pill" }, // Daedalus 2.5m
 
         { type: "augmentation", target: "Social Negotiation Assistant (S.N.A)" }, // Tian Di Hui 6250
         // { type: "reset" },

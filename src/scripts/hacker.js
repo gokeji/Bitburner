@@ -22,10 +22,10 @@ export async function main(ns) {
     // === Hacker Settings ===
     let MAX_WEAKEN_TIME = 10 * 60 * 1000; // ms max weaken time (Max 10 minutes)
 
-    let ALLOW_HASH_UPGRADES = true;
+    let ALLOW_HASH_UPGRADES = false;
     const CORRECTIVE_GROW_WEAK_MULTIPLIER = 1.02; // Use extra grow and weak threads to correct for out of sync HGW batches
     let PARTIAL_PREP_THRESHOLD = 0;
-    let PREP_FOR_CORP = false;
+    let PREP_FOR_CORP = true;
 
     let serversToHack = []; // ["clarkinc"];
 
@@ -33,7 +33,7 @@ export async function main(ns) {
     const BASE_SCRIPT_DELAY = 5; // ms delay between scripts, will be added to dynamically
     const DELAY_BETWEEN_BATCHES = 5; // ms delay between batches
     const TIME_PER_BATCH = BASE_SCRIPT_DELAY * 2 + DELAY_BETWEEN_BATCHES;
-    const TICK_DELAY = 1200; // ms delay between ticks
+    const TICK_DELAY = 800; // ms delay between ticks
 
     const HOME_SERVER_RESERVED_RAM = 100 + (PREP_FOR_CORP ? 1000 : 0); // GB reserved for home server
     const ALWAYS_XP_FARM = false;
@@ -1751,7 +1751,7 @@ export async function main(ns) {
             if (needsInitialWeaken) {
                 // Try again with only weaken operations
                 const weakenOnlyOperations = [{ type: "weaken", threads: initialWeakenThreads, id: "initial_weaken" }];
-                const weakenOnlyAllocation = allocateServersForOperations(ns, weakenOnlyOperations);
+                const weakenOnlyAllocation = allocateServersForOperations(ns, weakenOnlyOperations, allowPartial);
 
                 if (weakenOnlyAllocation.success) {
                     finalAllocation = weakenOnlyAllocation;

@@ -30,14 +30,14 @@ const argsSchema = [
     ["train-to-agility", 47], // Sleeves will go to the gym until they reach this much Agi
     ["study-to-hacking", 0], // Sleeves will go to university until they reach this much Hak
     ["study-to-charisma", 0], // Sleeves will go to university until they reach this much Cha
-    ["intelligence-farm", true], // Set to true to have sleeves study hacking for intelligence after shock recovery is complete
+    ["intelligence-farm", false], // Set to true to have sleeves study hacking for intelligence after shock recovery is complete
     ["combat-farm", false], // Set to true to have sleeves train combat stats in rotation (strength, defense, dexterity, agility) after shock recovery is complete
     ["training-reserve", null], // Defaults to global reserve.txt. Can be set to a negative number to allow debt. Sleeves will not train if money is below this amount.
     ["training-cap-seconds", 5 * 60 * 60 /* 15 hours */], // Time since the start of the bitnode after which we will no longer attempt to train sleeves to their target "train-to" settings
     ["disable-spending-hashes-for-gym-upgrades", false], // Set to true to disable spending hashes on gym upgrades when training up sleeves.
     ["disable-spending-hashes-for-study-upgrades", true], // Set to true to disable spending hashes on study upgrades when smarting up sleeves.
     ["enable-bladeburner-team-building", false], // Set to true to have one sleeve support the main sleeve, and another do recruitment. Otherwise, they will just do more "Infiltrate Synthoids"
-    ["disable-bladeburner", false], // Set to true to disable having sleeves workout at the gym (costs money)
+    ["disable-bladeburner", true], // Set to true to disable having sleeves workout at the gym (costs money)
     ["failed-bladeburner-contract-cooldown", 30 * 60 * 1000], // Default 30 minutes: time to wait after failing a bladeburner contract before we try again
     ["buy-all-augs", false], // Set to true to buy all available augmentations without budget constraints (useful for end-of-reset purchasing)
 ];
@@ -615,12 +615,15 @@ async function pickSleeveTask(ns, playerInfo, playerWorkInfo, i, sleeve, canTrai
         ];
     }
 
-    // Finally, do crime for Karma. Pick the best crime based on success chances
-    var crime =
-        options.crime || (await calculateCrimeChance(ns, sleeve, "Homicide")) >= options["homicide-chance-threshold"]
-            ? "Homicide"
-            : "Mug";
-    return await crimeTask(ns, crime, i, sleeve, `there appears to be nothing better to do`);
+    // Finally, do nothing
+    return [`idle`, `ns.sleeve.setToIdle(ns.args[0])`, [i], /*   */ `doing nothing`];
+
+    // // Finally, do crime for Karma. Pick the best crime based on success chances
+    // var crime =
+    //     options.crime || (await calculateCrimeChance(ns, sleeve, "Homicide")) >= options["homicide-chance-threshold"]
+    //         ? "Homicide"
+    //         : "Mug";
+    // return await crimeTask(ns, crime, i, sleeve, `there appears to be nothing better to do`);
 }
 
 /** Helper to prepare the shock recovery task
@@ -662,8 +665,16 @@ async function setSleeveTask(ns, i, designatedTask, command, args) {
     let strAction = `Set sleeve ${i} to ${designatedTask}`;
     try {
         // Assigning a task can throw an error rather than simply returning false. We must suppress this
+        // Handle void functions (like setToIdle) that return undefined by wrapping them to return true on success
+        const wrappedCommand = command.includes("setToIdle") ? `(() => { ${command}; return true; })()` : command;
+
         if (
-            await getNsDataThroughFile(ns, command, `/Temp/sleeve-${command.slice(10, command.indexOf("("))}.txt`, args)
+            await getNsDataThroughFile(
+                ns,
+                wrappedCommand,
+                `/Temp/sleeve-${command.slice(10, command.indexOf("("))}.txt`,
+                args,
+            )
         ) {
             task[i] = designatedTask;
             log(ns, `SUCCESS: ${strAction}`);

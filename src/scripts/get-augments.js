@@ -18,6 +18,7 @@ const argsSchema = [
     ["no-gang", false], // Set to true to exclude augments from the gang faction
     ["allow-donation", true], // Set to true to consider donations for reputation (requires 150+ favor)
     ["prefer-no-gang", false], // Set to true to prefer augments that are not from the gang faction
+    ["no-tail", false], // Set to true to not open a tail window
 ];
 
 /**
@@ -777,9 +778,12 @@ export async function main(ns) {
     const allowDonation = flags["allow-donation"];
     const preferNoGang = flags["prefer-no-gang"];
     const onlyNFG = flags["only-nfg"];
+    const noTail = flags["no-tail"];
 
-    ns.ui.openTail(); // Open tail because there's a lot of good output
-    ns.ui.resizeTail(1200, 800);
+    if (!noTail) {
+        ns.ui.openTail(); // Open tail because there's a lot of good output
+        ns.ui.resizeTail(1200, 800);
+    }
 
     ns.print("\n\n\n\n\n\n\n\n\n");
 

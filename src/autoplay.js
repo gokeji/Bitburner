@@ -2,18 +2,18 @@ import { NS } from "@ns";
 import { getSafeBitNodeMultipliers } from "./scripts/bitnode-multipliers";
 
 const HOST_NAME = "home";
-const MAX_SERVER_VALUE = 12 * 10 ** 9; // 12 B max server value
+const MAX_SERVER_VALUE = 0; //120 * 10 ** 9; // 12 B max server value
 const HACKNET_MAX_PAYBACK_TIME = 0.2; // 0.2 hours max payback time
-const SERVER_TO_START_SHARING_RAM_ON = "b-05";
+const SERVER_TO_START_SHARING_RAM_ON = null; // "b-05";
 const SERVER_TO_STANEK = null; // "b-01";
 
 let IPVGO_OPPONENTS = [
     "Netburners", // increased hacknet production
     // "Slum Snakes", // crime success rate
-    "The Black Hand", // hacking money
+    // "The Black Hand", // hacking money
     "Tetrads", // strength, defense, dexterity, and agility levels
-    "Daedalus", // reputation gain
-    "Illuminati", // faster hack(), grow(), and weaken()
+    // "Daedalus", // reputation gain
+    // "Illuminati", // faster hack(), grow(), and weaken()
     // "????????????", // w0r1d_d43m0n Hacking Levels - will be dynamically added later
 ];
 
@@ -43,11 +43,13 @@ export async function main(ns) {
             }
         });
 
+    startScriptIfNotRunning(ns, "scripts/bb-int-farm.js", HOST_NAME, 1);
+
     startUpgradeHnetIfNeeded(ns);
 
     // After unlocking gangs, sleeves should be assigned manually
     // if (ns.heart.break() > -54000) {
-    startSleeveIfNeeded(ns);
+    // startSleeveIfNeeded(ns);
     // }
 
     startGangIfNeeded(ns);
@@ -69,9 +71,9 @@ export async function main(ns) {
         printAllFactionServerPaths(ns);
     }
 
-    startTaskAutomationIfNotRunning(ns);
+    // startTaskAutomationIfNotRunning(ns);
 
-    startBladeburnerIfNotRunning(ns);
+    // startBladeburnerIfNotRunning(ns);
 
     let startedStockTrader = false;
     let sharedRam = false;
@@ -106,11 +108,11 @@ export async function main(ns) {
     }
 
     // Start stanek charging without blocking
-    if (!ranInitialStanek) {
-        startStanekIfNotRunning(ns);
-        ranInitialStanek = true;
-        ns.tprint("INFO Stanek started - hacker will avoid home RAM while it's running");
-    }
+    // if (!ranInitialStanek) {
+    //     startStanekIfNotRunning(ns);
+    //     ranInitialStanek = true;
+    //     ns.tprint("INFO Stanek started - hacker will avoid home RAM while it's running");
+    // }
 
     // Study Algorithms until we have 1350 exp to bootstrap early game hacking levels
     while (ns.getPlayer().exp.hacking < 1350) {
@@ -129,13 +131,13 @@ export async function main(ns) {
         await ns.sleep(5000);
     }
 
-    launchStatsMonitoring(ns);
+    // launchStatsMonitoring(ns);
 
     // Start hacker immediately - it will automatically avoid home RAM when stanek is running
     startDistributedHackIfNotRunning(ns);
 
     if (ns.corporation.hasCorporation()) {
-        startScriptIfNotRunning(ns, "cat/corporation.js", HOST_NAME, 1, "--improveAllDivisions");
+        startScriptIfNotRunning(ns, "cat/corporation.js", HOST_NAME, 1);
         startScriptIfNotRunning(ns, "cat/daemon.js", HOST_NAME, 1, "--maintainCorporation");
     }
 
@@ -185,6 +187,10 @@ export async function main(ns) {
         const noMaxServerValueCondition =
             MAX_SERVER_VALUE === -1 && ns.getPurchasedServers().length < ns.getPurchasedServerLimit();
 
+        if (ns.getPlayer().money > 1e13) {
+            // When we have too much money, stock trader is useless
+            startedStockTrader = true;
+        }
         // Start stock trader and also share ram after we purchase the server to share ram on
         if (totalServerValue >= MAX_SERVER_VALUE && !noMaxServerValueCondition && !startedStockTrader) {
             startStockTraderIfNotRunning(ns);
@@ -194,7 +200,7 @@ export async function main(ns) {
         await ns.sleep(10000);
     }
 
-    ns.tprint("INFO Stock trader and share ram started - Autoplay complete");
+    ns.tprint("INFO: Autoplay complete");
 }
 
 /**
@@ -276,7 +282,9 @@ function restartIpvgo(ns) {
 
     let opponents = IPVGO_OPPONENTS;
     if (hasRedPill) {
-        opponents.push("????????????");
+        if (!opponents.includes("????????????")) {
+            opponents.push("????????????");
+        }
         // opponents = ["????????????"]; // Only use ipvgo for hacking levels
     } else {
         // Needed for sometimes after reset the opponents list persists with ??????????? and it's unavailable
