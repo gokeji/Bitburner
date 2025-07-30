@@ -232,12 +232,12 @@ export function getBladeburnerIntGain(assassinationLevel, hyperdriveLevel, succe
     const effAgility = 800e6 * 1461;
     const effDexterity = 800e6 * 1461;
 
-    const time = getActionTime(effAgility, effDexterity, difficulty, 0.1);
+    const time = 1; //getActionTime(effAgility, effDexterity, difficulty, 0.1);
     const successMult = success ? 1 : 0.5;
 
     const unweightedGain = time * BladeburnerConstants.BaseStatGain * successMult * difficultyMult;
     const unweightedIntGain = time * BladeburnerConstants.BaseIntGain * successMult * difficultyMult;
-    const skillMult = hyperdriveLevel * 0.1;
+    const skillMult = 1 + hyperdriveLevel * 0.1;
 
     return {
         hackExp: unweightedGain * action.weights.hacking * skillMult,
@@ -290,6 +290,11 @@ export function getActionTime(effAgility, effDexterity, difficulty, actionTimeMu
     return Math.ceil(baseTime);
 }
 
+export function getSuccessesNeededForNextLevel(level) {
+    const baseSuccessesPerLevel = 2.5;
+    return Math.ceil(0.5 * level * (2 * baseSuccessesPerLevel + (level - 1)));
+}
+
 /**
  * Main function to make all exported functions available in Node.js console
  * Run with: node src/scripts/formulas.js
@@ -336,9 +341,10 @@ async function main() {
     replServer.context.getDifficulty = getDifficulty;
     replServer.context.getDifficultyMult = getDifficultyMult;
     replServer.context.getActionTime = getActionTime;
+    replServer.context.getSuccessesNeededForNextLevel = getSuccessesNeededForNextLevel;
 }
 
-// Run main function if this file is executed directly
-if (import.meta.url === `file://${process.argv[1]}`) {
+// Run main function if this file is executed directly (Node.js only)
+if (typeof process !== "undefined" && import.meta.url === `file://${process.argv[1]}`) {
     main().catch(console.error);
 }

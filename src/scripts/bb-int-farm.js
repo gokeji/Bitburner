@@ -1,5 +1,8 @@
 import { NS } from "@ns";
 
+let isRunningDiplomacy = false;
+let isRunningAssassination = false;
+
 /** @param {NS} ns */
 export async function main(ns) {
     ns.disableLog("ALL");
@@ -12,8 +15,12 @@ export async function main(ns) {
             ns.run("scripts/bb-sleeves-int-farm.js");
         }
 
-        if (!ns.isRunning("scripts/hacknet-spend.js", "home", "--bladeburnerSP")) {
-            ns.run("scripts/hacknet-spend.js", 1, "--bladeburnerSP");
+        // if (!ns.isRunning("scripts/hacknet-spend.js", "home", "--bladeburnerSP")) {
+        //     ns.run("scripts/hacknet-spend.js", 1, "--bladeburnerSP");
+        // }
+
+        if (!ns.isRunning("scripts/int-farm-monitor.js", "home")) {
+            ns.run("scripts/int-farm-monitor.js");
         }
 
         // Buy as many hyperdrive as possible
@@ -49,12 +56,14 @@ export async function main(ns) {
 
         // Set to incite violence
         const currentAction = ns.bladeburner.getCurrentAction();
-        // ns.bladeburner.getActionCurrentTime()
-        // ns.bladeburner.getActionTime()
+        const action = determineAction(ns);
 
-        if (!currentAction || currentAction.name !== "Incite Violence") {
-            const inciteViolenceSuccess = ns.bladeburner.startAction("General", "Incite Violence");
-            ns.print(`${new Date().toLocaleTimeString()} Incite violence success: ${inciteViolenceSuccess}`);
+        if (!currentAction || currentAction.name !== action.action || ns.bladeburner.getCity() !== action.city) {
+            ns.bladeburner.switchCity(action.city);
+            const success = ns.bladeburner.startAction(action.type, action.action);
+            ns.print(
+                `${new Date().toLocaleTimeString()} Starting ${action.action} in ${action.city} (${success ? "success" : "failed"})`,
+            );
         }
 
         while (ns.hacknet.numNodes() < ns.hacknet.maxNumNodes() || ns.hacknet.hashCapacity() < 20e6) {
@@ -71,21 +80,56 @@ export async function main(ns) {
             }
             await ns.sleep(500);
         }
-        await ns.sleep(5000);
+        await ns.bladeburner.nextUpdate();
     }
 }
 
 /** @param {NS} ns */
-// async function assassinateIfNeeded(ns) {
-//     if (numAssassinationContracts > 100) {
-//         const assassinationMinSuccessChance = ns.bladeburner.getActionEstimatedSuccessChance(
-//             "Operations",
-//             "Assassination",
-//         )[0];
-//         while (assassinationMinSuccessChance < 1) {
-//             ns.bladeburner.upgradeSkill("Reaper");
-//             ns.bladeburner.upgradeSkill("Evasive System");
-//         }
-//         ns.bladeburner.startAction("General", "Diplomacy");
-//     }
-// }
+function determineAction(ns) {
+    const cities = {
+        Aevum: "Aevum",
+        Chongqing: "Chongqing",
+        Sector12: "Sector-12",
+        NewTokyo: "New Tokyo",
+        Ishima: "Ishima",
+        Volhaven: "Volhaven",
+    };
+    const cityInfo = Object.values(cities).map((city) => ({
+        name: city,
+        population: ns.bladeburner.getCityEstimatedPopulation(city),
+        chaos: ns.bladeburner.getCityChaos(city),
+    }));
+
+    const cityWithHighestPopulation = cityInfo.sort((a, b) => b.population - a.population)[0].name;
+    const cityWithHighestChaos = cityInfo.sort((a, b) => b.chaos - a.chaos)[0].name;
+
+    const assassinationMinSuccessChance = ns.bladeburner.getActionEstimatedSuccessChance(
+        "Operations",
+        "Assassination",
+    )[0];
+    const assassinationActionsRemaining = ns.bladeburner.getActionCountRemaining("Operations", "Assassination");
+
+    if (assassinationMinSuccessChance < 1 || isRunningDiplomacy) {
+        isRunningDiplomacy = true;
+
+        if (cityInfo.find((city) => city.name === cityWithHighestChaos).chaos > 0) {
+            return { type: "General", action: "Diplomacy", city: cityWithHighestChaos };
+        } else {
+            isRunningDiplomacy = false;
+            if (assassinationActionsRemaining >= 1) {
+                isRunningAssassination = true; // Can start assassination
+            }
+        }
+    }
+
+    if (assassinationActionsRemaining < 1) {
+        isRunningAssassination = false;
+    }
+
+    if (!isRunningAssassination) {
+        // Default to incite violence unless we're ready for assassination
+        return { type: "General", action: "Incite Violence", city: cityWithHighestPopulation };
+    }
+
+    return { type: "Operations", action: "Assassination", city: cityWithHighestPopulation };
+}

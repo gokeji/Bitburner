@@ -98,23 +98,23 @@ export async function main(ns) {
     ns.run("autoplay.js");
     ns.print("INFO After-install complete - autoplay.js has been started");
 
-    const costOfNFG = ns.singularity.getAugmentationPrice("NeuroFlux Governor");
-    while (true) {
-        const timeSinceInstall = ns.getTimeSinceLastAug();
-        const remainingTimeOnBladeburnerAction = ns.bladeburner.getActionCurrentTime();
-        if (timeSinceInstall > 2.01 * 60 * 1000 && remainingTimeOnBladeburnerAction > 58000) {
-            // run reset.js after 10 minutes
-            let success = ns.run("scripts/reset.js", 1, "--allowSoftReset");
-            if (success) {
-                ns.print("INFO Reset.js has been started");
-                break;
-            } else {
-                ns.print("WARN Failed to start reset.js");
-            }
-        }
-        ns.print(
-            `INFO ${ns.formatNumber(timeSinceInstall / 1000 / 60)} minutes since install. Will reset after 1 minutes.`,
-        );
-        await ns.sleep(1000);
-    }
+    // const costOfNFG = ns.singularity.getAugmentationPrice("NeuroFlux Governor");
+    // while (true) {
+    //     const timeSinceInstall = ns.getTimeSinceLastAug();
+    //     const remainingTimeOnBladeburnerAction = ns.bladeburner.getActionCurrentTime();
+    //     if (timeSinceInstall > 2.01 * 60 * 1000 && remainingTimeOnBladeburnerAction > 56000) {
+    //         // run reset.js after 10 minutes
+    //         let success = ns.run("scripts/reset.js", 1, "--allowSoftReset");
+    //         if (success) {
+    //             ns.print("INFO Reset.js has been started");
+    //             break;
+    //         } else {
+    //             ns.print("WARN Failed to start reset.js");
+    //         }
+    //     }
+    //     ns.print(
+    //         `INFO ${ns.formatNumber(timeSinceInstall / 1000 / 60)} minutes since install. Will reset after 1 minutes.`,
+    //     );
+    //     await ns.sleep(1000);
+    // }
 }

@@ -4,6 +4,13 @@ import { findStatsForCrimeSuccessChance } from "./automate-tasks.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
+    const locations = ns.infiltration.getPossibleLocations();
+    for (const location of locations) {
+        ns.print(location.name);
+    }
+    const infiltration = ns.infiltration.getInfiltration("AeroCorp");
+    ns.print(infiltration);
+
     ns.print("INT: " + ns.getPlayer().skills.intelligence);
     ns.print(`INT Exp: ${ns.getPlayer().exp.intelligence}`);
     const gangEquipments = ns.gang.getEquipmentNames();
