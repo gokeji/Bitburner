@@ -5,11 +5,17 @@ export async function main(ns) {
     ns.disableLog("ALL");
     ns.ui.openTail();
 
-    // Get sleeve overclock cycles. If sleeve remaining cycles is greater than 300, do infiltrate synthoids task
-    while (true) {
-        // Set sleeve action
-        await infiltrateSynthoids(ns);
+    const sleeves = new Map(Array.from({ length: ns.sleeve.getNumSleeves() }, (_, i) => [i, ns.sleeve.getSleeve(i)]));
+
+    for (const [sleeveNumber, sleeve] of sleeves) {
+        ns.sleeve.setToBladeburnerAction(sleeveNumber, "Infiltrate Synthoids", "Synthoids");
     }
+
+    // Get sleeve overclock cycles. If sleeve remaining cycles is greater than 300, do infiltrate synthoids task
+    // while (true) {
+    //     // Set sleeve action
+    //     await infiltrateSynthoids(ns);
+    // }
 }
 
 /** @param {NS} ns */

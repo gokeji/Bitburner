@@ -9,11 +9,13 @@ export async function main(ns) {
 
     ns.ui.openTail();
 
+    ns.run("scripts/bb-sleeves-int-farm.js"); // Launch once
+
     // Get sleeve overclock cycles. If sleeve remaining cycles is greater than 300, do infiltrate synthoids task
     while (true) {
-        if (!ns.scriptRunning("scripts/bb-sleeves-int-farm.js", "home")) {
-            ns.run("scripts/bb-sleeves-int-farm.js");
-        }
+        // if (!ns.scriptRunning("scripts/bb-sleeves-int-farm.js", "home")) {
+        //     ns.run("scripts/bb-sleeves-int-farm.js");
+        // }
 
         // if (!ns.isRunning("scripts/hacknet-spend.js", "home", "--bladeburnerSP")) {
         //     ns.run("scripts/hacknet-spend.js", 1, "--bladeburnerSP");
@@ -102,6 +104,7 @@ function determineAction(ns) {
 
     const cityWithHighestPopulation = cityInfo.sort((a, b) => b.population - a.population)[0].name;
     const cityWithHighestChaos = cityInfo.sort((a, b) => b.chaos - a.chaos)[0].name;
+    const currentCity = ns.bladeburner.getCity();
 
     const assassinationMinSuccessChance = ns.bladeburner.getActionEstimatedSuccessChance(
         "Operations",
@@ -112,10 +115,14 @@ function determineAction(ns) {
     if (assassinationMinSuccessChance < 1 || isRunningDiplomacy) {
         isRunningDiplomacy = true;
 
-        if (cityInfo.find((city) => city.name === cityWithHighestChaos).chaos > 0) {
+        if (cityInfo.find((city) => city.name === cityWithHighestChaos).chaos > 50) {
             return { type: "General", action: "Diplomacy", city: cityWithHighestChaos };
         } else {
             isRunningDiplomacy = false;
+
+            if (assassinationMinSuccessChance < 1) {
+                return { type: "General", action: "Field Analysis", city: currentCity };
+            }
             if (assassinationActionsRemaining >= 1) {
                 isRunningAssassination = true; // Can start assassination
             }

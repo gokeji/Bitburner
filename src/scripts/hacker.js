@@ -1,5 +1,6 @@
 import { NS } from "@ns";
 import { spendHashesOnUpgrade, logUpgradeSuccess } from "./hacknet-spend.js";
+import { getSafeBitNodeMultipliers } from "./bitnode-multipliers.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
@@ -939,7 +940,7 @@ export async function main(ns) {
         if (!globalCalculationCache) {
             globalCalculationCache = {
                 player: ns.getPlayer(),
-                bitnodeMultipliers: ns.getBitNodeMultipliers(),
+                bitnodeMultipliers: getSafeBitNodeMultipliers(ns),
                 cpuCores: 1,
                 weakenAmount: ns.weakenAnalyze(1, 1),
             };
