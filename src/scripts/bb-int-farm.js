@@ -45,11 +45,11 @@ export async function main(ns) {
 
             if (success) {
                 ns.print(
-                    `${new Date().toLocaleTimeString()} Bought ${numHyperdrives} hyperdrives, final level: ${ns.bladeburner.getSkillLevel("Hyperdrive")}`,
+                    `${new Date().toLocaleTimeString()} Bought ${ns.formatNumber(numHyperdrives)} hyperdrives, final level: ${ns.formatNumber(ns.bladeburner.getSkillLevel("Hyperdrive"))}`,
                 );
             } else {
                 ns.print(
-                    `${new Date().toLocaleTimeString()} Failed to buy ${numHyperdrives} hyperdrives, final level: ${ns.bladeburner.getSkillLevel("Hyperdrive")}`,
+                    `${new Date().toLocaleTimeString()} Failed to buy ${ns.formatNumber(numHyperdrives)} hyperdrives, final level: ${ns.formatNumber(ns.bladeburner.getSkillLevel("Hyperdrive"))}`,
                 );
             }
         }

@@ -11,6 +11,7 @@ import {
     formatDuration,
 } from "./helpers.js";
 import { findStatsForCrimeSuccessChance } from "./scripts/automate-tasks.js";
+import { calculateIntelligenceBonus } from "scripts/formulas.js";
 
 const argsSchema = [
     ["min-shock-recovery", 94], // Minimum shock recovery before attempting to train or do crime (Set to 100 to disable, 0 to recover fully)
@@ -784,6 +785,7 @@ export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgrades
     const startingCrimeChance = useCurrentStats
         ? ns.formulas.work.crimeSuccessChance(ns.sleeve.getSleeve(0), "Homicide")
         : 0.2;
+    const intelligenceBonus = calculateIntelligenceBonus(ns.sleeve.getSleeve(0).skills.intelligence, 0.75);
 
     // Test shock values from 0.97 to 0.9
     for (
@@ -799,7 +801,7 @@ export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgrades
         for (let chanceInt = minChanceInt; chanceInt <= maxChanceInt; chanceInt++) {
             const minCrimeSuccessChance = chanceInt / 100;
             // 1. Shock value
-            const shockReductionRate = 0.0003 * 5 * 1.16; // Per second, 5 ticks per second, with 16% int bonus at 0.75 mult
+            const shockReductionRate = 0.0003 * 5 * intelligenceBonus; // Per second, 5 ticks per second
             const shockReductionTime = (startingShockValue - shockValueForCalc) / shockReductionRate;
 
             // 2. Exp gain rate

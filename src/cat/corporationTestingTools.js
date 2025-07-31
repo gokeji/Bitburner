@@ -66,12 +66,20 @@ function setUnlimitedBonusTime() {
         return;
     }
     Player.corporation.storedCycles = 1e9;
+    for (const sleeve of Player.sleeves) {
+        sleeve.storedCycles = 1e9;
+    }
+    Player.bladeburner.storedCycles = 1e9;
 }
 function removeBonusTime() {
     if (!isTestingToolsAvailable()) {
         return;
     }
     Player.corporation.storedCycles = 0;
+    for (const sleeve of Player.sleeves) {
+        sleeve.storedCycles = 0;
+    }
+    player.bladeburner.storedCycles = 0;
 }
 function setFunds(funds) {
     if (!isTestingToolsAvailable()) {
