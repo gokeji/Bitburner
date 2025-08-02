@@ -33,8 +33,11 @@ export async function main(ns) {
         const skillPoints = ns.bladeburner.getSkillPoints();
         const currentLevel = ns.bladeburner.getSkillLevel("Hyperdrive");
 
-        const maxHyperdrives = ns.formulas.bladeburner.skillMaxUpgradeCount("Hyperdrive", currentLevel, skillPoints);
+        let maxHyperdrives = ns.formulas.bladeburner.skillMaxUpgradeCount("Hyperdrive", currentLevel, skillPoints);
 
+        while (ns.bladeburner.getSkillUpgradeCost("Hyperdrive", maxHyperdrives) > skillPoints) {
+            maxHyperdrives--;
+        }
         // At some point the level increase will be so small that it's not representable with floating point precision, so we need to make sure the skill upgrade cost is not 0
         if (maxHyperdrives > 0 && ns.bladeburner.getSkillUpgradeCost("Hyperdrive", maxHyperdrives) > 0) {
             const success = ns.bladeburner.upgradeSkill("Hyperdrive", maxHyperdrives);
