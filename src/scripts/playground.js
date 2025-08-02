@@ -1,11 +1,15 @@
 import { NS } from "@ns";
 import { calculateBestSleeveStats } from "../sleeve.js";
 import { findStatsForCrimeSuccessChance } from "./automate-tasks.js";
-import { calculateMaxAffordableHyperdrives } from "./bb-int-farm.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    ns.print(ns.formatNumber(calculateMaxAffordableHyperdrives(1.171e27 / 3, 1.022847e15)));
+    ns.print(ns.formatNumber(ns.bladeburner.getSkillUpgradeCost("Hyperdrive", 1)));
+
+    const skillPoints = ns.bladeburner.getSkillPoints();
+    const currentLevel = ns.bladeburner.getSkillLevel("Hyperdrive");
+    const maxHyperdrives = ns.formulas.bladeburner.skillMaxUpgradeCount("Hyperdrive", currentLevel, skillPoints);
+    ns.print(maxHyperdrives);
     // const evasiveSystemLevel = ns.bladeburner.getSkillLevel("Evasive System");
 
     // // Buy half of current level of Evasive System

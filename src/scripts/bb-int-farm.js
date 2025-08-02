@@ -33,9 +33,10 @@ export async function main(ns) {
         const skillPoints = ns.bladeburner.getSkillPoints();
         const currentLevel = ns.bladeburner.getSkillLevel("Hyperdrive");
 
-        const maxHyperdrives = calculateMaxAffordableHyperdrives(skillPoints, currentLevel);
+        const maxHyperdrives = ns.formulas.bladeburner.skillMaxUpgradeCount("Hyperdrive", currentLevel, skillPoints);
 
-        if (maxHyperdrives > 0) {
+        // At some point the level increase will be so small that it's not representable with floating point precision, so we need to make sure the skill upgrade cost is not 0
+        if (maxHyperdrives > 0 && ns.bladeburner.getSkillUpgradeCost("Hyperdrive", maxHyperdrives) > 0) {
             const success = ns.bladeburner.upgradeSkill("Hyperdrive", maxHyperdrives);
 
             if (success) {
@@ -152,50 +153,4 @@ function increaseEvasiveSystemLevel(ns) {
     } else {
         ns.print(`Failed to increase Evasive System level`);
     }
-}
-
-/**
- * Calculate the maximum number of hyperdrives that can be bought with available skill points
- * Cost formula: actualCount * (baseCost + costInc * (currentLevel + (actualCount - 1) / 2))
- * Where baseCost = 1, costInc = 2.5
- * @param {number} availablePoints - Current skill points available
- * @param {number} currentLevel - Current hyperdrive level
- * @returns {number} Maximum number of hyperdrives that can be bought
- */
-export function calculateMaxAffordableHyperdrives(availablePoints, currentLevel) {
-    const baseCost = 1;
-    const costInc = 2.5;
-
-    // Expand the cost formula:
-    // cost = actualCount * (baseCost + costInc * (currentLevel + (actualCount - 1) / 2))
-    // cost = actualCount * (baseCost + costInc * currentLevel + costInc * (actualCount - 1) / 2)
-    // cost = actualCount * baseCost + actualCount * costInc * currentLevel + actualCount * costInc * (actualCount - 1) / 2
-    // cost = actualCount * baseCost + actualCount * costInc * currentLevel + costInc * actualCount * (actualCount - 1) / 2
-    // cost = actualCount * baseCost + actualCount * costInc * currentLevel + costInc * (actualCount^2 - actualCount) / 2
-    // cost = actualCount * baseCost + actualCount * costInc * currentLevel + costInc * actualCount^2 / 2 - costInc * actualCount / 2
-    // cost = actualCount * (baseCost + costInc * currentLevel - costInc / 2) + costInc * actualCount^2 / 2
-    // cost = actualCount * (baseCost + costInc * currentLevel - costInc / 2) + (costInc / 2) * actualCount^2
-
-    // Rearranging to standard quadratic form: ax^2 + bx + c = 0
-    // (costInc / 2) * actualCount^2 + (baseCost + costInc * currentLevel - costInc / 2) * actualCount - availablePoints = 0
-
-    const a = costInc / 2;
-    const b = baseCost + costInc * currentLevel - costInc / 2;
-    const c = -availablePoints;
-
-    // Quadratic formula: x = (-b ± √(b² - 4ac)) / 2a
-    const discriminant = b * b - 4 * a * c;
-
-    if (discriminant < 0) {
-        return 0; // No real solution, can't afford any
-    }
-
-    // We want the positive root
-    const sqrt_discriminant = Math.sqrt(discriminant);
-    const solution1 = (-b + sqrt_discriminant) / (2 * a);
-    const solution2 = (-b - sqrt_discriminant) / (2 * a);
-
-    // Take the positive solution and floor it since we can only buy whole levels
-    const maxLevels = Math.max(solution1, solution2);
-    return Math.floor(Math.max(0, maxLevels));
 }
