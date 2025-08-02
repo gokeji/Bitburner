@@ -25,31 +25,26 @@ export async function main(ns) {
             ns.run("scripts/int-farm-monitor.js");
         }
 
-        // Buy as many hyperdrive as possible
-        const hyperdriveCost = ns.bladeburner.getSkillUpgradeCost("Hyperdrive");
+        if (ns.bladeburner.getActionTime("Operations", "Assassination") > 1000) {
+            increaseEvasiveSystemLevel(ns);
+        }
+
+        // Buy as many hyperdrive as possible with accurate cost calculation
         const skillPoints = ns.bladeburner.getSkillPoints();
+        const currentLevel = ns.bladeburner.getSkillLevel("Hyperdrive");
 
-        const numHyperdrives = Math.floor(skillPoints / hyperdriveCost);
+        const maxHyperdrives = calculateMaxAffordableHyperdrives(skillPoints, currentLevel);
 
-        if (numHyperdrives > 0) {
-            // Can buy at least one upgrade
-            let success = false;
-            let purchaseAmount = numHyperdrives;
-            while (!success) {
-                success = ns.bladeburner.upgradeSkill("Hyperdrive", purchaseAmount);
-                purchaseAmount--;
-                if (purchaseAmount === 0) {
-                    break;
-                }
-            }
+        if (maxHyperdrives > 0) {
+            const success = ns.bladeburner.upgradeSkill("Hyperdrive", maxHyperdrives);
 
             if (success) {
                 ns.print(
-                    `${new Date().toLocaleTimeString()} Bought ${ns.formatNumber(numHyperdrives)} hyperdrives, final level: ${ns.formatNumber(ns.bladeburner.getSkillLevel("Hyperdrive"))}`,
+                    `${new Date().toLocaleTimeString()} Bought ${ns.formatNumber(maxHyperdrives)} hyperdrives, final level: ${ns.formatNumber(ns.bladeburner.getSkillLevel("Hyperdrive"))}`,
                 );
             } else {
                 ns.print(
-                    `${new Date().toLocaleTimeString()} Failed to buy ${ns.formatNumber(numHyperdrives)} hyperdrives, final level: ${ns.formatNumber(ns.bladeburner.getSkillLevel("Hyperdrive"))}`,
+                    `${new Date().toLocaleTimeString()} Failed to buy ${ns.formatNumber(maxHyperdrives)} hyperdrives, final level: ${ns.formatNumber(ns.bladeburner.getSkillLevel("Hyperdrive"))}`,
                 );
             }
         }
@@ -139,4 +134,68 @@ function determineAction(ns) {
     }
 
     return { type: "Operations", action: "Assassination", city: cityWithHighestPopulation };
+}
+
+/** @param {NS} ns */
+function increaseEvasiveSystemLevel(ns) {
+    const evasiveSystemLevel = ns.bladeburner.getSkillLevel("Evasive System");
+
+    // Buy half of current level of Evasive System
+    const numToBuy = Math.floor(evasiveSystemLevel / 2);
+
+    // Buy half of current level of Evasive System
+    const success = ns.bladeburner.upgradeSkill("Evasive System", numToBuy);
+
+    if (success) {
+        // Print new level
+        ns.print(`New Level: ${ns.bladeburner.getSkillLevel("Evasive System")}`);
+    } else {
+        ns.print(`Failed to increase Evasive System level`);
+    }
+}
+
+/**
+ * Calculate the maximum number of hyperdrives that can be bought with available skill points
+ * Cost formula: actualCount * (baseCost + costInc * (currentLevel + (actualCount - 1) / 2))
+ * Where baseCost = 1, costInc = 2.5
+ * @param {number} availablePoints - Current skill points available
+ * @param {number} currentLevel - Current hyperdrive level
+ * @returns {number} Maximum number of hyperdrives that can be bought
+ */
+export function calculateMaxAffordableHyperdrives(availablePoints, currentLevel) {
+    const baseCost = 1;
+    const costInc = 2.5;
+
+    // Expand the cost formula:
+    // cost = actualCount * (baseCost + costInc * (currentLevel + (actualCount - 1) / 2))
+    // cost = actualCount * (baseCost + costInc * currentLevel + costInc * (actualCount - 1) / 2)
+    // cost = actualCount * baseCost + actualCount * costInc * currentLevel + actualCount * costInc * (actualCount - 1) / 2
+    // cost = actualCount * baseCost + actualCount * costInc * currentLevel + costInc * actualCount * (actualCount - 1) / 2
+    // cost = actualCount * baseCost + actualCount * costInc * currentLevel + costInc * (actualCount^2 - actualCount) / 2
+    // cost = actualCount * baseCost + actualCount * costInc * currentLevel + costInc * actualCount^2 / 2 - costInc * actualCount / 2
+    // cost = actualCount * (baseCost + costInc * currentLevel - costInc / 2) + costInc * actualCount^2 / 2
+    // cost = actualCount * (baseCost + costInc * currentLevel - costInc / 2) + (costInc / 2) * actualCount^2
+
+    // Rearranging to standard quadratic form: ax^2 + bx + c = 0
+    // (costInc / 2) * actualCount^2 + (baseCost + costInc * currentLevel - costInc / 2) * actualCount - availablePoints = 0
+
+    const a = costInc / 2;
+    const b = baseCost + costInc * currentLevel - costInc / 2;
+    const c = -availablePoints;
+
+    // Quadratic formula: x = (-b ± √(b² - 4ac)) / 2a
+    const discriminant = b * b - 4 * a * c;
+
+    if (discriminant < 0) {
+        return 0; // No real solution, can't afford any
+    }
+
+    // We want the positive root
+    const sqrt_discriminant = Math.sqrt(discriminant);
+    const solution1 = (-b + sqrt_discriminant) / (2 * a);
+    const solution2 = (-b - sqrt_discriminant) / (2 * a);
+
+    // Take the positive solution and floor it since we can only buy whole levels
+    const maxLevels = Math.max(solution1, solution2);
+    return Math.floor(Math.max(0, maxLevels));
 }

@@ -55,7 +55,7 @@ export async function main(ns) {
         }
         ns.print(`🧠: ${ns.formatNumber(intExp, 6)} (${int} INT)`);
         ns.print(
-            `🎯: lvl ${assassinationLevel} -${ns.formatNumber(remainingOpsToNextLevel)} +${ns.formatNumber(assassinationActionsRemaining)} (${ns.formatPercent(assassinationSuccessChance)})`,
+            `🎯: lvl ${assassinationLevel} -${remainingOpsToNextLevel} +${ns.formatNumber(assassinationActionsRemaining)} (${ns.formatPercent(assassinationSuccessChance)})`,
         );
         ns.print(`🏎️: lvl ${ns.formatNumber(hyperdriveMaxLevel)} (${ns.formatNumber(1 + hyperdriveMaxLevel * 0.1)}x)`);
         ns.print(

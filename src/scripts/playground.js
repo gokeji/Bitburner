@@ -1,35 +1,50 @@
 import { NS } from "@ns";
 import { calculateBestSleeveStats } from "../sleeve.js";
 import { findStatsForCrimeSuccessChance } from "./automate-tasks.js";
+import { calculateMaxAffordableHyperdrives } from "./bb-int-farm.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    const locations = ns.infiltration.getPossibleLocations();
-    for (const location of locations) {
-        ns.print(location.name);
-    }
-    const infiltration = ns.infiltration.getInfiltration("AeroCorp");
-    ns.print(infiltration);
+    ns.print(ns.formatNumber(calculateMaxAffordableHyperdrives(1.171e27 / 3, 1.022847e15)));
+    // const evasiveSystemLevel = ns.bladeburner.getSkillLevel("Evasive System");
 
-    ns.print("INT: " + ns.getPlayer().skills.intelligence);
-    ns.print(`INT Exp: ${ns.getPlayer().exp.intelligence}`);
-    const gangEquipments = ns.gang.getEquipmentNames();
-    let numUpgrades = 0;
-    let numAugments = 0;
+    // // Buy half of current level of Evasive System
+    // const numToBuy = Math.floor(evasiveSystemLevel / 2);
+    // ns.print(`Current Level: ${evasiveSystemLevel}`);
+    // ns.print(`Num to buy: ${numToBuy}`);
 
-    for (const equipment of gangEquipments) {
-        const equipmentType = ns.gang.getEquipmentType(equipment);
-        if (equipmentType !== "Augmentation") {
-            numUpgrades++;
-        } else {
-            numAugments++;
-        }
-    }
+    // // Buy half of current level of Evasive System
+    // ns.bladeburner.upgradeSkill("Evasive System", numToBuy);
 
-    ns.print(`Num upgrades: ${numUpgrades}`);
-    ns.print(`Num augments: ${numAugments}`);
+    // // Print new level
+    // ns.print(`New Level: ${ns.bladeburner.getSkillLevel("Evasive System")}`);
 
-    const earnRateThisNode = ns.getMoneySources().sinceStart.total / (ns.getTimeSinceLastAug() / 1000);
+    // const locations = ns.infiltration.getPossibleLocations();
+    // for (const location of locations) {
+    //     ns.print(location.name);
+    // }
+    // const infiltration = ns.infiltration.getInfiltration("AeroCorp");
+    // ns.print(infiltration);
+
+    // ns.print("INT: " + ns.getPlayer().skills.intelligence);
+    // ns.print(`INT Exp: ${ns.getPlayer().exp.intelligence}`);
+    // const gangEquipments = ns.gang.getEquipmentNames();
+    // let numUpgrades = 0;
+    // let numAugments = 0;
+
+    // for (const equipment of gangEquipments) {
+    //     const equipmentType = ns.gang.getEquipmentType(equipment);
+    //     if (equipmentType !== "Augmentation") {
+    //         numUpgrades++;
+    //     } else {
+    //         numAugments++;
+    //     }
+    // }
+
+    // ns.print(`Num upgrades: ${numUpgrades}`);
+    // ns.print(`Num augments: ${numAugments}`);
+
+    // const earnRateThisNode = ns.getMoneySources().sinceStart.total / (ns.getTimeSinceLastAug() / 1000);
 
     // ns.print(`Earn rate this node: ${ns.formatNumber(earnRateThisNode)}`);
     // const { bestConfig } = calculateBestSleeveStats(ns, true, ns.hacknet.getHashUpgradeLevel("Improve Gym Training"));

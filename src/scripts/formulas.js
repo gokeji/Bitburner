@@ -253,7 +253,7 @@ export function getBladeburnerIntGain(assassinationLevel, hyperdriveLevel, succe
 }
 
 export function getDifficulty(level) {
-    const baseDifficulty = 1500;
+    const baseDifficulty = 1538.0845012481745; // 1500
     const difficultyFac = 1.06;
     const difficulty = baseDifficulty * Math.pow(difficultyFac, level - 1);
     if (isNaN(difficulty)) {
