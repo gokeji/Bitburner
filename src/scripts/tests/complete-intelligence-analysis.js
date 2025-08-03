@@ -1,4 +1,4 @@
-import { getBladeburnerIntGain, getSuccessesNeededForNextLevel, calculateSkill, calculateExp } from "./formulas.js";
+import { getBladeburnerIntGain, getSuccessesNeededForNextLevel, calculateSkill, calculateExp } from "../formulas.js";
 
 /**
  * Complete intelligence farming analysis including:
