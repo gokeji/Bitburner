@@ -28,6 +28,9 @@ class CompleteBladeburnerModel {
         // Hyperdrive skill constants
         this.hyperdriveBaseCost = 1;
         this.hyperdriveCostInc = 2.5;
+
+        // Data collection for plotting
+        this.plotData = [];
     }
 
     /**
@@ -109,6 +112,17 @@ class CompleteBladeburnerModel {
         if (this.assassinationSuccesses >= successesNeeded) {
             this.assassinationLevel++;
         }
+
+        // Collect data for plotting (every 1000 operations to avoid too much data)
+        if (this.totalOperations % 1000 === 0) {
+            this.plotData.push({
+                operations: this.totalOperations,
+                intLevel: this.intLevel,
+                assassinationLevel: this.assassinationLevel,
+                hyperdriveLevel: this.hyperdriveLevel,
+                intExp: this.intExp,
+            });
+        }
     }
 
     formatLargeNumber(number, decimals = 3) {
@@ -163,6 +177,72 @@ class CompleteBladeburnerModel {
             }
         }
     }
+
+    /**
+     * Generate CSV data for plotting
+     */
+    generatePlotData() {
+        const csvHeader = "Operations,IntLevel,AssassinationLevel,HyperdriveLevel,IntExp\n";
+        const csvData = this.plotData
+            .map(
+                (point) =>
+                    `${point.operations},${point.intLevel},${point.assassinationLevel},${point.hyperdriveLevel},${point.intExp}`,
+            )
+            .join("\n");
+
+        return csvHeader + csvData;
+    }
+
+    /**
+     * Create a simple ASCII plot of intelligence level vs operations
+     */
+    createAsciiPlot() {
+        if (this.plotData.length === 0) {
+            console.log("No plot data available");
+            return;
+        }
+
+        const width = 80;
+        const height = 20;
+        const plot = Array(height)
+            .fill()
+            .map(() => Array(width).fill(" "));
+
+        // Find min/max values
+        const minOps = this.plotData[0].operations;
+        const maxOps = this.plotData[this.plotData.length - 1].operations;
+        const minLevel = Math.min(...this.plotData.map((p) => p.intLevel));
+        const maxLevel = Math.max(...this.plotData.map((p) => p.intLevel));
+
+        // Plot points
+        this.plotData.forEach((point) => {
+            const x = Math.floor(((point.operations - minOps) / (maxOps - minOps)) * (width - 1));
+            const y = height - 1 - Math.floor(((point.intLevel - minLevel) / (maxLevel - minLevel)) * (height - 1));
+
+            if (x >= 0 && x < width && y >= 0 && y < height) {
+                plot[y][x] = "*";
+            }
+        });
+
+        // Add labels
+        console.log(`\nIntelligence Level vs Operations (${minOps.toLocaleString()} - ${maxOps.toLocaleString()} ops)`);
+        console.log(`Level range: ${minLevel.toLocaleString()} - ${maxLevel.toLocaleString()}\n`);
+
+        // Draw the plot
+        plot.forEach((row, i) => {
+            const level = maxLevel - (i / (height - 1)) * (maxLevel - minLevel);
+            const levelLabel = i === 0 ? maxLevel.toLocaleString() : i === height - 1 ? minLevel.toLocaleString() : "";
+            console.log(`${levelLabel.padStart(8)} |${row.join("")}|`);
+        });
+
+        // Add x-axis labels
+        const xLabels = [];
+        for (let i = 0; i < width; i += width / 4) {
+            const ops = minOps + (i / (width - 1)) * (maxOps - minOps);
+            xLabels.push(ops.toLocaleString());
+        }
+        console.log(`         |${xLabels.map((label, i) => label.padStart(width / 4)).join("")}|`);
+    }
 }
 
 // Run the analysis
@@ -174,6 +254,21 @@ async function main(operationCount = 100000) {
 
     // Simulate specified number of operations
     model.simulateOperations(operationCount);
+
+    // Generate plot data and create ASCII plot
+    console.log("\n" + "=".repeat(60));
+    console.log("PLOTTING INTELLIGENCE LEVEL PROGRESSION");
+    console.log("=".repeat(60));
+
+    model.createAsciiPlot();
+
+    // Also save CSV data for external plotting
+    const csvData = model.generatePlotData();
+    const fs = await import("fs");
+    const filename = `int-progression-${operationCount}.csv`;
+    fs.writeFileSync(filename, csvData);
+    console.log(`\nCSV data saved to: ${filename}`);
+    console.log("You can use this file with external plotting tools like Python matplotlib, R, or Excel");
 }
 
 // Export for testing
