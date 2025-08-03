@@ -227,8 +227,6 @@ export function getBladeburnerIntGain(assassinationLevel, hyperdriveLevel, succe
         Math.pow(difficulty, BladeburnerConstants.DiffMultExponentialFactor) +
         difficulty / BladeburnerConstants.DiffMultLinearFactor;
 
-    console.log("difficultyMult", difficultyMult);
-
     const effAgility = 800e6 * 1461;
     const effDexterity = 800e6 * 1461;
 
