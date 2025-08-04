@@ -4,25 +4,6 @@ import { findStatsForCrimeSuccessChance } from "./automate-tasks.js";
 
 /** @param {NS} ns **/
 export async function main(ns) {
-    ns.print(ns.formatNumber(ns.bladeburner.getSkillUpgradeCost("Hyperdrive", 1)));
-
-    const skillPoints = ns.bladeburner.getSkillPoints();
-    const currentLevel = ns.bladeburner.getSkillLevel("Hyperdrive");
-    const maxHyperdrives = ns.formulas.bladeburner.skillMaxUpgradeCount("Hyperdrive", currentLevel, skillPoints);
-    ns.print(maxHyperdrives);
-    // const evasiveSystemLevel = ns.bladeburner.getSkillLevel("Evasive System");
-
-    // // Buy half of current level of Evasive System
-    // const numToBuy = Math.floor(evasiveSystemLevel / 2);
-    // ns.print(`Current Level: ${evasiveSystemLevel}`);
-    // ns.print(`Num to buy: ${numToBuy}`);
-
-    // // Buy half of current level of Evasive System
-    // ns.bladeburner.upgradeSkill("Evasive System", numToBuy);
-
-    // // Print new level
-    // ns.print(`New Level: ${ns.bladeburner.getSkillLevel("Evasive System")}`);
-
     // const locations = ns.infiltration.getPossibleLocations();
     // for (const location of locations) {
     //     ns.print(location.name);
@@ -30,47 +11,46 @@ export async function main(ns) {
     // const infiltration = ns.infiltration.getInfiltration("AeroCorp");
     // ns.print(infiltration);
 
-    // ns.print("INT: " + ns.getPlayer().skills.intelligence);
-    // ns.print(`INT Exp: ${ns.getPlayer().exp.intelligence}`);
-    // const gangEquipments = ns.gang.getEquipmentNames();
-    // let numUpgrades = 0;
-    // let numAugments = 0;
+    const mockIntelligence = 3000;
+    const { bestConfig } = calculateBestSleeveStats(
+        ns,
+        false,
+        ns.hacknet.getHashUpgradeLevel("Improve Gym Training"),
+        mockIntelligence,
+    );
 
-    // for (const equipment of gangEquipments) {
-    //     const equipmentType = ns.gang.getEquipmentType(equipment);
-    //     if (equipmentType !== "Augmentation") {
-    //         numUpgrades++;
-    //     } else {
-    //         numAugments++;
-    //     }
-    // }
+    // Print best configuration
+    ns.print("\n=== BEST CONFIGURATION ===");
+    ns.print(`Intelligence: ${mockIntelligence}`);
+    ns.print(`Shock Value: ${bestConfig.shockValue}`);
+    ns.print(`Crime Success Chance: ${bestConfig.crimeChance}`);
+    ns.print(`Total Time: ${formatTime(bestConfig.totalTime)}`);
+    ns.print(JSON.stringify(bestConfig.stats, null, 2));
+    ns.print(`Breakdown:`);
+    ns.print(`  - Shock reduction: ${formatTime(bestConfig.shockTime)}`);
+    ns.print(`  - Combat training: ${formatTime(bestConfig.expTime)}`);
+    ns.print(`  - Training exp gain rate: ${bestConfig.trainingExpGainRate}`);
+    ns.print(`  - Shock reduction during exp training: ${bestConfig.shockReductionDuringExpTraining}`);
+    ns.print(`  - Final exp gain rate: ${bestConfig.finalExpGainRate}`);
+    ns.print(`  - Sync bonus from other sleeves: ${bestConfig.syncBonusFromOtherSleeves}`);
+    ns.print(`  - Karma farming: ${formatTime(bestConfig.karmaTime)}`);
 
-    // ns.print(`Num upgrades: ${numUpgrades}`);
-    // ns.print(`Num augments: ${numAugments}`);
+    // const sleeve = ns.sleeve.getSleeve(0);
+    // sleeve.skills.strength = 0;
+    // sleeve.skills.defense = 0;
+    // sleeve.skills.dexterity = 0;
+    // sleeve.skills.agility = 0;
+    // sleeve.mults.agility = 1;
+    // sleeve.mults.dexterity = 1;
+    // sleeve.mults.defense = 1;
+    // sleeve.mults.strength = 1;
+    // ns.print(JSON.stringify(findStatsForCrimeSuccessChance(ns, "Homicide", 0.55, sleeve), null, 2));
+}
 
-    // const earnRateThisNode = ns.getMoneySources().sinceStart.total / (ns.getTimeSinceLastAug() / 1000);
-
-    // ns.print(`Earn rate this node: ${ns.formatNumber(earnRateThisNode)}`);
-    // const { bestConfig } = calculateBestSleeveStats(ns, true, ns.hacknet.getHashUpgradeLevel("Improve Gym Training"));
-
-    // // Print best configuration
-    // ns.print("\n=== BEST CONFIGURATION ===");
-    // ns.print(JSON.stringify(bestConfig.stats, null, 2));
-    // ns.print(`Shock Value: ${bestConfig.shockValue}`);
-    // ns.print(`Crime Success Chance: ${bestConfig.crimeChance}`);
-    // ns.print(`Total Time: ${bestConfig.totalTime} seconds (${(bestConfig.totalTime / 3600).toFixed(2)} hours)`);
-    // ns.print(`Breakdown:`);
-    // ns.print(
-    //     `  - Shock reduction: ${bestConfig.shockTime} seconds (${(bestConfig.shockTime / 3600).toFixed(2)} hours)`,
-    // );
-    // ns.print(`  - Combat training: ${bestConfig.expTime} seconds (${(bestConfig.expTime / 3600).toFixed(2)} hours)`);
-    // ns.print(`  - Training exp gain rate: ${bestConfig.trainingExpGainRate}`);
-    // ns.print(`  - Shock reduction during exp training: ${bestConfig.shockReductionDuringExpTraining}`);
-    // ns.print(`  - Final exp gain rate: ${bestConfig.finalExpGainRate}`);
-    // ns.print(`  - Sync bonus from other sleeves: ${bestConfig.syncBonusFromOtherSleeves}`);
-    // ns.print(`  - Karma farming: ${bestConfig.karmaTime} seconds (${(bestConfig.karmaTime / 3600).toFixed(2)} hours)`);
-
-    // ns.print(JSON.stringify(findStatsForCrimeSuccessChance(ns, "Homicide", 0.55, ns.sleeve.getSleeve(0)), null, 2));
+function formatTime(seconds) {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    return `${hours} h ${minutes} m (${(seconds / 3600).toFixed(2)}h)`;
 }
 
 export const MaxFavor = 35331;

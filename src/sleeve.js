@@ -773,9 +773,10 @@ async function calculateCrimeChance(ns, sleeve, crimeName) {
  * @param {boolean} useCurrentStats
  * @returns {Object}
  */
-export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgradesBought) {
+export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgradesBought, mockIntelligence = 420) {
     const numGymHashesBought = 10;
     const withPlayerHomicide = true;
+    const effIntelligence = useCurrentStats ? ns.sleeve.getSleeve(0).skills.intelligence : mockIntelligence;
 
     let bestTime = Infinity;
     let bestConfig = null;
@@ -785,7 +786,7 @@ export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgrades
     const startingCrimeChance = useCurrentStats
         ? ns.formulas.work.crimeSuccessChance(ns.sleeve.getSleeve(0), "Homicide")
         : 0.2;
-    const intelligenceBonus = calculateIntelligenceBonus(ns.sleeve.getSleeve(0).skills.intelligence, 0.75);
+    const intelligenceBonus = calculateIntelligenceBonus(effIntelligence, 0.75);
 
     // Test shock values from 0.97 to 0.9
     for (
@@ -797,8 +798,7 @@ export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgrades
         // Test crime success chances from 0.2 to 0.5 in 0.01 increments
         // Use integer-based loop to avoid floating point precision issues
         const minChanceInt = Math.floor(startingCrimeChance * 100);
-        const maxChanceInt = Math.min(Math.round((startingCrimeChance + 0.4) * 100), 100);
-        for (let chanceInt = minChanceInt; chanceInt <= maxChanceInt; chanceInt++) {
+        for (let chanceInt = minChanceInt; chanceInt <= 100; chanceInt++) {
             const minCrimeSuccessChance = chanceInt / 100;
             // 1. Shock value
             const shockReductionRate = 0.0003 * 5 * intelligenceBonus; // Per second, 5 ticks per second
@@ -830,6 +830,12 @@ export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgrades
                 player.skills.defense = 0;
                 player.skills.dexterity = 0;
                 player.skills.agility = 0;
+
+                player.mults.strength = 1;
+                player.mults.defense = 1;
+                player.mults.dexterity = 1;
+                player.mults.agility = 1;
+                player.skills.intelligence = effIntelligence;
             }
             const stats = findStatsForCrimeSuccessChance(ns, "Homicide", minCrimeSuccessChance, player);
 
@@ -924,11 +930,11 @@ export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgrades
                 totalTime: totalTime.toFixed(2),
                 shockTime: shockReductionTime.toFixed(2),
                 expTime: timeTraining.toFixed(2),
+                karmaTime: timeToReachKarma.toFixed(2),
                 trainingExpGainRate: expGainRate.toFixed(2),
                 shockReductionDuringExpTraining: shockReductionDuringExpTraining.toFixed(2),
                 finalExpGainRate: maxExpGainRate.toFixed(2),
                 syncBonusFromOtherSleeves,
-                karmaTime: timeToReachKarma.toFixed(2),
             };
 
             results.push(config);
