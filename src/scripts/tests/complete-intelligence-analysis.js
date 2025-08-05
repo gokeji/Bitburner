@@ -246,7 +246,7 @@ class CompleteBladeburnerModel {
 }
 
 // Run the analysis
-async function main(operationCount = 100000) {
+async function main(operationCount = 100000, shouldSaveCsv = false) {
     console.log("=== COMPLETE BITBURNER INTELLIGENCE FARMING ANALYSIS ===");
     console.log("Including rank rewards, skill points, and hyperdrive upgrades\n");
 
@@ -262,13 +262,15 @@ async function main(operationCount = 100000) {
 
     model.createAsciiPlot();
 
-    // Also save CSV data for external plotting
-    const csvData = model.generatePlotData();
-    const fs = await import("fs");
-    const filename = `int-progression-${operationCount}.csv`;
-    fs.writeFileSync(filename, csvData);
-    console.log(`\nCSV data saved to: ${filename}`);
-    console.log("You can use this file with external plotting tools like Python matplotlib, R, or Excel");
+    if (shouldSaveCsv) {
+        // Also save CSV data for external plotting
+        const csvData = model.generatePlotData();
+        const fs = await import("fs");
+        const filename = `int-progression-${operationCount}.csv`;
+        fs.writeFileSync(filename, csvData);
+        console.log(`\nCSV data saved to: ${filename}`);
+        console.log("You can use this file with external plotting tools like Python matplotlib, R, or Excel");
+    }
 }
 
 // Export for testing
@@ -277,5 +279,6 @@ export { CompleteBladeburnerModel };
 // Run if executed directly
 if (typeof process !== "undefined" && import.meta.url === `file://${process.argv[1]}`) {
     const operationCount = process.argv[2] ? parseInt(process.argv[2]) : 100000;
-    main(operationCount).catch(console.error);
+    const shouldSaveCsv = process.argv[3] ? process.argv[3] === "true" : false;
+    main(operationCount, shouldSaveCsv).catch(console.error);
 }

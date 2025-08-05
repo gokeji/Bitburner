@@ -36,20 +36,25 @@ export async function main(ns) {
         let maxHyperdrives = ns.formulas.bladeburner.skillMaxUpgradeCount("Hyperdrive", currentLevel, skillPoints);
 
         // At some point the level increase will be so small that it's not representable with floating point precision, so we need to make sure the skill upgrade cost is not 0
-        if (maxHyperdrives > 0 && ns.bladeburner.getSkillUpgradeCost("Hyperdrive", maxHyperdrives) > 0) {
-            while (ns.bladeburner.getSkillUpgradeCost("Hyperdrive", maxHyperdrives) > skillPoints) {
-                maxHyperdrives--;
+        if (maxHyperdrives > 0 && maxHyperdrives / currentLevel > Number.EPSILON * 2) {
+            let numReduced = 0;
+            while (
+                ns.bladeburner.getSkillUpgradeCost("Hyperdrive", maxHyperdrives) > skillPoints &&
+                numReduced < 1000
+            ) {
+                maxHyperdrives = Math.floor(maxHyperdrives - Number.EPSILON * currentLevel);
+                numReduced++;
             }
 
             const success = ns.bladeburner.upgradeSkill("Hyperdrive", maxHyperdrives);
 
             if (success) {
                 ns.print(
-                    `${new Date().toLocaleTimeString()} Bought ${ns.formatNumber(maxHyperdrives)} hyperdrives, final level: ${ns.formatNumber(ns.bladeburner.getSkillLevel("Hyperdrive"))}`,
+                    `${new Date().toLocaleTimeString()} Bought ${ns.formatNumber(maxHyperdrives)} hyperdrives, final level: ${ns.formatNumber(ns.bladeburner.getSkillLevel("Hyperdrive"))}, num reduced: ${ns.formatNumber(numReduced)}`,
                 );
             } else {
                 ns.print(
-                    `${new Date().toLocaleTimeString()} Failed to buy ${ns.formatNumber(maxHyperdrives)} hyperdrives, final level: ${ns.formatNumber(ns.bladeburner.getSkillLevel("Hyperdrive"))}`,
+                    `${new Date().toLocaleTimeString()} Failed to buy ${ns.formatNumber(maxHyperdrives)} hyperdrives, skill level: ${ns.formatNumber(currentLevel)}, skill points: ${ns.formatNumber(skillPoints)}, cost: ${ns.formatNumber(ns.bladeburner.getSkillUpgradeCost("Hyperdrive", maxHyperdrives))}, num reduced: ${ns.formatNumber(numReduced)}`,
                 );
             }
         }
@@ -153,8 +158,12 @@ function increaseEvasiveSystemLevel(ns) {
 
     if (success) {
         // Print new level
-        ns.print(`New Level: ${ns.bladeburner.getSkillLevel("Evasive System")}`);
+        ns.print(
+            `${new Date().toLocaleTimeString()} Upgraded Evasive System by ${ns.formatNumber(numToBuy)} to level ${ns.formatNumber(
+                ns.bladeburner.getSkillLevel("Evasive System"),
+            )}`,
+        );
     } else {
-        ns.print(`Failed to increase Evasive System level`);
+        ns.print(`${new Date().toLocaleTimeString()} Failed to increase Evasive System level`);
     }
 }

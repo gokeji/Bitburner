@@ -11,7 +11,7 @@ export async function main(ns) {
     // const infiltration = ns.infiltration.getInfiltration("AeroCorp");
     // ns.print(infiltration);
 
-    const mockIntelligence = 3000;
+    const mockIntelligence = 6000;
     const { bestConfig } = calculateBestSleeveStats(
         ns,
         false,
@@ -23,7 +23,7 @@ export async function main(ns) {
     ns.print("\n=== BEST CONFIGURATION ===");
     ns.print(`Intelligence: ${mockIntelligence}`);
     ns.print(`Shock Value: ${bestConfig.shockValue}`);
-    ns.print(`Crime Success Chance: ${bestConfig.crimeChance}`);
+    ns.print(`Crime Success Chance: ${ns.formatPercent(bestConfig.crimeChance)}`);
     ns.print(`Total Time: ${formatTime(bestConfig.totalTime)}`);
     ns.print(JSON.stringify(bestConfig.stats, null, 2));
     ns.print(`Breakdown:`);
@@ -44,7 +44,9 @@ export async function main(ns) {
     // sleeve.mults.dexterity = 1;
     // sleeve.mults.defense = 1;
     // sleeve.mults.strength = 1;
-    // ns.print(JSON.stringify(findStatsForCrimeSuccessChance(ns, "Homicide", 0.55, sleeve), null, 2));
+    // sleeve.mults.crime_success = 1;
+    // sleeve.skills.intelligence = 9000;
+    // ns.print(JSON.stringify(findStatsForCrimeSuccessChance(ns, "Homicide", 1, sleeve), null, 2));
 }
 
 function formatTime(seconds) {

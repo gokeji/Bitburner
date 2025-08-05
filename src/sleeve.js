@@ -774,7 +774,7 @@ async function calculateCrimeChance(ns, sleeve, crimeName) {
  * @returns {Object}
  */
 export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgradesBought, mockIntelligence = 420) {
-    const numGymHashesBought = 10;
+    const numGymHashesBought = 20;
     const withPlayerHomicide = true;
     const effIntelligence = useCurrentStats ? ns.sleeve.getSleeve(0).skills.intelligence : mockIntelligence;
 
@@ -835,6 +835,7 @@ export function calculateBestSleeveStats(ns, useCurrentStats, currentGymUpgrades
                 player.mults.defense = 1;
                 player.mults.dexterity = 1;
                 player.mults.agility = 1;
+                player.mults.crime_success = 1;
                 player.skills.intelligence = effIntelligence;
             }
             const stats = findStatsForCrimeSuccessChance(ns, "Homicide", minCrimeSuccessChance, player);
