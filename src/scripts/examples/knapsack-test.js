@@ -3,7 +3,7 @@
 // import { testConfigs2 } from "../examples/testServerHackConfigurations2.js";
 // import { testConfigs3 } from "../examples/testServerHackConfigurations3.js";
 // import { testConfig4 } from "../examples/testServerHackConfigurations4.js";
-import { testConfig5 } from "../examples/testServerHackConfigurations5.js";
+import { testConfig5 } from "./testServerHackConfigurations5.js";
 
 /**
  * Fast greedy solution for the knapsack problem.
