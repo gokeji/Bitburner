@@ -1,4 +1,4 @@
-import { NetscriptExtension, parseAutoCompleteDataFromDefaultConfig } from "libs/NetscriptExtension";
+import { NetscriptExtension, parseAutoCompleteDataFromDefaultConfig } from "./libs/NetscriptExtension";
 import {
     CityName,
     CorpState,

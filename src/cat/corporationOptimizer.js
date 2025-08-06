@@ -1,4 +1,4 @@
-import * as comlink from "libs/comlink";
+import * as comlink from "./libs/comlink";
 import { getOptimalBoostMaterialQuantities, getProductMarkup, isProduct, Logger } from "./corporationUtils";
 import {
     CityName,
@@ -22,10 +22,10 @@ import {
     getWarehouseSize,
     UpgradeName,
 } from "./corporationFormulas";
-import { CorpMaterialsData } from "data/CorpMaterialsData";
-import { CorpUpgradesData } from "data/CorpUpgradesData";
-import { PriorityQueue } from "libs/priorityQueue";
-import { scaleValueToRange } from "libs/utils";
+import { CorpMaterialsData } from "./data/CorpMaterialsData";
+import { CorpUpgradesData } from "./data/CorpUpgradesData";
+import { PriorityQueue } from "./libs/priorityQueue";
+import { scaleValueToRange } from "./libs/utils";
 var BenchmarkType = /* @__PURE__ */ ((BenchmarkType2) => {
     BenchmarkType2[(BenchmarkType2["STORAGE_FACTORY"] = 0)] = "STORAGE_FACTORY";
     BenchmarkType2[(BenchmarkType2["WILSON_ADVERT"] = 1)] = "WILSON_ADVERT";
