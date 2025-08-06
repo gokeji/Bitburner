@@ -9,6 +9,6 @@ const fileSyncJson = JSON.parse(readFileSync(join(__dirname, "../filesync.json")
 const dist = fileSyncJson["scriptsFolder"];
 const src = "src";
 const allowedFiletypes = fileSyncJson["allowedFiletypes"];
-const excludedFiles = ["scripts/examples/"]; // Hardcoded exclusion since filesync.json doesn't support it
+const excludedFiles = ["scripts/examples/", "excluded/"]; // Hardcoded exclusion since filesync.json doesn't support it
 
 export { dist, src, allowedFiletypes, excludedFiles };
