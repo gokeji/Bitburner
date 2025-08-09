@@ -49,9 +49,9 @@ export async function main(ns) {
             const success = ns.bladeburner.upgradeSkill("Hyperdrive", maxHyperdrives);
 
             if (success) {
-                ns.print(
-                    `${new Date().toLocaleTimeString()} Bought ${ns.formatNumber(maxHyperdrives)} hyperdrives, final level: ${ns.formatNumber(ns.bladeburner.getSkillLevel("Hyperdrive"))}, num reduced: ${ns.formatNumber(numReduced)}`,
-                );
+                // ns.print(
+                //     `${new Date().toLocaleTimeString()} Bought ${ns.formatNumber(maxHyperdrives)} hyperdrives, final level: ${ns.formatNumber(ns.bladeburner.getSkillLevel("Hyperdrive"))}, num reduced: ${ns.formatNumber(numReduced)}`,
+                // );
             } else {
                 ns.print(
                     `${new Date().toLocaleTimeString()} Failed to buy ${ns.formatNumber(maxHyperdrives)} hyperdrives, skill level: ${ns.formatNumber(currentLevel)}, skill points: ${ns.formatNumber(skillPoints)}, cost: ${ns.formatNumber(ns.bladeburner.getSkillUpgradeCost("Hyperdrive", maxHyperdrives))}, num reduced: ${ns.formatNumber(numReduced)}`,
@@ -69,7 +69,7 @@ export async function main(ns) {
             ns.bladeburner.switchCity(action.city);
             const success = ns.bladeburner.startAction(action.type, action.action);
             ns.print(
-                `${new Date().toLocaleTimeString()} Starting ${action.action} in ${action.city} (${success ? "success" : "failed"})`,
+                `${new Date().toLocaleTimeString()} Starting ${action.action} in ${action.city} (${success ? "success" : "failed"}) Chaos: ${ns.formatNumber(ns.bladeburner.getCityChaos(action.city))}, Count: ${ns.formatNumber(ns.bladeburner.getActionSuccesses("Operations", "Assassination"))}`,
             );
         }
 
@@ -117,7 +117,7 @@ function determineAction(ns) {
     )[0];
     const assassinationActionsRemaining = ns.bladeburner.getActionCountRemaining("Operations", "Assassination");
 
-    if (assassinationMinSuccessChance < 1 || isRunningDiplomacy) {
+    if (assassinationActionsRemaining > 1000 || isRunningDiplomacy) {
         isRunningDiplomacy = true;
 
         if (cityInfo.find((city) => city.name === cityWithHighestChaos).chaos > 50) {
